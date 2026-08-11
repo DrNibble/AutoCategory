@@ -692,7 +692,6 @@ local function updateHook(zo_inventory)
     pendingUpdates = SF.safeClearTable(pendingUpdates)
 
     rebuildScrollData(zo_inventory)
-
 end
 
 
@@ -746,7 +745,7 @@ function AutoCategory.HookKeyboardMode()
 	AutoCategory.evtmgr:registerEvt(EVENT_STACKED_ALL_ITEMS_IN_BAG, onStackItems)
 
     pendingUpdates = SF.safeClearTable(pendingUpdates)
-    callLater = SF.CallLater:NewSingle(updateHook, 50)
+    callLater = SF.CallLater:NewSingle(updateHook, 50):Start()
 
 end
 

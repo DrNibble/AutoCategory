@@ -44,7 +44,9 @@ function AutoCategory.isValidRule(ruledef)
 end
 
 -- ----------------------------------------------------------
-
+AutoCategory.RuleMetatable = {
+    __index = AutoCategory.RuleApiMixin,
+}
 -- factory for creating new rules
 -- minimum required contents = name. description, rule, tag
 function AutoCategory.CreateRule(name, tag)
@@ -54,7 +56,7 @@ function AutoCategory.CreateRule(name, tag)
 		rule = "true",
 		tag = tag,
 	}
-    setmetatable(rule,{__index = AutoCategory.RuleApiMixin})
+    setmetatable(rule, AutoCategory.RuleMetatable)
 	return rule
 end
 
@@ -96,7 +98,7 @@ AutoCategory.RuleApiMixin = {
 
 	--determine if a rule is marked as pre-defined
 	isPredefined = function(self)
-	    return self.pred and self.pred ==1
+	    return self.pred == 1
 	end,
 
 	-- return the description if the rule has one, otherwise return the name
@@ -152,9 +154,9 @@ AutoCategory.RuleApiMixin = {
 
 			self:clearError()
 			local rkey = self:key()
-            if not rkey then 
+            if rkey == nil or rkey == "" then 
                 self:setError(true, "Unable to generate rule key")
-                return rule.err
+                return self.err
             end
             
 			compiledRules[rkey] = nil
@@ -170,6 +172,7 @@ AutoCategory.RuleApiMixin = {
 				self:setError(true, err)
 				return err
 			end
+			setfenv( compiledfunc, AutoCategory.Environment )
 			compiledRules[rkey] = compiledfunc
 			return ""
 		end,

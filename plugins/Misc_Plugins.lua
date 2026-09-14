@@ -318,16 +318,13 @@ end
 
 --Added @Altorus13 120125
 function AutoCategory_MiscAddons.RuleFunc.IsCraftable(...)
-	local fn = "iscraftable"
 	local itemLink =  AC.checking.ItemLink  --getCurrentItemLink()
 	local itemType = GetItemLinkItemType(itemLink)
 	
 	if itemType ~= ITEMTYPE_RECIPE then return false end
 	for tradeskillIndex = 1, GetItemLinkRecipeNumTradeskillRequirements(itemLink) do
 		local tradeskill, levelReq = GetItemLinkRecipeTradeskillRequirement(itemLink, tradeskillIndex)
-		if GetNonCombatBonus(GetNonCombatBonusLevelTypeForTradeskillType(tradeskill)) < levelReq then
-			return false
-		end
+		if GetNonCombatBonus(GetNonCombatBonusLevelTypeForTradeskillType(tradeskill)) < levelReq then return false end
 	end
 	local requiredQuality = GetItemLinkRecipeQualityRequirement(itemLink)
 	

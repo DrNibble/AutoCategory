@@ -322,21 +322,17 @@ function AutoCategory_MiscAddons.RuleFunc.IsCraftable(...)
 	local itemLink =  AC.checking.ItemLink  --getCurrentItemLink()
 	local itemType = GetItemLinkItemType(itemLink)
 	
-	if itemType == ITEMTYPE_RECIPE then
-		for tradeskillIndex = 1, GetItemLinkRecipeNumTradeskillRequirements(itemLink) do
-			local tradeskill, levelReq = GetItemLinkRecipeTradeskillRequirement(itemLink, tradeskillIndex)
-			if GetNonCombatBonus(GetNonCombatBonusLevelTypeForTradeskillType(tradeskill)) < levelReq then
-				return false
-			end
-		end
-		local requiredQuality = GetItemLinkRecipeQualityRequirement(itemLink)
-		
-		if requiredQuality > 0 and requiredQuality > GetNonCombatBonus(NON_COMBAT_BONUS_PROVISIONING_RARITY_LEVEL) then
+	if itemType ~= ITEMTYPE_RECIPE then return false end
+	for tradeskillIndex = 1, GetItemLinkRecipeNumTradeskillRequirements(itemLink) do
+		local tradeskill, levelReq = GetItemLinkRecipeTradeskillRequirement(itemLink, tradeskillIndex)
+		if GetNonCombatBonus(GetNonCombatBonusLevelTypeForTradeskillType(tradeskill)) < levelReq then
 			return false
 		end
-		return true
 	end
-	return false
+	local requiredQuality = GetItemLinkRecipeQualityRequirement(itemLink)
+	
+	if requiredQuality > 0 and requiredQuality > GetNonCombatBonus(NON_COMBAT_BONUS_PROVISIONING_RARITY_LEVEL) then	return false end
+	return true
 end
 
 -- Register this plugin with AutoCategory to be initialized and used when AutoCategory loads.

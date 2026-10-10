@@ -1,3 +1,29 @@
+[COLOR="DeepSkyBlue"] 4.6.20 (160)[/COLOR]:
+[LIST]
+[*] Corrected the definition of Lower Level to properly include level 1 gear.
+[*] Finished revision of collapsed categories (at least for now :) )
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.19 (159)[/COLOR]:
+[LIST]
+[*] Revised storage of collapse/expand marks so that they are thrown away when the category leaves the inventory/banks/etc. When new categories are added, they are added as collapsed. "Expand All" and "Collapse All" still work. :-)
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.18 (158)[/COLOR]:
+[LIST]
+[*] Fixed "Collapse All" so that it works again.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.17 (157)[/COLOR]:
+[LIST]
+[*] API bump
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.16 (156)[/COLOR]:
+[LIST]
+[*] Fixed the problems with empty Tags dropdowns in the Settings window. Reported by Cambio.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.15 (155)[/COLOR]:
 [LIST]
 [*] Fixed bag priority sort errors for the Display Order List.

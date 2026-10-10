@@ -157,7 +157,7 @@ require "test.Misc_test"
 require "test.PluginAPI_test"
 require "test.RuleApi_Test"
 require "test.RuleList_Test"
-require "test.Collapse_Test"
+require "test.NewCollapse_Test"
 
 -- --------------------------------------------------------------------------
 function TestAC_runAll()

@@ -11,6 +11,7 @@ local UV_DECON = 882
 require "LibSFUtils_Global"
 require "SFUtils_Color"
 require "LibSFUtils"
+require "SFUtils_Strings"
 require "SFUtils_Tables"
 require "SFUtils_Events"
 require "SFUtils_HookManager"
@@ -27,6 +28,7 @@ require "classes.RuleList"
 require "classes.RuleApi"
 require "classes.BagRuleApi"
 require "classes.BaseUI"
+require "AC_Collapsed"
 require "AutoCategory"
 
 local AutoCat = AutoCategory
@@ -36,7 +38,7 @@ local ZO_PlayerInventory
 local saved, cache
 
 local moduleName = "Category"
-local mn, moduleName, class
+local mn, class
 
 local function testIsCategoryInit()
     ZO_PlayerInventory = {}
@@ -68,7 +70,6 @@ end
 local function testIsCategoryReset()
     ZO_PlayerInventory = {}
     moduleName = ""
-
 end
 
 -- ============================================================================
@@ -80,26 +81,36 @@ local function resetCollapseTestState()
 end
 
 
-function testIsCategoryCollapsed()
+local function testIsCategoryCollapsed()
     TK.printSuite("Collapse", "IsCategoryCollapsed")
     resetCollapseTestState()
 
-    TK.assertFalse(AutoCat.IsCategoryCollapsed(1, "Test"),
+    local bagId = BAG_BACKPACK
+
+    TK.assertFalse(AutoCat.IsCategoryCollapsed(bagId, "Missing"),
         "missing bag returns false")
 
-    AutoCat.saved.collapses[1] = {}
+    AutoCat.UpdateCategoryState(bagId, {Test = true,})
 
-    TK.assertFalse(AutoCat.IsCategoryCollapsed(1, "Test"),
-        "missing category returns false")
+    TK.assertTrue(AutoCat.categoryState[bagId] ~= nil,
+        "Created entry for Test")
+    TK.assertFalse(AutoCat.categoryState[bagId].Test,
+        "Test initially expanded")
 
-    AutoCat.saved.collapses[1].Test = true
+    AutoCat.SetCategoryCollapsed(bagId, "Test", true)
 
-    TK.assertTrue(AutoCat.IsCategoryCollapsed(1, "Test"),
+    TK.assertTrue(AutoCat.categoryState[bagId].Test,
+        "runtime Test state is true")
+    TK.assertTrue(AutoCat.saved.collapses[bagId].Test,
+        "saved Test state is true")
+    TK.assertTrue(AutoCat.IsCategoryCollapsed(bagId, "Test"),
         "collapsed category returns true")
 
-    AutoCat.saved.collapses[1].Test = false
+    AutoCat.SetCategoryCollapsed(bagId, "Test", false)
 
-    TK.assertFalse(AutoCat.IsCategoryCollapsed(1, "Test"),
+    TK.assertFalse(AutoCat.categoryState[bagId].Test,
+        "runtime Test state is false")
+    TK.assertFalse(AutoCat.IsCategoryCollapsed(bagId, "Test"),
         "expanded category returns false")
 end
 
@@ -132,8 +143,17 @@ function testSetCategoryCollapsed()
     TK.printSuite("Collapse", "SetCategoryCollapsed")
     resetCollapseTestState()
 
+    -- Establish Test as a currently-present category.
+    AutoCategory.UpdateCategoryState(1, {
+        Test = true,
+    })
+
     AutoCategory.SetCategoryCollapsed(1, "Test", true)
 
+    TK.assertTrue(AutoCategory.categoryState[1] ~= nil,
+        "creates bag runtime state")
+    TK.assertTrue(AutoCategory.categoryState[1].Test == true,
+        "sets runtime state to true")
     TK.assertTrue(AutoCategory.saved.collapses[1] ~= nil,
         "creates bag collapse table")
     TK.assertTrue(AutoCategory.saved.collapses[1].Test == true,
@@ -143,28 +163,39 @@ function testSetCategoryCollapsed()
 
     AutoCategory.SetCategoryCollapsed(1, "Test", false)
 
+    TK.assertFalse(AutoCategory.categoryState[1].Test,
+        "sets runtime state to false")
+
     TK.assertFalse(AutoCategory.IsCategoryCollapsed(1, "Test"),
         "updated false state is readable")
     TK.assertNil(AutoCategory.saved.collapses[1].Test,
-        "does not store nil collapsed state")
-
+        "removes expanded state from SavedVars")
 end
 
+local function testSetCategoryCollapsed_multiple()
+    TK.printSuite("Collapse", "SetCategoryCollapsed multiple")
 
-function testSetCategoryCollapsed_multiple()
-    TK.printSuite("Collapse", "SetCategoryCollapsed_multiple")
     resetCollapseTestState()
 
-    AutoCat.SetCategoryCollapsed(1, "First", true)
-    AutoCat.SetCategoryCollapsed(1, "Second", false)
-    AutoCat.SetCategoryCollapsed(2, "First", true)
+    AutoCat.UpdateCategoryState(BAG_BACKPACK, {
+        Weapons = true,
+        Armor = true,
+        Food = true,
+    })
 
-    TK.assertTrue(AutoCat.IsCategoryCollapsed(1, "First"),
-        "bag 1 First is collapsed")
-    TK.assertFalse(AutoCat.IsCategoryCollapsed(1, "Second"),
-        "bag 1 Second is expanded")
-    TK.assertTrue(AutoCat.IsCategoryCollapsed(2, "First"),
-        "bag 2 First is collapsed")
+    AutoCat.SetCategoryCollapsed(BAG_BACKPACK, "Weapons", true)
+    AutoCat.SetCategoryCollapsed(BAG_BACKPACK, "Armor", true)
+    AutoCat.SetCategoryCollapsed(BAG_BACKPACK, "Food", false)
+
+    local state = AutoCat.categoryState[BAG_BACKPACK]
+    local saved = AutoCat.saved.collapses[BAG_BACKPACK]
+
+    TK.assertTrue(state.Weapons, "multiple: Weapons collapsed")
+    TK.assertTrue(state.Armor,  "multiple: Armor collapsed")
+    TK.assertFalse(state.Food, "multiple: Food expanded")
+    TK.assertTrue(saved.Weapons, "multiple: Weapons saved")
+    TK.assertTrue(saved.Armor, "multiple: Armor saved")
+    TK.assertNil(saved.Food, "multiple: Food not saved when expanded")
 end
 
 
@@ -197,7 +228,7 @@ function testResetCollapse()
         Third = true,
     }
 
-    AutoCat.ResetCollapse(AutoCat.saved)
+    AutoCat.ResetCollapse(AutoCat.saved.collapses)
 
     TK.assertNil( next(AutoCat.saved.collapses[1]),
         "clears bag 1 collapse state")
@@ -218,7 +249,7 @@ function testPruneCollapse()
         Third = true,
     }
 
-    AutoCat.PruneCollapse(AutoCat.saved)
+    AutoCat.PruneCollapse(AutoCat.saved.collapses)
 
     TK.assertNotNil( AutoCat.saved.collapses[1].First,
         "preserves bag 1 First collapse state")
@@ -240,13 +271,106 @@ function testResetCollapse_preservesTables()
 
     AutoCat.saved.collapses[1] = bagcol
 
-    AutoCat.ResetCollapse(AutoCat.saved)
+    AutoCat.ResetCollapse(AutoCat.saved.collapses)
 
     TK.assertTrue(AutoCat.saved.collapses[1] == bagcol,
         "preserves collapse table reference")
     TK.assertNil(next(bagcol),
         "clears collapse table in place")
 end
+
+
+
+---------------------------------------------------------------------------
+-- CollapseAllCategories / ExpandAllCategories
+---------------------------------------------------------------------------
+
+local function testCollapseAllCategories()
+    TK.printSuite("Collapse", "CollapseAllCategories")
+
+    local bagId = BAG_BACKPACK
+
+    AutoCat.saved.appearance["CATEGORY_OTHER_TEXT"] = "Other"
+
+    -- Runtime state contains every currently present category.
+    AutoCat.categoryState = {
+        [bagId] = {
+            ["Weapons"] = false,
+            ["Armor"] = true,
+            ["Food"] = false,
+            ["Other"] = true,
+        },
+
+        [BAG_BANK] = {
+            ["Materials"] = false,
+        },
+    }
+
+    -- SavedVars contains only collapsed categories.
+    AutoCat.saved.collapses = {
+        [bagId] = {
+            ["Armor"] = true,
+            ["Other"] = true,
+        },
+
+        [BAG_BANK] = {},
+    }
+
+    AutoCat:CollapseAllCategories(bagId)
+
+    local state = AutoCat.categoryState[bagId]
+    local saved = AutoCat.saved.collapses[bagId]
+
+    TK.assertTrue(state["Weapons"], "CollapseAll: Weapons collapsed")
+    TK.assertTrue(state["Armor"], "CollapseAll: Armor collapsed")
+    TK.assertTrue(state["Food"], "CollapseAll: Food collapsed")
+    TK.assertTrue(state["Other"], "CollapseAll: Other collapsed")
+
+    -- All currently-present categories should now be persisted.
+    TK.assertTrue(saved["Weapons"], "CollapseAll: Weapons saved")
+    TK.assertTrue(saved["Armor"], "CollapseAll: Armor saved")
+    TK.assertTrue(saved["Food"], "CollapseAll: Food saved")
+    TK.assertTrue(saved["Other"], "CollapseAll: Other saved")
+
+    -- Other bags must not be affected.
+    TK.assertFalse(AutoCat.categoryState[BAG_BANK]["Materials"],
+        "CollapseAll: other (Materials) runtime state unchanged" )
+
+    TK.assertNil(AutoCat.saved.collapses[BAG_BANK]["Materials"],
+        "CollapseAll: other (Materials) saved state unchanged")
+end
+
+
+local function testExpandAllCategories()
+    TK.printSuite("Collapse", "ExpandAllCategories")
+    local bagId = BAG_BACKPACK
+    AutoCat.saved.appearance["CATEGORY_OTHER_TEXT"] = "Other"
+
+    AutoCat.saved.collapses = {
+        [bagId] = {
+            ["Weapons"] = true,
+            ["Armor"] = false,
+            ["Food"] = true,
+        },
+        [BAG_BANK] = {
+            ["Materials"] = true,
+        },
+    }
+
+    AutoCat:ExpandAllCategories(bagId)
+
+    local state = AutoCat.saved.collapses[bagId]
+
+    TK.assertFalse(state["Weapons"], "ExpandAll: Weapons expanded")
+    TK.assertFalse(state["Armor"], "ExpandAll: Armor expanded")
+    TK.assertFalse(state["Food"], "ExpandAll: Food expanded")
+    TK.assertFalse(state["Other"], "ExpandAll: Other expanded")
+
+    -- Other bags must not be affected.
+    TK.assertTrue(AutoCat.saved.collapses[BAG_BANK]["Materials"],
+        "ExpandAll: (Materials) other bag unchanged")
+end
+
 
 -- ============================================================================
 -- Run tests
@@ -263,6 +387,8 @@ function testCollapse_runAll()
     testResetCollapse()
     testResetCollapse_preservesTables()
     testPruneCollapse()
+    testCollapseAllCategories()
+    testExpandAllCategories()
     
     testIsCategoryReset()
 end

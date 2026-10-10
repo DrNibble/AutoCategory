@@ -38,7 +38,7 @@ AC_UI.GeneralMenu = {
             getFunc = function() return AutoCategory.saved.general["SHOW_CATEGORY_SET_TITLE"] end,
             setFunc = function(value)
                 AutoCategory.saved.general["SHOW_CATEGORY_SET_TITLE"] = value
-                AutoCategory.ResetCollapse(AutoCategory.saved)
+                AutoCategory.ResetCollapse(AutoCategory.saved.collapses)
             end,
         },
         AC_UI.divider(),

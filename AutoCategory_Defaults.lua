@@ -37,7 +37,7 @@ AutoCategory.predefinedRules =  {
 		["pred"] = 1,
     },
     {
-        ["rule"] = "level() > 1 and cp() < 160 and type(\"armor\", \"weapon\")",
+        ["rule"] = "level() >= 1 and cp() < 160 and type(\"armor\", \"weapon\")",
         ["tag"] = L(SI_AC_DEFAULT_TAG_GEARS),
         ["name"] = L(SI_AC_DEFAULT_CATEGORY_LOW_LEVEL),
         ["description"] = L(SI_AC_DEFAULT_CATEGORY_LOW_LEVEL_DESC),

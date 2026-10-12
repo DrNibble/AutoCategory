@@ -278,6 +278,7 @@ function AutoCat.UpdateCategoryState(bagId, categories)
         end
     end
 
+    --[[
     -- Remove categories no longer present.
     for categoryName in pairs(state) do
         if bagSeen[categoryName] ~= gen then
@@ -286,6 +287,7 @@ function AutoCat.UpdateCategoryState(bagId, categories)
             bagSeen[categoryName] = nil
         end
     end
+    --]]
 end
 
 

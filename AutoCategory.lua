@@ -256,7 +256,7 @@ function AutoCat.UpdateCurrentSavedVars()
 	table.sort(RulesW.ruleList, RuleSortingFunction)
 
     local compiled, damaged = RulesW:CompileAll()
-	logDebug("[AutoCategory] Compiled rules: ", compiled, " damaged rules: ", damaged)
+	logDebug("Compiled rules: ", compiled, " damaged rules: ", damaged)
 
 	-- bags/collapses might or might not be acct wide
     if not charSaved.accountWide then
@@ -786,8 +786,14 @@ local function loadSavedVars()
 	if isEmpty(AutoCat.acctSaved.bags) then 
 		defaultMissing(AutoCat.acctSaved.bags, AutoCat.defaultAcctBagSettings.bags)
 	end
+	if isEmpty(AutoCat.acctSaved.general) then 
+		defaultMissing(AutoCat.acctSaved.general, AutoCat.defaultAcctBagSettings.general)
+	end
 	if isEmpty(AutoCat.charSaved.bags) then
 		defaultMissing(AutoCat.charSaved.bags, AutoCat.defaultAcctBagSettings.bags)
+	end
+	if isEmpty(AutoCat.charSaved.general) then 
+		defaultMissing(AutoCat.charSaved.general, AutoCat.defaultAcctBagSettings.general)
 	end
 
 	-- There are no char-level variables for AutoCatRules!

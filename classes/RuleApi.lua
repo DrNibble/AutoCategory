@@ -43,10 +43,14 @@ function AutoCategory.isValidRule(ruledef)
     return true
 end
 
+
+function AutoCategory.attachRuleMixin(rule)
+	if rule.compile then return end
+	    
+	setmetatable(rule, AutoCategory.RuleMetatable)
+end
+
 -- ----------------------------------------------------------
-AutoCategory.RuleMetatable = {
-    __index = AutoCategory.RuleApiMixin,
-}
 -- factory for creating new rules
 -- minimum required contents = name. description, rule, tag
 function AutoCategory.CreateRule(name, tag)
@@ -146,7 +150,7 @@ AutoCategory.RuleApiMixin = {
 	-- Stores the compiled rule into AutoCategory.compiledRules table
 	compile = function(self)
 			if self.name == nil or self.name == "" then
-                logDebug("[AutoCategory] compile: rule has no name")
+                --logDebug("[AutoCategory] compile: rule has no name")
 				return "Rule missing name"
 			end
 
@@ -185,3 +189,7 @@ AutoCategory.RuleApiMixin = {
 		return AutoCategory.compiledRules[self:key()]
 	end,
 }
+AutoCategory.RuleMetatable = {
+    __index = AutoCategory.RuleApiMixin,
+}
+

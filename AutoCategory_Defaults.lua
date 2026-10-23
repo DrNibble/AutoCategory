@@ -958,6 +958,8 @@ AutoCategory.defaultCharSettings = {
 		SAVE_CATEGORY_COLLAPSE_STATUS = false,
 		SHOW_CATEGORY_SET_TITLE = true,
     	CATEGORY_COLLAPSE_EXPIRY_SECONDS = 7 * 24 * 60 * 60,
+		ENABLE_GAMEPAD = false,
+		EXTENDED_GAMEPAD_SUPPLIES = false,
 	},
 }
 
@@ -992,6 +994,7 @@ AutoCategory.defaultAcctSettings = {
 		SAVE_CATEGORY_COLLAPSE_STATUS = false,
 		SHOW_CATEGORY_SET_TITLE = true,
     	CATEGORY_COLLAPSE_EXPIRY_SECONDS = 7 * 24 * 60 * 60,
+		EXTENDED_GAMEPAD_SUPPLIES = false,
 	},
 }
 	

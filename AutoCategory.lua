@@ -781,6 +781,16 @@ local function loadSavedVars()
     local defaultMissing = SF.defaultMissing
 
     -- load our saved variables (no longer loads pre-defined rules)
+	--[[
+		AutoCat.acctSaved = LibSavedVars:NewAccountWide("AutoCategorySavedVars", 1.1,
+				GetWorldName(), AutoCat.defaultAcctSettings, "Default")
+	 		:EnableDefaultsTrimming()
+		AutoCat.charSaved = LibSavedVars:NewCharacterSettings("AutoCategorySavedVars", 1.1,
+				GetWorldName(), AutoCat.defaultCharSettings, "Default")
+	 		:EnableDefaultsTrimming()
+	--]]
+
+    -- load our saved variables (no longer loads pre-defined rules)
     AutoCat.acctSaved, AutoCat.charSaved = SF.getAllSavedVars("AutoCategorySavedVars",
 		1.1, AutoCat.defaultAcctSettings, AutoCat.defaultCharSettings)
 	if isEmpty(AutoCat.acctSaved.bags) then 
@@ -795,6 +805,13 @@ local function loadSavedVars()
 	if isEmpty(AutoCat.charSaved.general) then 
 		defaultMissing(AutoCat.charSaved.general, AutoCat.defaultAcctBagSettings.general)
 	end
+
+	-- There are no char-level variables for AutoCatRules!
+	--[[
+	AutoCat.acctRules = LibSavedVars:NewAccountWide("AutoCatRules", 1.1,
+				GetWorldName(), AutoCat.default_rules, "Default")
+	 		:EnableDefaultsTrimming()
+	--]]
 
 	-- There are no char-level variables for AutoCatRules!
     AutoCat.acctRules  = SF.getAcctSavedVars("AutoCatRules", 1.1, AutoCat.default_rules)

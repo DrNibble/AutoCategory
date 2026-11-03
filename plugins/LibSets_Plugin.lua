@@ -19,7 +19,7 @@ end
 
 -- autosettype() matches all known set types.
 -- Optional filter: a name in LibSets' cached UI language ("Donjon" in French),
--- a numeric type ID, or a quoted exported constant name/suffix.
+-- or a numeric type ID.
 function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
     if LibSets == nil then
         return false
@@ -64,17 +64,10 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
                         if typeId == actualSetType then break end
                     end
                 end
-                if requestedSetType == nil then
-                    local constantName = setType
-                    if string.sub(constantName, 1, 16) ~= "LIBSETS_SETTYPE_" then
-                        constantName = "LIBSETS_SETTYPE_" .. string.upper(constantName)
-                    end
-                    requestedSetType = rawget(_G, constantName)
-                end
             end
             if type(requestedSetType) ~= "number"
                 or type(LibSets.setTypesToName[requestedSetType]) ~= "table" then
-                error("error: autosettype(): expected a LibSets type ID, UI type name or constant name.")
+                error("error: autosettype(): expected a numeric LibSets type ID or UI type name.")
             end
             if requestedSetType ~= actualSetType then
                 return false

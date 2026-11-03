@@ -1,5 +1,24 @@
 # Changes
 
+## 2026-11-03: Restrict filters to numeric IDs and UI names
+
+- Remove the entire `if requestedSetType == nil then` fallback and
+  `rawget(_G, constantName)` lookup. No exported constant strings or suffix
+  aliases are resolved.
+- Only a numeric type ID or a translated type label from the current
+  `LibSets.clientLang` (with the existing missing-label fallback) is accepted.
+  Names remain case-insensitive. No argument still matches all known types.
+- A string such as `"DUNGEON"` only works if it is the current translated
+  label (English `"Dungeon"`), not as an alias on a French UI. Numeric
+  strings such as `"6"` remain invalid.
+- Update examples and tests: reject all 15 quoted global constant names
+  even though the actual globals exist, reject foreign-UI labels and numeric
+  strings, and exercise localized/numeric rule expressions. Keep the
+  fullyLoaded gate, LibSets' cached language and two-level sorting.
+  Lua 5.1 compilation passes for all six integration Lua files; 1948
+  assertions pass with upstream LibSets data and 1948 with fixtures.
+  Not tested in ESO.
+
 ## 2026-11-03: Use fullyLoaded and LibSets' cached language
 
 - Delete `isLibSetsAvailable()` and the copied

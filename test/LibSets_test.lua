@@ -149,21 +149,33 @@ local function noMatch(filter)
     equal("unchanged", AutoCategory.AdditionCategoryName, "no category side effect")
     equal("unchanged", AutoCategory.AdditionCategorySortName, "no sort side effect")
 end
+local function invalidFilter(filter)
+    AutoCategory.AdditionCategoryName = "unchanged"
+    AutoCategory.AdditionCategorySortName = "unchanged"
+    local ok, err = pcall(rule, filter)
+    equal(false, ok, "invalid filter raises rule error")
+    equal(true, tostring(err):find("autosettype()", 1, true) ~= nil, "error context")
+    equal("unchanged", AutoCategory.AdditionCategoryName, "invalid filter name side effect")
+    equal("unchanged", AutoCategory.AdditionCategorySortName, "invalid filter sort side effect")
+end
 
 -- Every actual possibleSetTypes entry, including IDs 13, 14 and 15.
 equal(15, #constantNames, "current upstream type count")
-for id, constantName in ipairs(constantNames) do
+for id in ipairs(constantNames) do
     currentType = id
     local expectedName = "(" .. typeNames[id].fr .. ") Nom du set"
     match(nil, expectedName)
     match(id, expectedName)
-    match(constantName, expectedName)
-    match(constantName:sub(17), expectedName)
-    match(constantName:sub(17):lower(), expectedName)
     match(typeNames[id].fr, expectedName)
     match(LocaleAwareToLower(typeNames[id].fr), expectedName)
 end
 currentType = 6
+-- These globals exist in the fixture, but quoted constant names must never
+-- resolve through _G. English aliases do not match a French UI label.
+for _, constantName in ipairs(constantNames) do invalidFilter(constantName) end
+invalidFilter("DUNGEON")
+invalidFilter("dungeon")
+invalidFilter("ARENA")
 local messagesBeforeRule = chatMessages
 match(nil, "(Donjon) Nom du set")
 equal(messagesBeforeRule, chatMessages, "no chat output in rule")
@@ -174,6 +186,8 @@ match(nil, "(Verlies) Nom du set")
 match("Verlies", "(Verlies) Nom du set")
 cacheClientLanguage(LibSets, "en")
 match(nil, "(Dungeon) Nom du set")
+match("DUNGEON", "(Dungeon) Nom du set") -- English UI label, not a constant alias.
+invalidFilter("Donjon")
 cacheClientLanguage(LibSets, "")
 match(nil, "(Dungeon) Nom du set")
 cacheClientLanguage(LibSets, "xx")
@@ -242,11 +256,7 @@ noMatch()
 setName = "Nom du set^m"
 
 for _, invalid in ipairs({ 0, -1, 999, 1.5, false, {}, "", "BOGUS", "6" }) do
-    AutoCategory.AdditionCategoryName = "unchanged"
-    local ok, err = pcall(rule, invalid)
-    equal(false, ok, "invalid type raises rule error")
-    equal(true, tostring(err):find("autosettype()", 1, true) ~= nil, "error context")
-    equal("unchanged", AutoCategory.AdditionCategoryName, "invalid input side effect")
+    invalidFilter(invalid)
 end
 
 -- Unknown/missing optional dependency remains safe even after registration.
@@ -279,10 +289,13 @@ equal(false, pcall(rule), "fullyLoaded replaces individual API capability checks
 LibSets.GetSetType = getSetType
 
 -- Execute a real rule expression inside AutoCategory's restricted environment.
-local expression = assert(loadstring('return autosettype("DUNGEON")'))
+local expression = assert(loadstring('return autosettype("Donjon")'))
 setfenv(expression, AutoCategory.Environment)
 equal(true, expression(), "rule environment execution")
 equal("(Donjon) Nom du set", AutoCategory.AdditionCategoryName, "expression name")
+local numericExpression = assert(loadstring("return autosettype(6)"))
+setfenv(numericExpression, AutoCategory.Environment)
+equal(true, numericExpression(), "numeric rule environment execution")
 
 -- Integration: load the delivered matching API and extract the real keyboard
 -- and gamepad producers/comparators in a shared chunk with minimal ESO stubs.

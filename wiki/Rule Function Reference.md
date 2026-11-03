@@ -718,8 +718,6 @@ autosettype()
 autosettype("Donjon")  -- French UI
 autosettype("Arène")   -- French UI
 autosettype(6)
-autosettype("DUNGEON")
-autosettype("LIBSETS_SETTYPE_DUNGEON")
 ```
 
 Requires the optional LibSets library. Like `autoset()`, returns a boolean and
@@ -730,10 +728,14 @@ French client.
 Without an argument, matches every set whose type is known to LibSets. The
 optional argument filters by a translated type name in LibSets' cached UI
 language, such as `"Donjon"` or `"Arène"` on a French UI. Type names are
-matched case-insensitively. Numeric type IDs and quoted exported constant
-names/suffixes remain supported. Invalid filters raise a rule error when an
-identifiable set is evaluated. Do not use an unquoted constant in a rule:
-AutoCategory's rule environment does not expose LibSets globals.
+matched case-insensitively. The only other accepted argument is a numeric
+type ID, such as `6` (or a Lua variable whose value is that number).
+Quoted exported constant names, constant suffix aliases and numeric strings
+are not resolved. For example, `"LIBSETS_SETTYPE_DUNGEON"` and `"6"` are
+invalid; `"DUNGEON"` is invalid on a French UI but matches the translated
+name `"Dungeon"` on an English UI. Invalid filters raise a rule error when
+an identifiable set is evaluated. The plugin never looks up filter names
+in `_G`; AutoCategory's rule environment does not expose LibSets globals.
 
 The live global `LibSets.setTypesToName` table defines the supported type
 IDs and translated names. There is no copied

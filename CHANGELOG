@@ -3,7 +3,7 @@
 [*] Read type labels directly from LibSets.setTypesToName and sort set categories by localized type, then by set name, case-insensitively. Share the key across keyboard/gamepad paths while keeping display priority and ordinary categories unchanged.
 [*] Use LibSets.fullyLoaded directly; remove isLibSetsAvailable and the copied type mapping. Detect types and translated filter names from the live LibSets.setTypesToName table.
 [*] Added optional LibSets plugin: autosettype([type]) dynamically categorizes set items as "(localized type) set name".
-[*] Supports live LibSets set types and filtering by cached-UI-language type name, numeric ID or quoted constant name/suffix.
+[*] Supports live LibSets set types and filtering only by numeric ID or cached-UI-language type name. Remove global constant-name/suffix resolution.
 [*] Use LibSets.clientLang, its cached UI default, and LibSets.fallbackLang (English). No plugin uiLanguage variable or GetCVar call.
 [*] Missing LibSets or unavailable set data returns false. Existing rules are not changed automatically.
 [*] Verified offline with Lua 5.1; not tested in ESO.

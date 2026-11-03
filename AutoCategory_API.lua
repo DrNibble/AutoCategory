@@ -178,6 +178,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 
 				if ruleCode then
 					AutoCategory.AdditionCategoryName = ""	-- this may be changed by autoset() or alphagear
+					AutoCategory.AdditionCategorySortName = nil
 					local exec_ok, res = SF.safeCall( ruleCode )
 					if exec_ok then
 						local catname = adjustName(self, rule.name,
@@ -185,6 +186,8 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 						setCategoryCollapsed(bag_type_id, catname,
 						isCategoryCollapsed(bag_type_id, catname))
 						if res == true then
+							AutoCategory.CategorySortNames[catname] =
+								AutoCategory.AdditionCategorySortName
 							return true, 
 								catname, 
 								entry.runpriority, 

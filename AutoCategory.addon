@@ -9,7 +9,7 @@
 ## DependsOn: LibAddonMenu-2.0>=43 LibCustomMenu>=730 LibSFUtils>=77 LibMediaProvider>=36 
 ## DependsOn: LibDebugLogger>=307
 ## OptionalDependsOn: GearChangerByIakoni FCOItemSaver QuickMenu ItemSaver ItemSaverLite ItemMarker UnknownTracker
-## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom
+## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom LibSets
 
 
 lang/strings.lua
@@ -44,6 +44,7 @@ AutoCategory_RuleFunc.lua
 AutoCategory_API.lua
 
 plugins/Misc_Plugins.lua
+plugins/LibSets_Plugin.lua
 
 ; new style addon plugin files
 plugins/ItemMarker_Plugin.lua

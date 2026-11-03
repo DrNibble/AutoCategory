@@ -301,7 +301,8 @@ local function runRulesOnEntry(itemEntry, specialType)
 	if matched then
 		data.AC_categoryName = categoryName
 		-- use string.format for the zero-padding ability to maintain a fixed-width numeric prefix.
-		data.AC_sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName)
+		data.AC_sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+			AutoCategory.GetCategorySortName(categoryName))
 		data.AC_isHidden = isHidden
 
 	else

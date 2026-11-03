@@ -3,6 +3,16 @@
 
 local SF = LibSFUtils       -- We're using the library's LoadLanguage function
 
+-- Dynamic rules may provide a category sort name independently of their
+-- displayed category name. Ordinary categories retain their existing order.
+AutoCategory.CategorySortNames = {}
+
+function AutoCategory.GetCategorySortName(categoryName)
+    local sortName = AutoCategory.CategorySortNames[categoryName]
+    -- Keep distinct headers contiguous when their case-folded keys coincide.
+    return sortName and (sortName .. "\001" .. categoryName) or categoryName
+end
+
 --[[ A dummy rule function available for use with dummying out a RuleFunc name
     so that it can still be "available" (used in user-defined rules when the 
     associated addon was not loaded.

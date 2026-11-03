@@ -712,6 +712,96 @@ _Available Add-on Version:	1.03_
 
 No Arguments, will make more than one category
 
+## Auto Set Type (LibSets plugin)
+```lua
+autosettype()
+autosettype("Donjon")  -- French label
+autosettype("Arène")   -- French label
+autosettype("Dungeon") -- English label
+autosettype("Verlies") -- German label
+autosettype(6)
+```
+
+Requires the optional LibSets library. Like `autoset()`, returns a boolean and
+generates categories dynamically, but sets `AutoCategory.AdditionCategoryName`
+to `(localized type) localized set name`, for example `(Donjon) Nom du set` on a
+French client.
+
+Without an argument, matches every set whose type is known to LibSets. The
+optional argument filters by a translated type name in any language LibSets
+provides (English, German, French, Spanish, Polish, Japanese, Russian,
+Chinese), such as `"Donjon"`, `"Arène"` or `"Verlies"`, regardless of the
+current UI language. Type names are
+matched case-insensitively. The only other accepted argument is a numeric
+type ID, such as `6` (or a Lua variable whose value is that number).
+Quoted exported constant names, constant suffix aliases and numeric strings
+are not resolved. For example, `"LIBSETS_SETTYPE_DUNGEON"` and `"6"` are
+invalid; `"DUNGEON"` matches the English translated name `"Dungeon"` on any
+UI language. Invalid filters raise a rule error when
+an identifiable set is evaluated. The plugin never looks up filter names
+in `_G`; AutoCategory's rule environment does not expose LibSets globals.
+
+The live global `LibSets.setTypesToName` table defines the supported type
+IDs and translated names, and every language it contains is accepted for
+filter names. There is no copied
+`setTypeToLibraryInternalVariableNames` table or hardcoded type whitelist.
+If several type IDs have the same translated label, the label matches all
+of them; numeric IDs can still distinguish them.
+
+Initialization and rule evaluation use `if LibSets.fullyLoaded then`.
+The former local `isLibSetsAvailable()` and per-API compatibility checks are
+removed. LibSets remains optional: an absent library, or `fullyLoaded` false
+at initialization, registers a dummy rule returning `false`. There is no
+automatic late re-registration; initialize again or reload once LibSets is
+loaded. During rule evaluation, an absent library or a false `fullyLoaded`
+flag returns `false` without changing the dynamic name or sort key.
+A library declaring itself fully loaded is trusted to expose its required
+API/tables; missing or incompatible APIs now surface as errors.
+
+Displayed type names are read from
+`LibSets.setTypesToName[setType][LibSets.clientLang]`. `LibSets.clientLang`
+is LibSets' cached, normalized UI language, already defaulting unsupported
+languages to English. There is no `uiLanguage` variable, `GetCVar` call,
+additional language cache, or `GetSetTypeName` call in the plugin.
+Missing/empty labels use `LibSets.fallbackLang` (or `"en"` if absent).
+Filter names, unlike display names, are matched against every language in
+`LibSets.setTypesToName`, so a rule can use `"Dungeon"` on a French UI.
+ESO supplies set names in the UI language. Unknown set types or missing
+names return `false` without altering the dynamic name or sort key.
+
+The inventory sort has two alphabetical levels within the existing display
+priority: first the localized type name, then the localized set name within
+that type. Both are normalized with ESO's native `LocaleAwareToLower`.
+They form separate internal keys, so one type name being a prefix of another
+does not let set names interfere with the type order. This uses Lua string
+ordering after lowercasing, not accent-folding or dictionary collation.
+
+Keyboard and gamepad inventory/crafting/store paths use the same category
+sort-name lookup. Parent rule titles do not affect this two-level order.
+Display priorities remain dominant: use the same display priority for
+multiple `autosettype(...)` rules if they should share one alphabetical
+ordering. Ordinary categories keep their existing keys, headers still
+precede their items, and distinct labels with identical normalized keys
+remain separate contiguous groups.
+
+Displayed headers remain `(type) set name`, optionally wrapped in the
+parent rule name. The two levels describe the sort order, not a new nested
+or separately collapsible type-header UI.
+
+Add a rule using `autosettype()` to the desired bags. Give it a higher run
+priority than competing `autoset()` or `combined_autoset()` rules, or disable
+those rules in the same bags. AutoCategory's existing "Show 'Set(name)' for
+autosets" setting still controls whether the parent rule name wraps this
+dynamic name. Perfected and non-perfected sets remain separate.
+
+API references:
+[LibSets constants](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets_ConstantsLibraryInternal.lua),
+[LibSets API](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets.lua),
+[ESO live API](https://github.com/esoui/esoui/blob/live/ESOUIDocumentation.txt),
+[ESO table ordering](https://github.com/esoui/esoui/blob/live/esoui/libraries/utility/zo_tableutils.lua).
+
+Tested offline with Lua 5.1; not tested in ESO.
+
 ## Combined Auto Set
 ```
 combined_autoset()

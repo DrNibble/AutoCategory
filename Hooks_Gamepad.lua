@@ -34,7 +34,8 @@ local function ZO_GamepadInventoryList_AddSlotDataToTable(self, slotsTable, inve
         else
             itemData.bestItemTypeName = categoryName
             itemData.bestGamepadItemCategoryName = categoryName
-            itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+            itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+                AutoCategory.GetCategorySortName(categoryName))
         end
 
         table.insert(slotsTable, slotData)
@@ -61,7 +62,8 @@ local function gci_AddSlotDataToTable1(self, slotsTable, inventoryType, slotInde
             else
                 slotData.bestItemTypeName = categoryName
                 slotData.bestGamepadItemCategoryName = categoryName
-                slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+                slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+                    AutoCategory.GetCategorySortName(categoryName))
             end
 
             table.insert(slotsTable, slotData)
@@ -176,7 +178,8 @@ function AutoCategory.HookGamepadInventory()
 				else
 					slotData.bestItemTypeName = categoryName
 					slotData.bestItemCategoryName = categoryName
-					slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName)
+					slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+						AutoCategory.GetCategorySortName(categoryName))
 				end
 			end
 			table.sort(filteredDataTable, AutoCategory_ItemSortComparator)
@@ -479,7 +482,8 @@ local function gci_GenerateCraftingInventoryEntryData(self, bagId, slotIndex, st
         else
             newData.bestItemTypeName = categoryName
             newData.bestItemCategoryName = categoryName
-            newData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+            newData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+                AutoCategory.GetCategorySortName(categoryName))
         end
     end
     --Auto Category Modify]
@@ -529,7 +533,8 @@ function AutoCategory.HookGamepadStore(list)
 			else
 				itemData.bestItemTypeName = categoryName
 				itemData.bestGamepadItemCategoryName = categoryName
-				itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+				itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+					AutoCategory.GetCategorySortName(categoryName))
 			end
 
 	        table.insert(tempDataTable, itemData)

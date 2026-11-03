@@ -171,11 +171,16 @@ for id in ipairs(constantNames) do
 end
 currentType = 6
 -- These globals exist in the fixture, but quoted constant names must never
--- resolve through _G. English aliases do not match a French UI label.
+-- resolve through _G. Labels from every LibSets language are accepted.
 for _, constantName in ipairs(constantNames) do invalidFilter(constantName) end
-invalidFilter("DUNGEON")
-invalidFilter("dungeon")
-invalidFilter("ARENA")
+match("DUNGEON", "(Donjon) Nom du set")
+match("dungeon", "(Donjon) Nom du set")
+noMatch("ARENA")
+-- A German label matches a French UI, and an English label a German UI.
+match("Verlies", "(Donjon) Nom du set")
+cacheClientLanguage(LibSets, "de")
+match("Dungeon", "(Verlies) Nom du set")
+cacheClientLanguage(LibSets, "fr")
 local messagesBeforeRule = chatMessages
 match(nil, "(Donjon) Nom du set")
 equal(messagesBeforeRule, chatMessages, "no chat output in rule")
@@ -187,7 +192,7 @@ match("Verlies", "(Verlies) Nom du set")
 cacheClientLanguage(LibSets, "en")
 match(nil, "(Dungeon) Nom du set")
 match("DUNGEON", "(Dungeon) Nom du set") -- English UI label, not a constant alias.
-invalidFilter("Donjon")
+match("Donjon", "(Dungeon) Nom du set") -- French label on an English UI.
 cacheClientLanguage(LibSets, "")
 match(nil, "(Dungeon) Nom du set")
 cacheClientLanguage(LibSets, "xx")
@@ -220,6 +225,18 @@ match("MONSTRE PARTAGÉ", "(Monstre partagé) Nom du set")
 currentType = 6
 noMatch("Monstre partagé")
 typeNames[13].fr, typeNames[14].fr = imperialMonsterName, cyrodiilMonsterName
+-- A foreign-language label shared with another type prefers the actual type.
+local imperialCityMonsterDe = typeNames[13].de
+typeNames[13].de = "Verlies"
+currentType = 13
+match("Verlies", "(" .. typeNames[13].fr .. ") Nom du set")
+currentType = 6
+match("Verlies", "(Donjon) Nom du set")
+typeNames[13].de = imperialCityMonsterDe
+-- A label shared by several types still resolves to the checked item's type.
+currentType = 1
+noMatch("Verlies")
+currentType = 6
 local frenchDungeonName = typeNames[6].fr
 typeNames[6].fr = nil
 match(6, "(Dungeon) Nom du set")

@@ -715,8 +715,10 @@ No Arguments, will make more than one category
 ## Auto Set Type (LibSets plugin)
 ```lua
 autosettype()
-autosettype("Donjon")  -- French UI
-autosettype("Arène")   -- French UI
+autosettype("Donjon")  -- French label
+autosettype("Arène")   -- French label
+autosettype("Dungeon") -- English label
+autosettype("Verlies") -- German label
 autosettype(6)
 ```
 
@@ -726,19 +728,22 @@ to `(localized type) localized set name`, for example `(Donjon) Nom du set` on a
 French client.
 
 Without an argument, matches every set whose type is known to LibSets. The
-optional argument filters by a translated type name in LibSets' cached UI
-language, such as `"Donjon"` or `"Arène"` on a French UI. Type names are
+optional argument filters by a translated type name in any language LibSets
+provides (English, German, French, Spanish, Polish, Japanese, Russian,
+Chinese), such as `"Donjon"`, `"Arène"` or `"Verlies"`, regardless of the
+current UI language. Type names are
 matched case-insensitively. The only other accepted argument is a numeric
 type ID, such as `6` (or a Lua variable whose value is that number).
 Quoted exported constant names, constant suffix aliases and numeric strings
 are not resolved. For example, `"LIBSETS_SETTYPE_DUNGEON"` and `"6"` are
-invalid; `"DUNGEON"` is invalid on a French UI but matches the translated
-name `"Dungeon"` on an English UI. Invalid filters raise a rule error when
+invalid; `"DUNGEON"` matches the English translated name `"Dungeon"` on any
+UI language. Invalid filters raise a rule error when
 an identifiable set is evaluated. The plugin never looks up filter names
 in `_G`; AutoCategory's rule environment does not expose LibSets globals.
 
 The live global `LibSets.setTypesToName` table defines the supported type
-IDs and translated names. There is no copied
+IDs and translated names, and every language it contains is accepted for
+filter names. There is no copied
 `setTypeToLibraryInternalVariableNames` table or hardcoded type whitelist.
 If several type IDs have the same translated label, the label matches all
 of them; numeric IDs can still distinguish them.
@@ -753,12 +758,14 @@ flag returns `false` without changing the dynamic name or sort key.
 A library declaring itself fully loaded is trusted to expose its required
 API/tables; missing or incompatible APIs now surface as errors.
 
-Type names are read from
+Displayed type names are read from
 `LibSets.setTypesToName[setType][LibSets.clientLang]`. `LibSets.clientLang`
 is LibSets' cached, normalized UI language, already defaulting unsupported
 languages to English. There is no `uiLanguage` variable, `GetCVar` call,
 additional language cache, or `GetSetTypeName` call in the plugin.
 Missing/empty labels use `LibSets.fallbackLang` (or `"en"` if absent).
+Filter names, unlike display names, are matched against every language in
+`LibSets.setTypesToName`, so a rule can use `"Dungeon"` on a French UI.
 ESO supplies set names in the UI language. Unknown set types or missing
 names return `false` without altering the dynamic name or sort key.
 

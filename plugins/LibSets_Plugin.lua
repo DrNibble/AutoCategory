@@ -18,7 +18,8 @@ function AutoCategory_LibSets.Initialize()
 end
 
 -- autosettype() matches all known set types.
--- Optional filter: a name in LibSets' cached UI language ("Donjon" in French),
+-- Optional filter: a translated type name in any language LibSets provides
+-- ("Donjon" in French, "Dungeon" in English, "Verlies" in German, ...),
 -- or a numeric type ID.
 function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
     if LibSets == nil then
@@ -52,17 +53,25 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
             if type(setType) == "string" then
                 requestedSetType = nil
                 local requestedName = LocaleAwareToLower(setType)
+                -- Every language LibSets ships in setTypesToName is accepted,
+                -- not only the cached UI language or its English fallback.
+                local fallbackType
                 for typeId, names in pairs(LibSets.setTypesToName) do
-                    local name = names[LibSets.clientLang]
-                    if type(name) ~= "string" or name == "" then
-                        name = names[LibSets.fallbackLang or "en"]
+                    for _, name in pairs(names) do
+                        if type(name) == "string" and name ~= ""
+                            and LocaleAwareToLower(name) == requestedName then
+                            if typeId == actualSetType then
+                                requestedSetType = typeId
+                            elseif fallbackType == nil then
+                                fallbackType = typeId
+                            end
+                            break -- one matching name per type is enough
+                        end
                     end
-                    if type(name) == "string" and LocaleAwareToLower(name) == requestedName then
-                        requestedSetType = typeId
-                        -- Shared translated names should match every such type,
-                        -- not whichever entry pairs() happens to visit first.
-                        if typeId == actualSetType then break end
-                    end
+                    if requestedSetType ~= nil then break end
+                end
+                if requestedSetType == nil then
+                    requestedSetType = fallbackType
                 end
             end
             if type(requestedSetType) ~= "number"

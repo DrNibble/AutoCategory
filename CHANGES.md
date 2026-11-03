@@ -1,5 +1,23 @@
 # Changes
 
+## 2026-11-03: Accept set type names in every LibSets language
+
+- String filters for `autosettype()` are now matched against every language
+  present in `LibSets.setTypesToName` (de, en, es, fr, pl, jp, ru, zh), not
+  only `LibSets.clientLang` with its English fallback. `"Dungeon"`,
+  `"Donjon"` and `"Verlies"` all resolve on any UI language.
+- Display names and sort keys still use `LibSets.clientLang` with the
+  `LibSets.fallbackLang` fallback; only filter matching changed.
+- A label shared by several types still prefers the checked item's actual
+  type, then any other matching type. Quoted constant names and numeric
+  strings remain invalid.
+- Update the rule reference and tests: foreign-language labels now match
+  (English and German labels on a French UI, French label on an English
+  UI), a shared foreign label prefers the actual type, and the
+  missing-label fallback cases are kept. Lua 5.1 compilation passes for the
+  plugin; 1969 assertions pass with upstream LibSets data and 1969 with
+  fixtures. Not tested in ESO.
+
 ## 2026-11-03: Restrict filters to numeric IDs and UI names
 
 - Remove the entire `if requestedSetType == nil then` fallback and

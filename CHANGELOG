@@ -1,5 +1,6 @@
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-03)[/COLOR]:
 [LIST]
+[*] Two-level collapsible categories: a category name containing "----" displays as a parent header with collapsible child headers (keyboard inventory), e.g. "Potions----Magie" and "Potions----Santé" under "Potions". Gamepad shows "parent - child" one-line headers.
 [*] autosettype() string filters now accept a set type name in any LibSets language (English, German, French, Spanish, Polish, Japanese, Russian, Chinese), not only the current UI language. Displayed names still follow the UI language.
 [*] Read type labels directly from LibSets.setTypesToName and sort set categories by localized type, then by set name, case-insensitively. Share the key across keyboard/gamepad paths while keeping display priority and ordinary categories unchanged.
 [*] Use LibSets.fullyLoaded directly; remove isLibSetsAvailable and the copied type mapping. Detect types and translated filter names from the live LibSets.setTypesToName table.

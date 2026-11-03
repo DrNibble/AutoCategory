@@ -3,6 +3,10 @@
 
 --
 -- ref to ingame/crafting/gamepad/gamepadcraftinginventory.lua
+
+-- Two-level categories: "parent----child" names sort hierarchically
+-- and display as "parent - child" on one line.
+local CategoryTree = AutoCategory.CategoryTree
 local ZGCI = ZO_GamepadCraftingInventory
 
 local CUSTOM_GAMEPAD_ITEM_SORT = {
@@ -33,8 +37,8 @@ local function ZO_GamepadInventoryList_AddSlotDataToTable(self, slotsTable, inve
 
         else
             itemData.bestItemTypeName = categoryName
-            itemData.bestGamepadItemCategoryName = categoryName
-            itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+            itemData.bestGamepadItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+            itemData.sortPriorityName = CategoryTree.BuildSortKey(showPriority, categoryName,
                 AutoCategory.GetCategorySortName(categoryName))
         end
 
@@ -61,8 +65,8 @@ local function gci_AddSlotDataToTable1(self, slotsTable, inventoryType, slotInde
 
             else
                 slotData.bestItemTypeName = categoryName
-                slotData.bestGamepadItemCategoryName = categoryName
-                slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+                slotData.bestGamepadItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+                slotData.sortPriorityName = CategoryTree.BuildSortKey(showPriority, categoryName,
                     AutoCategory.GetCategorySortName(categoryName))
             end
 
@@ -177,9 +181,9 @@ function AutoCategory.HookGamepadInventory()
 
 				else
 					slotData.bestItemTypeName = categoryName
-					slotData.bestItemCategoryName = categoryName
-					slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
-						AutoCategory.GetCategorySortName(categoryName))
+					slotData.bestItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+					slotData.sortPriorityName = CategoryTree.BuildSortKey(showPriority, categoryName,
+					    AutoCategory.GetCategorySortName(categoryName))
 				end
 			end
 			table.sort(filteredDataTable, AutoCategory_ItemSortComparator)
@@ -481,8 +485,8 @@ local function gci_GenerateCraftingInventoryEntryData(self, bagId, slotIndex, st
 
         else
             newData.bestItemTypeName = categoryName
-            newData.bestItemCategoryName = categoryName
-            newData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
+            newData.bestItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+            newData.sortPriorityName = CategoryTree.BuildSortKey(showPriority, categoryName,
                 AutoCategory.GetCategorySortName(categoryName))
         end
     end
@@ -532,9 +536,9 @@ function AutoCategory.HookGamepadStore(list)
 
 			else
 				itemData.bestItemTypeName = categoryName
-				itemData.bestGamepadItemCategoryName = categoryName
-				itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority,
-					AutoCategory.GetCategorySortName(categoryName))
+				itemData.bestGamepadItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+				itemData.sortPriorityName = CategoryTree.BuildSortKey(showPriority, categoryName,
+				    AutoCategory.GetCategorySortName(categoryName))
 			end
 
 	        table.insert(tempDataTable, itemData)

@@ -341,6 +341,10 @@ AutoCategory.acctSaved = { appearance = { CATEGORY_OTHER_TEXT = "Other" } }
 AutoCategory.Enabled = true
 AutoCategory.SetCategoryCollapsed = function() end
 AutoCategory.IsCategoryCollapsed = function() return false end
+-- The merged hooks reference the delivered CategoryTree library
+-- (ParentOf, BuildSortKey, JoinDisplayName): load it for real.
+assert(loadfile("CategoryTree.lua"))()
+CategoryTree = AutoCategory.CategoryTree
 local rules = {
     arena = { name = "ZZZ parent", key = function() return 1 end },
     otherSets = { name = "AAA parent", key = function() return 2 end },
@@ -484,8 +488,8 @@ equal(nil, AutoCategory.CategorySortNames.Ordinary, "stale dynamic key cleared")
 equal("Ordinary", AutoCategory.GetCategorySortName(ordinaryName), "ordinary order retained")
 
 local _, gamepadSites = gamepadSource:gsub(
-    '1000 %- showPriority,%s*AutoCategory%.GetCategorySortName%(categoryName%)', "")
-equal(5, gamepadSites, "all matched gamepad key generation sites use shared helper")
+    'CategoryTree%.BuildSortKey%(showPriority, categoryName,%s*AutoCategory%.GetCategorySortName%(categoryName%)%)', "")
+equal(5, gamepadSites, "all matched gamepad key generation sites combine both helpers")
 
 print("PASS: " .. assertions .. " assertions (" .. _VERSION
     .. (arg and arg[1] and ", actual LibSets constants/translations)" or ", fixtures)"))

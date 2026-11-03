@@ -64,7 +64,17 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
         return false
     end
 
-    local setTypeName = LibSets.GetSetTypeName(actualSetType)
+    -- Use the UI language explicitly instead of LibSets' cached default.
+    local uiLanguage = type(GetCVar) == "function" and GetCVar("language.2") or "en"
+    if type(uiLanguage) ~= "string" or uiLanguage == "" then
+        uiLanguage = "en"
+    else
+        uiLanguage = string.lower(uiLanguage)
+    end
+    if LibSets.supportedLanguages and not LibSets.supportedLanguages[uiLanguage] then
+        uiLanguage = "en"
+    end
+    local setTypeName = LibSets.GetSetTypeName(actualSetType, uiLanguage)
     if not setTypeName or setTypeName == "" then
         setTypeName = LibSets.GetSetTypeName(actualSetType, "en")
     end

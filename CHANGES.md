@@ -1,5 +1,18 @@
 # Changes
 
+## 2026-11-03: Explicit UI language and English fallback
+
+- Read `GetCVar("language.2")` for LibSets type labels, normalize the language
+  to lowercase, and explicitly pass it to `LibSets.GetSetTypeName`.
+- Default to `"en"` if the UI language is missing, empty, or not supported
+  by LibSets. Keep the English fallback if a translated type label is missing.
+  The set name still comes from ESO in the UI language.
+- Extend the Lua 5.1 behavioral tests to cover French, German, English,
+  uppercase language codes, nil/empty/unsupported/disabled languages,
+  unavailable `GetCVar`, and missing translations. Compilation passes, as do
+  608 assertions with fixtures and 608 with the actual LibSets constants and
+  translations. Not tested in ESO.
+
 ## 2026-11-03: LibSets auto set type plugin
 
 - Add `AutoCategory_LibSets.RuleFunc.AutoSetType(setType)`, registered as

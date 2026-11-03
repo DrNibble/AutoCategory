@@ -739,7 +739,10 @@ or duplicated type list is required.
 If LibSets is absent, the rule is registered as a dummy returning `false`.
 If its set database is not ready or the set/type is unknown, the function
 returns `false` without changing the dynamic category name. Missing translated
-type names fall back to English.
+type names fall back to English. The type language is explicitly read from
+the UI's `GetCVar("language.2")` and normalized to lowercase. Missing, empty,
+or unsupported UI languages default to `"en"`; ESO already supplies the set
+name in the UI language.
 
 Add a rule using `autosettype()` to the desired bags. Give it a higher run
 priority than competing `autoset()` or `combined_autoset()` rules, or disable

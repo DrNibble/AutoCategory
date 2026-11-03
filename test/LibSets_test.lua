@@ -39,7 +39,7 @@ else
         _G[constantNames[id]] = id
         typeNames[id] = { fr = "Type " .. id, en = "Type " .. id }
     end
-    typeNames[6] = { fr = "Donjon", en = "Dungeon" }
+    typeNames[6] = { fr = "Donjon", en = "Dungeon", de = "Verlies" }
 end
 
 AutoCategory = {
@@ -67,11 +67,19 @@ equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
 local hasSet, setName, setId = true, "Nom du set^m", 123
 local currentType, ready, missingTranslation, missingNames = 6, true, false, false
 local setCalls = 0
+local uiLanguage = "fr"
+function GetCVar(name)
+    equal("language.2", name, "UI language CVar")
+    return uiLanguage
+end
 function GetItemLinkSetInfo(itemLink)
     equal("test:item", itemLink, "current item link")
     return hasSet, setName, 5, 0, 5, setId, 0
 end
-LibSets = { allowedSetTypes = {} }
+LibSets = {
+    allowedSetTypes = {},
+    supportedLanguages = { fr = true, en = true, de = true, pl = false },
+}
 for id in ipairs(constantNames) do LibSets.allowedSetTypes[id] = true end
 function LibSets.GetSetType(id)
     equal(123, id, "sixth API return is setId")
@@ -79,8 +87,9 @@ function LibSets.GetSetType(id)
     if ready then return currentType end
 end
 function LibSets.GetSetTypeName(id, lang)
-    if missingNames or (missingTranslation and lang == nil) then return nil end
-    return typeNames[id][lang or "fr"]
+    equal("string", type(lang), "explicit language passed to LibSets")
+    if missingNames or (missingTranslation and lang == "fr") then return nil end
+    return typeNames[id][lang]
 end
 local library = LibSets
 AutoCategory.Plugins.LibSets.init()
@@ -112,6 +121,24 @@ for id, constantName in ipairs(constantNames) do
 end
 currentType = 6
 match(nil, "(Donjon) Nom du set")
+uiLanguage = "FR"
+match(nil, "(Donjon) Nom du set")
+uiLanguage = "de"
+match(nil, "(Verlies) Nom du set")
+uiLanguage = "en"
+match(nil, "(Dungeon) Nom du set")
+uiLanguage = nil
+match(nil, "(Dungeon) Nom du set")
+uiLanguage = ""
+match(nil, "(Dungeon) Nom du set")
+uiLanguage = "xx"
+match(nil, "(Dungeon) Nom du set")
+uiLanguage = "pl"
+match(nil, "(Dungeon) Nom du set")
+local getCVar = GetCVar
+GetCVar = nil
+match(nil, "(Dungeon) Nom du set")
+GetCVar, uiLanguage = getCVar, "fr"
 noMatch(11)
 missingTranslation = true
 match(6, "(Dungeon) Nom du set")

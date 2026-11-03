@@ -8,7 +8,7 @@ local function equal(expected, actual, message)
         .. tostring(expected) .. ", got " .. tostring(actual))
 end
 
-local constantNames, typeNames, libSetsSource, upstreamMapping
+local constantNames, typeNames, upstreamMapping
 if arg and arg[1] then
     -- Optional contract check against the actual LibSets branch supplied by
     -- the caller. Extract only its literal tables, preserving their contents.
@@ -16,7 +16,6 @@ if arg and arg[1] then
     local source = file:read("*a")
     file:close()
     source = source:gsub("\r\n", "\n")
-    libSetsSource = source
     local possibleTypes = assert(source:match("(local possibleSetTypes%s*=%s*{.-\n})"))
     local translatedNames = assert(source:match("(local setTypesToName%s*=%s*{.-\n})"))
     local chunk = assert(loadstring(possibleTypes .. [[
@@ -62,7 +61,7 @@ assert(loadfile("Plugin_API.lua"))()
 assert(loadfile("plugins/LibSets_Plugin.lua"))()
 equal("function", type(AutoCategory.Plugins.LibSets.init), "plugin registration")
 
--- Initialize without the optional dependency or its global load check.
+-- Initialize without the optional dependency or with missing APIs.
 AutoCategory.Plugins.LibSets.init()
 equal(false, AutoCategory.Environment.autosettype(), "absent library dummy")
 equal(0, logCount, "no success log without library")
@@ -70,27 +69,17 @@ local chatMessages = 0
 function d()
     chatMessages = chatMessages + 1
 end
-if libSetsSource then
-    local loadCheck = assert(libSetsSource:match(
-        "(function IsLibSetsAlreadyLoaded%(outputMsg%).-\nend)"))
-    assert(loadstring('local MAJOR, MINOR = "LibSets", 0.93\n' .. loadCheck))()
-else
-    function IsLibSetsAlreadyLoaded(outputMsg)
-        if LibSets and LibSets.fullyLoaded == true and LibSets.version >= 0.93 then
-            if outputMsg then d("LibSets loaded") end
-            return true
-        end
-        return false
-    end
+function IsLibSetsAlreadyLoaded()
+    error("The plugin must not call IsLibSetsAlreadyLoaded")
 end
 LibSets = {}
 AutoCategory.Plugins.LibSets.init()
 equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
-    "not fully loaded library dummy")
-LibSets = { fullyLoaded = true, version = 0.92 }
+    "missing APIs dummy")
+LibSets = { GetSetType = function() end, allowedSetTypes = {} }
 AutoCategory.Plugins.LibSets.init()
 equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
-    "old library version dummy")
+    "missing GetSetTypeName dummy")
 
 local hasSet, setName, setId = true, "Nom du set^m", 123
 local currentType, ready, missingTranslation, missingNames = 6, true, false, false
@@ -105,10 +94,12 @@ function GetItemLinkSetInfo(itemLink)
     return hasSet, setName, 5, 0, 5, setId, 0
 end
 LibSets = {
+    allowedSetTypes = {},
     fullyLoaded = true,
     version = 0.93,
     supportedLanguages = { fr = true, en = true, de = true, pl = false },
 }
+for id in ipairs(constantNames) do LibSets.allowedSetTypes[id] = true end
 function LibSets.GetSetType(id)
     equal(123, id, "sixth API return is setId")
     setCalls = setCalls + 1
@@ -124,7 +115,7 @@ AutoCategory.Plugins.LibSets.init()
 local rule = AutoCategory.Environment.autosettype
 equal(AutoCategory_LibSets.RuleFunc.AutoSetType, rule, "registered rule function")
 equal(1, logCount, "success log")
-equal(1, chatMessages, "load check called with true at initialization")
+equal(0, chatMessages, "no chat output at initialization")
 
 if upstreamMapping then
     local copiedMapping
@@ -170,7 +161,7 @@ end
 currentType = 6
 local messagesBeforeRule = chatMessages
 match(nil, "(Donjon) Nom du set")
-equal(messagesBeforeRule + 1, chatMessages, "load check called with true in rule")
+equal(messagesBeforeRule, chatMessages, "no chat output in rule")
 uiLanguage = "FR"
 match(nil, "(Donjon) Nom du set")
 uiLanguage = "de"
@@ -232,8 +223,19 @@ noMatch()
 LibSets = library
 local loadedCheck = IsLibSetsAlreadyLoaded
 IsLibSetsAlreadyLoaded = nil
-noMatch()
+match(6, "(Donjon) Nom du set")
 IsLibSetsAlreadyLoaded = loadedCheck
+LibSets.fullyLoaded, LibSets.version = false, 0.1
+match(6, "(Donjon) Nom du set")
+LibSets.fullyLoaded, LibSets.version = true, 0.93
+local getSetTypeName = LibSets.GetSetTypeName
+LibSets.GetSetTypeName = nil
+noMatch()
+LibSets.GetSetTypeName = getSetTypeName
+local allowedSetTypes = LibSets.allowedSetTypes
+LibSets.allowedSetTypes = nil
+noMatch()
+LibSets.allowedSetTypes = allowedSetTypes
 match(6, "(Donjon) Nom du set")
 
 -- Execute a real rule expression inside AutoCategory's restricted environment.

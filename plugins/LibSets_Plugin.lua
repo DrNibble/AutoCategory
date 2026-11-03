@@ -5,8 +5,15 @@ AutoCategory_LibSets = {
 
 local setTypeToLibraryInternalVariableNames = {}
 
+local function isLibSetsAvailable()
+    return LibSets ~= nil
+        and type(LibSets.GetSetType) == "function"
+        and type(LibSets.GetSetTypeName) == "function"
+        and type(LibSets.allowedSetTypes) == "table"
+end
+
 function AutoCategory_LibSets.Initialize()
-    if IsLibSetsAlreadyLoaded and IsLibSetsAlreadyLoaded(true) then
+    if isLibSetsAvailable() then
         -- Copy of LibSets.setTypeToLibraryInternalVariableNames. Build only
         -- after LibSets is loaded, so its global constants exist.
         setTypeToLibraryInternalVariableNames = {
@@ -67,7 +74,7 @@ end
 -- autosettype(6), autosettype("DUNGEON") or
 -- autosettype("LIBSETS_SETTYPE_DUNGEON") only matches dungeon sets.
 function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
-    if not IsLibSetsAlreadyLoaded or not IsLibSetsAlreadyLoaded(true) then
+    if not isLibSetsAvailable() then
         return false
     end
 

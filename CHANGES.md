@@ -1,5 +1,20 @@
 # Changes
 
+## 2026-11-03: Restore the local availability check
+
+- Restore the original local `isLibSetsAvailable()` and its calls during
+  initialization and rule evaluation. Check LibSets' presence, `GetSetType`,
+  `GetSetTypeName`, and the `allowedSetTypes` table.
+- Remove calls to `IsLibSetsAlreadyLoaded(true)`, including its repeated chat
+  output and its fully-loaded/version requirements.
+- Keep the literal type mapping copy, inline argument validation, UI
+  language and `"en"` fallback. This is a selective revert, not a revert
+  of the entire previous commit. Only `plugins/libsets-autosettype` changes.
+- Test that the removed global check is never called, even when present,
+  and that missing APIs safely return false. Lua 5.1 compilation passes;
+  644 assertions pass with upstream constants/tables and 627 with fixtures.
+  Not tested in ESO.
+
 ## 2026-11-03: LibSets load check and copied type mapping
 
 - On `plugins/libsets-autosettype`, remove `isLibSetsAvailable` and call

@@ -738,11 +738,10 @@ requested and detected type IDs instead of `LibSets.allowedSetTypes`.
 It must be kept in sync when LibSets adds or changes types.
 
 If LibSets is absent, the rule is registered as a dummy returning `false`.
-Initialization and rule evaluation use `IsLibSetsAlreadyLoaded(true)`;
-an absent check function or a false result prevents use of LibSets.
-The `true` argument enables LibSets' chat message on every successful load
-check, including each rule evaluation. This intentionally replaces the
-plugin's former API-availability check.
+Initialization and rule evaluation use the local `isLibSetsAvailable()`:
+LibSets must expose `GetSetType`, `GetSetTypeName`, and `allowedSetTypes`.
+The plugin does not call `IsLibSetsAlreadyLoaded(true)` or emit its chat
+message, and does not require its `fullyLoaded` flag or version check.
 If its set database is not ready or the set/type is unknown, the function
 returns `false` without changing the dynamic category name. Missing translated
 type names fall back to English. The type language is explicitly read from

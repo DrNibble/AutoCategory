@@ -1,3 +1,11 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-03)[/COLOR]:
+[LIST]
+[*] Added optional LibSets plugin: autosettype([type]) dynamically categorizes set items as "(localized type) set name".
+[*] Supports all LibSets set types and optional filtering by numeric ID or quoted constant name/suffix.
+[*] Missing LibSets or unavailable set data returns false. Existing rules are not changed automatically.
+[*] Verified offline with Lua 5.1; not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.15 (155)[/COLOR]:
 [LIST]
 [*] Fixed bag priority sort errors for the Display Order List.

@@ -712,6 +712,48 @@ _Available Add-on Version:	1.03_
 
 No Arguments, will make more than one category
 
+## Auto Set Type (LibSets plugin)
+```lua
+autosettype()
+autosettype(6)
+autosettype("DUNGEON")
+autosettype("LIBSETS_SETTYPE_DUNGEON")
+```
+
+Requires the optional LibSets library. Like `autoset()`, returns a boolean and
+generates categories dynamically, but sets `AutoCategory.AdditionCategoryName`
+to `(localized type) localized set name`, for example `(Donjon) Nom du set` on a
+French client.
+
+Without an argument, matches every set whose type is known to LibSets. The
+optional argument filters by a LibSets numeric type ID, an exported constant
+name, or its suffix (case insensitive for the suffix). Invalid types raise a
+rule error. Do not use an unquoted constant in a rule: AutoCategory's rule
+environment does not expose LibSets globals.
+
+All types in LibSets' `possibleSetTypes` are supported through its public
+`allowedSetTypes` and exported `LIBSETS_SETTYPE_*` constants, including the
+separate Cyrodiil/Imperial City monster types and class sets. No private table
+or duplicated type list is required.
+
+If LibSets is absent, the rule is registered as a dummy returning `false`.
+If its set database is not ready or the set/type is unknown, the function
+returns `false` without changing the dynamic category name. Missing translated
+type names fall back to English.
+
+Add a rule using `autosettype()` to the desired bags. Give it a higher run
+priority than competing `autoset()` or `combined_autoset()` rules, or disable
+those rules in the same bags. AutoCategory's existing "Show 'Set(name)' for
+autosets" setting still controls whether the parent rule name wraps this
+dynamic name. Perfected and non-perfected sets remain separate.
+
+API references:
+[LibSets constants](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets_ConstantsLibraryInternal.lua),
+[LibSets API](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets.lua),
+[ESO live API](https://github.com/esoui/esoui/blob/live/ESOUIDocumentation.txt).
+
+Tested offline with Lua 5.1; not tested in ESO.
+
 ## Combined Auto Set
 ```
 combined_autoset()

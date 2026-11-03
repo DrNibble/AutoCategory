@@ -731,12 +731,18 @@ name, or its suffix (case insensitive for the suffix). Invalid types raise a
 rule error. Do not use an unquoted constant in a rule: AutoCategory's rule
 environment does not expose LibSets globals.
 
-All types in LibSets' `possibleSetTypes` are supported through its public
-`allowedSetTypes` and exported `LIBSETS_SETTYPE_*` constants, including the
-separate Cyrodiil/Imperial City monster types and class sets. No private table
-or duplicated type list is required.
+The plugin contains a literal copy of
+`LibSets.setTypeToLibraryInternalVariableNames`, including the separate
+Cyrodiil/Imperial City monster types and class sets. This copy validates the
+requested and detected type IDs instead of `LibSets.allowedSetTypes`.
+It must be kept in sync when LibSets adds or changes types.
 
 If LibSets is absent, the rule is registered as a dummy returning `false`.
+Initialization and rule evaluation use `IsLibSetsAlreadyLoaded(true)`;
+an absent check function or a false result prevents use of LibSets.
+The `true` argument enables LibSets' chat message on every successful load
+check, including each rule evaluation. This intentionally replaces the
+plugin's former API-availability check.
 If its set database is not ready or the set/type is unknown, the function
 returns `false` without changing the dynamic category name. Missing translated
 type names fall back to English. The type language is explicitly read from

@@ -1,5 +1,25 @@
 # Changes
 
+## 2026-11-03: LibSets load check and copied type mapping
+
+- On `plugins/libsets-autosettype`, remove `isLibSetsAvailable` and call
+  `IsLibSetsAlreadyLoaded(true)` during initialization and rule evaluation.
+  If the global check is absent or returns false, use the dummy rule or
+  return false respectively.
+- Remove `resolveSetType`. Copy the literal
+  `LibSets.setTypeToLibraryInternalVariableNames` table into initialization,
+  after LibSets' constants are available. Use the copy to validate IDs,
+  retaining numeric IDs and quoted constant names/suffixes as arguments.
+- Keep the UI language and `"en"` fallback unchanged.
+- The copied mapping must be updated if LibSets changes its types.
+  The `true` load-check argument intentionally emits LibSets' chat message
+  on every successful call, including each item evaluated.
+- Extend tests to exercise the actual LibSets load-check function, compare
+  the plugin's actual mapping upvalue against the upstream literal table,
+  and check unloaded/old-version/absent-library behavior.
+  Lua 5.1 compilation passes; 630 assertions pass against real LibSets
+  code/tables and 613 with standalone fixtures. Not tested in ESO.
+
 ## 2026-11-03: Explicit UI language and English fallback
 
 - Read `GetCVar("language.2")` for LibSets type labels, normalize the language

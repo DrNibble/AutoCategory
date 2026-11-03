@@ -3,15 +3,59 @@ AutoCategory_LibSets = {
     RuleFunc = {},
 }
 
-local function isLibSetsAvailable()
-    return LibSets ~= nil
-        and type(LibSets.GetSetType) == "function"
-        and type(LibSets.GetSetTypeName) == "function"
-        and type(LibSets.allowedSetTypes) == "table"
-end
+local setTypeToLibraryInternalVariableNames = {}
 
 function AutoCategory_LibSets.Initialize()
-    if isLibSetsAvailable() then
+    if IsLibSetsAlreadyLoaded and IsLibSetsAlreadyLoaded(true) then
+        -- Copy of LibSets.setTypeToLibraryInternalVariableNames. Build only
+        -- after LibSets is loaded, so its global constants exist.
+        setTypeToLibraryInternalVariableNames = {
+            [LIBSETS_SETTYPE_ARENA] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "arenaSets",
+            },
+            [LIBSETS_SETTYPE_BATTLEGROUND] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "battlegroundSets",
+            },
+            [LIBSETS_SETTYPE_CRAFTED] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "craftedSets",
+            },
+            [LIBSETS_SETTYPE_CYRODIIL] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "cyrodiilSets",
+            },
+            [LIBSETS_SETTYPE_DAILYRANDOMDUNGEONANDICREWARD] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "dailyRandomDungeonAndImperialCityRewardSets",
+            },
+            [LIBSETS_SETTYPE_DUNGEON] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "dungeonSets",
+            },
+            [LIBSETS_SETTYPE_IMPERIALCITY] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "imperialCitySets",
+            },
+            [LIBSETS_SETTYPE_MONSTER] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "monsterSets",
+            },
+            [LIBSETS_SETTYPE_OVERLAND] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "overlandSets",
+            },
+            [LIBSETS_SETTYPE_SPECIAL] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "specialSets",
+            },
+            [LIBSETS_SETTYPE_TRIAL] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "trialSets",
+            },
+            [LIBSETS_SETTYPE_MYTHIC] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "mythicSets",
+            },
+            [LIBSETS_SETTYPE_IMPERIALCITY_MONSTER] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "monsterSets",
+            },
+            [LIBSETS_SETTYPE_CYRODIIL_MONSTER] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "monsterSets",
+            },
+            [LIBSETS_SETTYPE_CLASS] = {
+                [LIBSETS_TABLEKEY_TABLENAME] = "classSets",
+            },
+        }
         AutoCategory.AddRuleFunc("autosettype", AutoCategory_LibSets.RuleFunc.AutoSetType)
         AutoCat_Logger():Info("Initializing LibSets plugin integration")
     else
@@ -19,33 +63,27 @@ function AutoCategory_LibSets.Initialize()
     end
 end
 
--- possibleSetTypes is local to LibSets. Resolve its exported global constants
--- instead, and validate against the public allowedSetTypes table.
-local function resolveSetType(setType)
-    if type(setType) == "string" then
-        local constantName = setType
-        if string.sub(constantName, 1, 16) ~= "LIBSETS_SETTYPE_" then
-            constantName = "LIBSETS_SETTYPE_" .. string.upper(constantName)
-        end
-        setType = rawget(_G, constantName)
-    end
-    if type(setType) ~= "number" or not LibSets.allowedSetTypes[setType] then
-        error("error: autosettype(): expected a valid LibSets set type ID or constant name.")
-    end
-    return setType
-end
-
 -- autosettype() matches all known set types.
 -- autosettype(6), autosettype("DUNGEON") or
 -- autosettype("LIBSETS_SETTYPE_DUNGEON") only matches dungeon sets.
 function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
-    if not isLibSetsAvailable() then
+    if not IsLibSetsAlreadyLoaded or not IsLibSetsAlreadyLoaded(true) then
         return false
     end
 
     local requestedSetType
     if setType ~= nil then
-        requestedSetType = resolveSetType(setType)
+        if type(setType) == "string" then
+            local constantName = setType
+            if string.sub(constantName, 1, 16) ~= "LIBSETS_SETTYPE_" then
+                constantName = "LIBSETS_SETTYPE_" .. string.upper(constantName)
+            end
+            setType = rawget(_G, constantName)
+        end
+        if type(setType) ~= "number" or not setTypeToLibraryInternalVariableNames[setType] then
+            error("error: autosettype(): expected a valid LibSets set type ID or constant name.")
+        end
+        requestedSetType = setType
     end
 
     local hasSet, setName, _, _, _, setId =
@@ -57,7 +95,7 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
     -- GetSetType returns nil while the database is not ready, while scanning,
     -- or when this set is unknown to LibSets.
     local actualSetType = LibSets.GetSetType(setId)
-    if not actualSetType or not LibSets.allowedSetTypes[actualSetType] then
+    if not actualSetType or not setTypeToLibraryInternalVariableNames[actualSetType] then
         return false
     end
     if requestedSetType and requestedSetType ~= actualSetType then

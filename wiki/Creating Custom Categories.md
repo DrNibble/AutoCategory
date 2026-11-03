@@ -9,6 +9,36 @@ The Description of a Category allows you to specify descriptive text which will 
 
 The Rule for a category is described below.
 
+## Two-Level (Nested) Categories
+A category name may contain the separator `----` (four hyphens). The text before the separator becomes a parent header, and the text after it becomes a collapsible sub-header under that parent. Spaces around both parts are trimmed, and only the first separator splits the name.
+
+For example, categories named:
+
+```
+Potions----Magie
+Potions----Santé
+Poisons----Magie
+```
+
+display in the keyboard inventory as:
+
+```
+Potions            [-]
+    Magie          [-]
+    Santé          [-]
+Poisons            [-]
+    Magie          [-]
+```
+
+Both levels collapse independently with the usual `+`/`-` marker, the context menu and the click on the header. The parent header shows the total count of all its children's items; each child header shows its own count. On the gamepad, categories display as one-line `parent - child` headers.
+
+Details and edge cases:
+
+* Flat category names (without the separator) sort and display exactly as before.
+* A name with an empty parent or child part (`----Magie`, `Potions----`) is treated as a flat name and displayed as-is.
+* If a flat category shares a parent's name (a category named `Potions` next to `Potions----Magie`), that flat header serves as the parent: its items sort directly under it, before the sub-categories.
+* The collapse state of a parent is saved under the parent name; each child's state is saved under its full `parent----child` name, exactly like any other category.
+
 ## Rule Expression Creation
 The Rule section is where the actual decision making takes place. You are basically creating an expression which will evaluate to either true or false to say if the item is to be included (true) or excluded (false). (By the way, in Lua, anything that is not `true` is `false`.) Each item in the bag is evaluated against the rule, one after another and AutoCategory has a number of rule functions to be able to get information about or reason about the particular item being evaluated. These rule functions are used along with `and`s, `or`s, `not`s, and arithmetic comparisons in order to include/exclude items.
 

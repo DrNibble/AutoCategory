@@ -19,6 +19,7 @@ ZOS_Overwrites.lua
 
 AutoCategory_Global.lua
 AutoCategory_Defaults.lua
+CategoryTree.lua
 Plugin_API.lua
 AutoCategory.xml
 Hooks_Keyboard.lua

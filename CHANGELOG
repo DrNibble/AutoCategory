@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Unreleased[/COLOR]:
+[LIST]
+[*] Two-level collapsible categories: a category name containing "----" displays as a parent header with collapsible child headers (keyboard inventory), e.g. "Potions----Magie" and "Potions----Santé" under "Potions". Gamepad shows "parent - child" one-line headers.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.15 (155)[/COLOR]:
 [LIST]
 [*] Fixed bag priority sort errors for the Display Order List.

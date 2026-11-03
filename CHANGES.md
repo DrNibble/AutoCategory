@@ -1,5 +1,39 @@
 # Changes
 
+## 2026-11-03: Type-first, set-second inventory sorting
+
+- Read type labels directly from `LibSets.setTypesToName[setType]`, using
+  the UI language and the `"en"` default/fallback. Replace the old
+  `GetSetTypeName` API dependency with a `setTypesToName` table check in
+  the existing local `isLibSetsAvailable()` function.
+- Generate a separate two-component sort name: localized type name first,
+  localized set name second, each lowercased using ESO's native
+  `LocaleAwareToLower`. Keep the displayed `(type) set name` unchanged.
+- Add `AutoCategory.GetCategorySortName` to the plugin API and store custom
+  dynamic keys only for successful rule matches. Reset the temporary sort
+  name before each rule; clear old dynamic keys on ordinary matches.
+- Use the shared lookup in keyboard and all five matched gamepad
+  inventory/crafting/store key-generation sites. Preserve display priority,
+  ordinary category ordering, and headers before their items. Parent rule
+  titles no longer override the type/set order; exact display labels are
+  a final tie-breaker to keep distinct case-folded groups contiguous.
+- This is two-level ordering, not a nested/collapsible type-header UI.
+  Different display priorities still dominate; use equal display priorities
+  across filtered rules for a common alphabetical ordering. Normalized Lua
+  string ordering is not accent-folded dictionary collation.
+- Extend the Lua 5.1 harness to load the real matching API and extract the
+  real keyboard/gamepad key producers and comparators in shared chunks.
+  Test French/English/fallback ordering, mixed case, translated type order,
+  prefix types, parent title settings, case-only label collisions, stale
+  keys, ordinary categories, and retained display priorities.
+  Lua 5.1 compilation passes for all six changed Lua files; 2087 assertions
+  pass with actual LibSets constants/translations and 2070 with standalone
+  fixtures. ESO native APIs remain simulated; not tested in ESO.
+
+References: [LibSets translations](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets_ConstantsLibraryInternal.lua),
+[ESO native lowercasing API](https://github.com/esoui/esoui/blob/live/ESOUIDocumentation.txt),
+[ESO string ordering](https://github.com/esoui/esoui/blob/live/esoui/libraries/utility/zo_tableutils.lua).
+
 ## 2026-11-03: Restore the local availability check
 
 - Restore the original local `isLibSetsAvailable()` and its calls during

@@ -1,5 +1,6 @@
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-03)[/COLOR]:
 [LIST]
+[*] Read type labels directly from LibSets.setTypesToName and sort set categories by localized type, then by set name, case-insensitively. Share the key across keyboard/gamepad paths while keeping display priority and ordinary categories unchanged.
 [*] On the plugins/libsets-autosettype branch, retain the local isLibSetsAvailable() API check and use a literal copy of LibSets.setTypeToLibraryInternalVariableNames for type validation.
 [*] Added optional LibSets plugin: autosettype([type]) dynamically categorizes set items as "(localized type) set name".
 [*] Supports all LibSets set types and optional filtering by numeric ID or quoted constant name/suffix.

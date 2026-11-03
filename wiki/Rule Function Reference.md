@@ -739,7 +739,7 @@ It must be kept in sync when LibSets adds or changes types.
 
 If LibSets is absent, the rule is registered as a dummy returning `false`.
 Initialization and rule evaluation use the local `isLibSetsAvailable()`:
-LibSets must expose `GetSetType`, `GetSetTypeName`, and `allowedSetTypes`.
+LibSets must expose `GetSetType`, `setTypesToName`, and `allowedSetTypes`.
 The plugin does not call `IsLibSetsAlreadyLoaded(true)` or emit its chat
 message, and does not require its `fullyLoaded` flag or version check.
 If its set database is not ready or the set/type is unknown, the function
@@ -747,7 +747,28 @@ returns `false` without changing the dynamic category name. Missing translated
 type names fall back to English. The type language is explicitly read from
 the UI's `GetCVar("language.2")` and normalized to lowercase. Missing, empty,
 or unsupported UI languages default to `"en"`; ESO already supplies the set
-name in the UI language.
+name in the UI language. Type labels are read directly from the global
+`LibSets.setTypesToName[setType][uiLanguage]` table, falling back to its `.en`
+entry; the plugin no longer calls `LibSets.GetSetTypeName`.
+
+The inventory sort has two alphabetical levels within the existing display
+priority: first the localized type name, then the localized set name within
+that type. Both are normalized with ESO's native `LocaleAwareToLower`.
+They form separate internal keys, so one type name being a prefix of another
+does not let set names interfere with the type order. This uses Lua string
+ordering after lowercasing, not accent-folding or dictionary collation.
+
+Keyboard and gamepad inventory/crafting/store paths use the same category
+sort-name lookup. Parent rule titles do not affect this two-level order.
+Display priorities remain dominant: use the same display priority for
+multiple `autosettype(...)` rules if they should share one alphabetical
+ordering. Ordinary categories keep their existing keys, headers still
+precede their items, and distinct labels with identical normalized keys
+remain separate contiguous groups.
+
+Displayed headers remain `(type) set name`, optionally wrapped in the
+parent rule name. The two levels describe the sort order, not a new nested
+or separately collapsible type-header UI.
 
 Add a rule using `autosettype()` to the desired bags. Give it a higher run
 priority than competing `autoset()` or `combined_autoset()` rules, or disable
@@ -758,7 +779,8 @@ dynamic name. Perfected and non-perfected sets remain separate.
 API references:
 [LibSets constants](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets_ConstantsLibraryInternal.lua),
 [LibSets API](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets.lua),
-[ESO live API](https://github.com/esoui/esoui/blob/live/ESOUIDocumentation.txt).
+[ESO live API](https://github.com/esoui/esoui/blob/live/ESOUIDocumentation.txt),
+[ESO table ordering](https://github.com/esoui/esoui/blob/live/esoui/libraries/utility/zo_tableutils.lua).
 
 Tested offline with Lua 5.1; not tested in ESO.
 

@@ -8,7 +8,7 @@ local setTypeToLibraryInternalVariableNames = {}
 local function isLibSetsAvailable()
     return LibSets ~= nil
         and type(LibSets.GetSetType) == "function"
-        and type(LibSets.GetSetTypeName) == "function"
+        and type(LibSets.setTypesToName) == "table"
         and type(LibSets.allowedSetTypes) == "table"
 end
 
@@ -119,11 +119,15 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
     if LibSets.supportedLanguages and not LibSets.supportedLanguages[uiLanguage] then
         uiLanguage = "en"
     end
-    local setTypeName = LibSets.GetSetTypeName(actualSetType, uiLanguage)
-    if not setTypeName or setTypeName == "" then
-        setTypeName = LibSets.GetSetTypeName(actualSetType, "en")
+    local typeNames = LibSets.setTypesToName[actualSetType]
+    if type(typeNames) ~= "table" then
+        return false
     end
-    if not setTypeName or setTypeName == "" then
+    local setTypeName = typeNames[uiLanguage]
+    if type(setTypeName) ~= "string" or setTypeName == "" then
+        setTypeName = typeNames.en
+    end
+    if type(setTypeName) ~= "string" or setTypeName == "" then
         return false
     end
 
@@ -133,6 +137,11 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
         return false
     end
     AutoCategory.AdditionCategoryName = "(" .. setTypeName .. ") " .. setName
+    -- Keep the two alphabetical levels independent of display wrappers.
+    -- A separator before any printable character places a complete type name
+    -- before a longer type name sharing its prefix, regardless of set names.
+    AutoCategory.AdditionCategorySortName =
+        LocaleAwareToLower(setTypeName) .. "\001" .. LocaleAwareToLower(setName)
     return true
 end
 

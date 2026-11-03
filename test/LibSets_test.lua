@@ -45,6 +45,8 @@ else
         typeNames[id] = { fr = "Type " .. id, en = "Type " .. id }
     end
     typeNames[6] = { fr = "Donjon", en = "Dungeon", de = "Verlies" }
+    typeNames[1] = { fr = "Arène", en = "Arena" }
+    typeNames[4] = { fr = "Cyrodiil", en = "Cyrodiil" }
 end
 LIBSETS_TABLEKEY_TABLENAME = "tableName"
 
@@ -79,15 +81,19 @@ equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
 LibSets = { GetSetType = function() end, allowedSetTypes = {} }
 AutoCategory.Plugins.LibSets.init()
 equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
-    "missing GetSetTypeName dummy")
+    "missing setTypesToName dummy")
 
 local hasSet, setName, setId = true, "Nom du set^m", 123
-local currentType, ready, missingTranslation, missingNames = 6, true, false, false
+local currentType, ready = 6, true
 local setCalls = 0
 local uiLanguage = "fr"
 function GetCVar(name)
     equal("language.2", name, "UI language CVar")
     return uiLanguage
+end
+-- Simulate the native ESO function for the test strings, including accents.
+function LocaleAwareToLower(value)
+    return (value:gsub("É", "é"):gsub("È", "è"):gsub("Ä", "ä"):lower())
 end
 function GetItemLinkSetInfo(itemLink)
     equal("test:item", itemLink, "current item link")
@@ -95,6 +101,7 @@ function GetItemLinkSetInfo(itemLink)
 end
 LibSets = {
     allowedSetTypes = {},
+    setTypesToName = typeNames,
     fullyLoaded = true,
     version = 0.93,
     supportedLanguages = { fr = true, en = true, de = true, pl = false },
@@ -106,9 +113,7 @@ function LibSets.GetSetType(id)
     if ready then return currentType end
 end
 function LibSets.GetSetTypeName(id, lang)
-    equal("string", type(lang), "explicit language passed to LibSets")
-    if missingNames or (missingTranslation and lang == "fr") then return nil end
-    return typeNames[id][lang]
+    error("Type names must be read directly from LibSets.setTypesToName")
 end
 local library = LibSets
 AutoCategory.Plugins.LibSets.init()
@@ -138,13 +143,19 @@ end
 
 local function match(filter, expectedName)
     AutoCategory.AdditionCategoryName = "unchanged"
+    AutoCategory.AdditionCategorySortName = "unchanged"
     equal(true, rule(filter), "matching rule")
     equal(expectedName, AutoCategory.AdditionCategoryName, "dynamic category")
+    local expectedType, expectedSet = expectedName:match("^%((.*)%) (.*)$")
+    equal(LocaleAwareToLower(expectedType) .. "\001" .. LocaleAwareToLower(expectedSet),
+        AutoCategory.AdditionCategorySortName, "two-level sort name")
 end
 local function noMatch(filter)
     AutoCategory.AdditionCategoryName = "unchanged"
+    AutoCategory.AdditionCategorySortName = "unchanged"
     equal(false, rule(filter), "non-matching rule")
     equal("unchanged", AutoCategory.AdditionCategoryName, "no category side effect")
+    equal("unchanged", AutoCategory.AdditionCategorySortName, "no sort side effect")
 end
 
 -- Every actual possibleSetTypes entry, including IDs 13, 14 and 15.
@@ -181,11 +192,19 @@ GetCVar = nil
 match(nil, "(Dungeon) Nom du set")
 GetCVar, uiLanguage = getCVar, "fr"
 noMatch(11)
-missingTranslation = true
+local frenchDungeonName = typeNames[6].fr
+typeNames[6].fr = nil
 match(6, "(Dungeon) Nom du set")
-missingTranslation, missingNames = false, true
+typeNames[6].fr = ""
+match(6, "(Dungeon) Nom du set")
+local dungeonNames = typeNames[6]
+typeNames[6] = {}
 noMatch()
-missingNames, ready = false, false
+typeNames[6] = nil
+noMatch()
+typeNames[6] = dungeonNames
+typeNames[6].fr = frenchDungeonName
+ready = false
 noMatch()
 ready, currentType = true, nil
 noMatch()
@@ -228,10 +247,10 @@ IsLibSetsAlreadyLoaded = loadedCheck
 LibSets.fullyLoaded, LibSets.version = false, 0.1
 match(6, "(Donjon) Nom du set")
 LibSets.fullyLoaded, LibSets.version = true, 0.93
-local getSetTypeName = LibSets.GetSetTypeName
-LibSets.GetSetTypeName = nil
+local names = LibSets.setTypesToName
+LibSets.setTypesToName = nil
 noMatch()
-LibSets.GetSetTypeName = getSetTypeName
+LibSets.setTypesToName = names
 local allowedSetTypes = LibSets.allowedSetTypes
 LibSets.allowedSetTypes = nil
 noMatch()
@@ -243,6 +262,179 @@ local expression = assert(loadstring('return autosettype("DUNGEON")'))
 setfenv(expression, AutoCategory.Environment)
 equal(true, expression(), "rule environment execution")
 equal("(Donjon) Nom du set", AutoCategory.AdditionCategoryName, "expression name")
+
+-- Integration: load the delivered matching API and extract the real keyboard
+-- and gamepad producers/comparators in a shared chunk with minimal ESO stubs.
+local function readSource(path)
+    local file = assert(io.open(path, "r"))
+    local source = file:read("*a"):gsub("\r\n", "\n")
+    file:close()
+    return source
+end
+local function extractFunction(source, name)
+    return assert(source:match("(local function " .. name .. "%b().-\nend)"),
+        "Function not found: " .. name)
+end
+AC_BAG_TYPE_BACKPACK = 1
+LibSFUtils = { safeCall = pcall }
+local bagRules = {
+    { name = "arena", showpriority = 10, runpriority = 10 },
+    { name = "otherSets", showpriority = 10, runpriority = 9 },
+    { name = "ordinary", showpriority = 10, runpriority = 8 },
+}
+AutoCategory.saved = {
+    general = { SHOW_CATEGORY_SET_TITLE = true },
+    bags = { [1] = { rules = bagRules } },
+}
+AutoCategory.acctSaved = { appearance = { CATEGORY_OTHER_TEXT = "Other" } }
+AutoCategory.Enabled = true
+AutoCategory.SetCategoryCollapsed = function() end
+AutoCategory.IsCategoryCollapsed = function() return false end
+local rules = {
+    arena = { name = "ZZZ parent", key = function() return 1 end },
+    otherSets = { name = "AAA parent", key = function() return 2 end },
+    ordinary = { name = "Ordinary", key = function() return 3 end },
+}
+AutoCategory.GetRuleByName = function(name) return rules[name] end
+local inventory = {
+    { type = 6, name = "zulu" },
+    { type = 1, name = "Zulu" },
+    { type = 6, name = "Alpha" },
+    { type = 4, name = "beta" },
+    { type = 1, name = "alpha" },
+    { type = 6, name = "Beta" },
+    { type = 6, name = "not a set", hasSet = false },
+}
+function AutoCategory:setChecking(bagId, slotIndex)
+    self.checking.BagId = bagId
+    currentType, setName = inventory[slotIndex].type, inventory[slotIndex].name
+    hasSet = inventory[slotIndex].hasSet ~= false
+end
+AutoCategory.compiledRules = {
+    function()
+        if currentType == 1 then return rule() end
+        AutoCategory.AdditionCategorySortName = "must not leak from a failed rule"
+        return false
+    end,
+    function() return rule() end,
+    function()
+        equal(nil, AutoCategory.AdditionCategorySortName, "sort key reset between rules")
+        return true
+    end,
+}
+assert(loadfile("AutoCategory_API.lua"))()
+equal("Unchanged", AutoCategory.GetCategorySortName("Unchanged"), "ordinary fallback")
+
+local keyboardSource = readSource("Hooks_Keyboard.lua")
+local keyboardChunk = assert(loadstring([[
+    local CATEGORY_HEADER = 998
+    local sortKeys = {}
+    local function isUngroupedHidden() return false end
+]] .. extractFunction(keyboardSource, "NilOrLessThan") .. "\n"
+    .. extractFunction(keyboardSource, "runRulesOnEntry") .. "\n"
+    .. extractFunction(keyboardSource, "sortInventoryFn") .. [[
+    return runRulesOnEntry, sortInventoryFn
+]]))
+local runKeyboardRules, keyboardComparator = keyboardChunk()
+ZO_SORT_ORDER_UP = true
+function ZO_TableOrderingFunction(left, right, key, keys, order)
+    if key == "statValue" then
+        equal(left, right, "keyboard only reaches native item sort for self comparison")
+        return false
+    end
+    equal("sortPriorityName", key, "gamepad primary sort key")
+    equal(true, order, "gamepad ascending")
+    equal("bestItemTypeName", keys[key].tiebreaker, "gamepad tiebreaker preserved")
+    -- Stub the native ESO sorter for the keys reached in these scenarios.
+    -- Different generated category keys resolve before its item tiebreakers.
+    return left[key] < right[key]
+end
+SHARED_INVENTORY = {
+    GenerateSingleSlotData = function(_, bagId, slotIndex)
+        return { bagId = bagId, slotIndex = slotIndex }
+    end,
+}
+local gamepadSource = readSource("Hooks_Gamepad.lua")
+local gamepadChunk = assert(loadstring(
+    assert(gamepadSource:match("(local CUSTOM_GAMEPAD_ITEM_SORT%s*=%s*{.-\n})")) .. "\n"
+    .. extractFunction(gamepadSource, "AutoCategory_ItemSortComparator") .. "\n"
+    .. extractFunction(gamepadSource, "ZO_GamepadInventoryList_AddSlotDataToTable") .. "\n"
+    .. extractFunction(gamepadSource, "gci_AddSlotDataToTable1") .. [[
+    return ZO_GamepadInventoryList_AddSlotDataToTable, gci_AddSlotDataToTable1,
+        AutoCategory_ItemSortComparator
+]]))
+local runGamepadRules, runGamepadCraftRules, gamepadComparator = gamepadChunk()
+
+local function checkOrder(expected, label)
+    local keyboard, gamepad, crafting = {}, {}, {}
+    for slotIndex = 1, #expected do
+        local row = { typeId = 1, data = { bagId = 1, slotIndex = slotIndex } }
+        runKeyboardRules(row)
+        keyboard[#keyboard + 1] = row
+        runGamepadRules({}, gamepad, 1, slotIndex)
+        runGamepadCraftRules({}, crafting, 1, slotIndex)
+        equal(AutoCategory.GetCategorySortName(row.data.AC_categoryName),
+            gamepad[slotIndex].sortPriorityName:sub(5), "shared key across views")
+    end
+    table.sort(keyboard, function(left, right)
+        return keyboardComparator({}, left, right)
+    end)
+    table.sort(gamepad, gamepadComparator)
+    table.sort(crafting, gamepadComparator)
+    for index, slotIndex in ipairs(expected) do
+        equal(slotIndex, keyboard[index].data.slotIndex, label .. " keyboard")
+        equal(slotIndex, gamepad[index].slotIndex, label .. " gamepad")
+        equal(slotIndex, crafting[index].slotIndex, label .. " gamepad crafting")
+    end
+    -- The displayed label stays readable and never contains the separator.
+    equal(nil, keyboard[1].data.AC_categoryName:find("\001", 1, true), "display unchanged")
+    local item = keyboard[1]
+    local header = { data = {
+        AC_sortPriorityName = item.data.AC_sortPriorityName, AC_isHeader = true,
+    } }
+    equal(true, keyboardComparator({}, header, item), "header precedes its items")
+    equal(false, keyboardComparator({}, item, header), "header comparison inverse")
+end
+
+uiLanguage = "fr"
+checkOrder({ 5, 2, 4, 3, 6, 1 }, "French type then set, mixed case, parent ignored")
+AutoCategory.saved.general.SHOW_CATEGORY_SET_TITLE = false
+checkOrder({ 5, 2, 4, 3, 6, 1 }, "same order without parent title")
+uiLanguage = "en"
+checkOrder({ 5, 2, 4, 3, 6, 1 }, "English type then set")
+uiLanguage = "xx"
+checkOrder({ 5, 2, 4, 3, 6, 1 }, "unsupported language English fallback")
+uiLanguage = "fr"
+-- Prefix types must remain separate levels, not be compared as display labels.
+local arenaFrenchName = typeNames[1].fr
+typeNames[1].fr = "Z-Arène"
+checkOrder({ 4, 3, 6, 1, 5, 2 }, "type order follows current French translation")
+uiLanguage = "en"
+checkOrder({ 5, 2, 4, 3, 6, 1 }, "English order independent of French translation")
+uiLanguage = "fr"
+typeNames[1].fr = "Donjon étendu"
+checkOrder({ 4, 3, 6, 1, 5, 2 }, "short type before its longer prefix variant")
+typeNames[1].fr = arenaFrenchName
+local firstSetName, thirdSetName = inventory[1].name, inventory[3].name
+inventory[1].name, inventory[3].name = "ALPHA", "alpha"
+checkOrder({ 5, 2, 4, 1, 3, 6 }, "case-only name collisions keep distinct groups")
+equal(false, AutoCategory.GetCategorySortName("(Donjon) ALPHA") ==
+    AutoCategory.GetCategorySortName("(Donjon) alpha"), "distinct header keys")
+inventory[1].name, inventory[3].name = firstSetName, thirdSetName
+-- Original display priority still takes precedence over the alphabetical key.
+bagRules[2].showpriority = 50
+checkOrder({ 4, 3, 6, 1, 5, 2 }, "display priority preserved")
+bagRules[2].showpriority = 10
+AutoCategory.CategorySortNames.Ordinary = "stale"
+local matched, ordinaryName = AutoCategory:MatchCategoryRules(1, 7)
+equal(true, matched, "ordinary rule match")
+equal("Ordinary", ordinaryName, "ordinary rule label")
+equal(nil, AutoCategory.CategorySortNames.Ordinary, "stale dynamic key cleared")
+equal("Ordinary", AutoCategory.GetCategorySortName(ordinaryName), "ordinary order retained")
+
+local _, gamepadSites = gamepadSource:gsub(
+    '1000 %- showPriority,%s*AutoCategory%.GetCategorySortName%(categoryName%)', "")
+equal(5, gamepadSites, "all matched gamepad key generation sites use shared helper")
 
 print("PASS: " .. assertions .. " assertions (" .. _VERSION
     .. (arg and arg[1] and ", actual LibSets constants/translations)" or ", fixtures)"))

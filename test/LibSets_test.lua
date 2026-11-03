@@ -8,7 +8,7 @@ local function equal(expected, actual, message)
         .. tostring(expected) .. ", got " .. tostring(actual))
 end
 
-local constantNames, typeNames, upstreamMapping
+local constantNames, typeNames, cacheClientLanguage
 if arg and arg[1] then
     -- Optional contract check against the actual LibSets branch supplied by
     -- the caller. Extract only its literal tables, preserving their contents.
@@ -25,11 +25,14 @@ if arg and arg[1] then
         local function zocstrfor(_, value) return value end
     ]] .. translatedNames .. "\nreturn possibleSetTypes, setTypesToName"))
     constantNames, typeNames = chunk()
-    local mapping = assert(source:match(
-        "(lib.setTypeToLibraryInternalVariableNames%s*=%s*{.-\n})"))
-    LIBSETS_TABLEKEY_TABLENAME = "tableName"
-    upstreamMapping = assert(loadstring("local lib = {}\n" .. mapping
-        .. "\nreturn lib.setTypeToLibraryInternalVariableNames"))()
+    local languageCache = assert(source:match(
+        "(local clientLang%s*=%s*GetCVar%b().-lib%.clientLang%s*=%s*clientLang)"))
+    cacheClientLanguage = assert(loadstring([[
+        return function(lib, rawLanguage)
+            local strlower = string.lower
+            local supportedLanguages, fallbackLang = lib.supportedLanguages, lib.fallbackLang
+            local function GetCVar() return rawLanguage end
+    ]] .. languageCache .. "\nend"))()
 else
     -- Fixtures for standalone execution without a LibSets checkout.
     local suffixes = {
@@ -47,8 +50,11 @@ else
     typeNames[6] = { fr = "Donjon", en = "Dungeon", de = "Verlies" }
     typeNames[1] = { fr = "Arène", en = "Arena" }
     typeNames[4] = { fr = "Cyrodiil", en = "Cyrodiil" }
+    cacheClientLanguage = function(lib, rawLanguage)
+        local language = string.lower(rawLanguage)
+        lib.clientLang = lib.supportedLanguages[language] and language or lib.fallbackLang
+    end
 end
-LIBSETS_TABLEKEY_TABLENAME = "tableName"
 
 AutoCategory = {
     Environment = {},
@@ -63,7 +69,7 @@ assert(loadfile("Plugin_API.lua"))()
 assert(loadfile("plugins/LibSets_Plugin.lua"))()
 equal("function", type(AutoCategory.Plugins.LibSets.init), "plugin registration")
 
--- Initialize without the optional dependency or with missing APIs.
+-- Initialize without the optional dependency or before it is fully loaded.
 AutoCategory.Plugins.LibSets.init()
 equal(false, AutoCategory.Environment.autosettype(), "absent library dummy")
 equal(0, logCount, "no success log without library")
@@ -77,19 +83,22 @@ end
 LibSets = {}
 AutoCategory.Plugins.LibSets.init()
 equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
-    "missing APIs dummy")
-LibSets = { GetSetType = function() end, allowedSetTypes = {} }
+    "missing fullyLoaded dummy")
+LibSets = { fullyLoaded = false }
 AutoCategory.Plugins.LibSets.init()
 equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
-    "missing setTypesToName dummy")
+    "fullyLoaded false dummy")
+LibSets.fullyLoaded = true
+equal(false, AutoCategory.Environment.autosettype(), "no automatic late registration")
+AutoCategory.Plugins.LibSets.init()
+equal(AutoCategory_LibSets.RuleFunc.AutoSetType, AutoCategory.Environment.autosettype,
+    "fullyLoaded alone controls registration, with no per-API guards")
 
 local hasSet, setName, setId = true, "Nom du set^m", 123
 local currentType, ready = 6, true
 local setCalls = 0
-local uiLanguage = "fr"
-function GetCVar(name)
-    equal("language.2", name, "UI language CVar")
-    return uiLanguage
+function GetCVar()
+    error("The plugin must use LibSets' cached default, never GetCVar")
 end
 -- Simulate the native ESO function for the test strings, including accents.
 function LocaleAwareToLower(value)
@@ -104,6 +113,8 @@ LibSets = {
     setTypesToName = typeNames,
     fullyLoaded = true,
     version = 0.93,
+    clientLang = "fr",
+    fallbackLang = "en",
     supportedLanguages = { fr = true, en = true, de = true, pl = false },
 }
 for id in ipairs(constantNames) do LibSets.allowedSetTypes[id] = true end
@@ -119,27 +130,8 @@ local library = LibSets
 AutoCategory.Plugins.LibSets.init()
 local rule = AutoCategory.Environment.autosettype
 equal(AutoCategory_LibSets.RuleFunc.AutoSetType, rule, "registered rule function")
-equal(1, logCount, "success log")
+equal(2, logCount, "success logs for both fullyLoaded registrations")
 equal(0, chatMessages, "no chat output at initialization")
-
-if upstreamMapping then
-    local copiedMapping
-    for index = 1, 10 do
-        local name, value = debug.getupvalue(AutoCategory_LibSets.Initialize, index)
-        if name == "setTypeToLibraryInternalVariableNames" then
-            copiedMapping = value
-            break
-        end
-    end
-    equal("table", type(copiedMapping), "actual plugin mapping upvalue")
-    local count = 0
-    for id, entry in pairs(upstreamMapping) do
-        count = count + 1
-        equal(entry[LIBSETS_TABLEKEY_TABLENAME],
-            copiedMapping[id][LIBSETS_TABLEKEY_TABLENAME], "literal mapping copy")
-    end
-    equal(15, count, "upstream mapping count")
-end
 
 local function match(filter, expectedName)
     AutoCategory.AdditionCategoryName = "unchanged"
@@ -168,33 +160,56 @@ for id, constantName in ipairs(constantNames) do
     match(constantName, expectedName)
     match(constantName:sub(17), expectedName)
     match(constantName:sub(17):lower(), expectedName)
+    match(typeNames[id].fr, expectedName)
+    match(LocaleAwareToLower(typeNames[id].fr), expectedName)
 end
 currentType = 6
 local messagesBeforeRule = chatMessages
 match(nil, "(Donjon) Nom du set")
 equal(messagesBeforeRule, chatMessages, "no chat output in rule")
-uiLanguage = "FR"
+cacheClientLanguage(LibSets, "FR")
 match(nil, "(Donjon) Nom du set")
-uiLanguage = "de"
+cacheClientLanguage(LibSets, "de")
 match(nil, "(Verlies) Nom du set")
-uiLanguage = "en"
+match("Verlies", "(Verlies) Nom du set")
+cacheClientLanguage(LibSets, "en")
 match(nil, "(Dungeon) Nom du set")
-uiLanguage = nil
+cacheClientLanguage(LibSets, "")
 match(nil, "(Dungeon) Nom du set")
-uiLanguage = ""
+cacheClientLanguage(LibSets, "xx")
 match(nil, "(Dungeon) Nom du set")
-uiLanguage = "xx"
-match(nil, "(Dungeon) Nom du set")
-uiLanguage = "pl"
+cacheClientLanguage(LibSets, "pl")
 match(nil, "(Dungeon) Nom du set")
 local getCVar = GetCVar
+cacheClientLanguage(LibSets, "fr")
 GetCVar = nil
-match(nil, "(Dungeon) Nom du set")
-GetCVar, uiLanguage = getCVar, "fr"
+match(nil, "(Donjon) Nom du set")
+GetCVar = getCVar
 noMatch(11)
+noMatch("Arène")
+match("DONJON", "(Donjon) Nom du set")
+-- The live name table, not a copied list or allowedSetTypes, defines types.
+typeNames[99] = { fr = "Extension", en = "Extension" }
+currentType = 99
+match(99, "(Extension) Nom du set")
+match("Extension", "(Extension) Nom du set")
+noMatch("Donjon")
+currentType = 6
+noMatch("Extension")
+typeNames[99] = nil
+local imperialMonsterName, cyrodiilMonsterName = typeNames[13].fr, typeNames[14].fr
+typeNames[13].fr, typeNames[14].fr = "Monstre partagé", "Monstre partagé"
+currentType = 13
+match("Monstre partagé", "(Monstre partagé) Nom du set")
+currentType = 14
+match("MONSTRE PARTAGÉ", "(Monstre partagé) Nom du set")
+currentType = 6
+noMatch("Monstre partagé")
+typeNames[13].fr, typeNames[14].fr = imperialMonsterName, cyrodiilMonsterName
 local frenchDungeonName = typeNames[6].fr
 typeNames[6].fr = nil
 match(6, "(Dungeon) Nom du set")
+match("Dungeon", "(Dungeon) Nom du set")
 typeNames[6].fr = ""
 match(6, "(Dungeon) Nom du set")
 local dungeonNames = typeNames[6]
@@ -245,17 +260,23 @@ IsLibSetsAlreadyLoaded = nil
 match(6, "(Donjon) Nom du set")
 IsLibSetsAlreadyLoaded = loadedCheck
 LibSets.fullyLoaded, LibSets.version = false, 0.1
+noMatch(6)
+LibSets.fullyLoaded = true
 match(6, "(Donjon) Nom du set")
-LibSets.fullyLoaded, LibSets.version = true, 0.93
+LibSets.version = 0.93
 local names = LibSets.setTypesToName
 LibSets.setTypesToName = nil
-noMatch()
+equal(false, pcall(rule), "fullyLoaded now trusts the library table contract")
 LibSets.setTypesToName = names
 local allowedSetTypes = LibSets.allowedSetTypes
 LibSets.allowedSetTypes = nil
-noMatch()
+match(6, "(Donjon) Nom du set")
 LibSets.allowedSetTypes = allowedSetTypes
 match(6, "(Donjon) Nom du set")
+local getSetType = LibSets.GetSetType
+LibSets.GetSetType = nil
+equal(false, pcall(rule), "fullyLoaded replaces individual API capability checks")
+LibSets.GetSetType = getSetType
 
 -- Execute a real rule expression inside AutoCategory's restricted environment.
 local expression = assert(loadstring('return autosettype("DUNGEON")'))
@@ -396,22 +417,22 @@ local function checkOrder(expected, label)
     equal(false, keyboardComparator({}, item, header), "header comparison inverse")
 end
 
-uiLanguage = "fr"
+cacheClientLanguage(LibSets, "fr")
 checkOrder({ 5, 2, 4, 3, 6, 1 }, "French type then set, mixed case, parent ignored")
 AutoCategory.saved.general.SHOW_CATEGORY_SET_TITLE = false
 checkOrder({ 5, 2, 4, 3, 6, 1 }, "same order without parent title")
-uiLanguage = "en"
+cacheClientLanguage(LibSets, "en")
 checkOrder({ 5, 2, 4, 3, 6, 1 }, "English type then set")
-uiLanguage = "xx"
+cacheClientLanguage(LibSets, "xx")
 checkOrder({ 5, 2, 4, 3, 6, 1 }, "unsupported language English fallback")
-uiLanguage = "fr"
+cacheClientLanguage(LibSets, "fr")
 -- Prefix types must remain separate levels, not be compared as display labels.
 local arenaFrenchName = typeNames[1].fr
 typeNames[1].fr = "Z-Arène"
 checkOrder({ 4, 3, 6, 1, 5, 2 }, "type order follows current French translation")
-uiLanguage = "en"
+cacheClientLanguage(LibSets, "en")
 checkOrder({ 5, 2, 4, 3, 6, 1 }, "English order independent of French translation")
-uiLanguage = "fr"
+cacheClientLanguage(LibSets, "fr")
 typeNames[1].fr = "Donjon étendu"
 checkOrder({ 4, 3, 6, 1, 5, 2 }, "short type before its longer prefix variant")
 typeNames[1].fr = arenaFrenchName

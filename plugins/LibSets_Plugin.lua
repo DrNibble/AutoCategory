@@ -3,66 +3,13 @@ AutoCategory_LibSets = {
     RuleFunc = {},
 }
 
-local setTypeToLibraryInternalVariableNames = {}
-
-local function isLibSetsAvailable()
-    return LibSets ~= nil
-        and type(LibSets.GetSetType) == "function"
-        and type(LibSets.setTypesToName) == "table"
-        and type(LibSets.allowedSetTypes) == "table"
-end
-
 function AutoCategory_LibSets.Initialize()
-    if isLibSetsAvailable() then
-        -- Copy of LibSets.setTypeToLibraryInternalVariableNames. Build only
-        -- after LibSets is loaded, so its global constants exist.
-        setTypeToLibraryInternalVariableNames = {
-            [LIBSETS_SETTYPE_ARENA] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "arenaSets",
-            },
-            [LIBSETS_SETTYPE_BATTLEGROUND] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "battlegroundSets",
-            },
-            [LIBSETS_SETTYPE_CRAFTED] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "craftedSets",
-            },
-            [LIBSETS_SETTYPE_CYRODIIL] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "cyrodiilSets",
-            },
-            [LIBSETS_SETTYPE_DAILYRANDOMDUNGEONANDICREWARD] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "dailyRandomDungeonAndImperialCityRewardSets",
-            },
-            [LIBSETS_SETTYPE_DUNGEON] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "dungeonSets",
-            },
-            [LIBSETS_SETTYPE_IMPERIALCITY] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "imperialCitySets",
-            },
-            [LIBSETS_SETTYPE_MONSTER] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "monsterSets",
-            },
-            [LIBSETS_SETTYPE_OVERLAND] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "overlandSets",
-            },
-            [LIBSETS_SETTYPE_SPECIAL] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "specialSets",
-            },
-            [LIBSETS_SETTYPE_TRIAL] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "trialSets",
-            },
-            [LIBSETS_SETTYPE_MYTHIC] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "mythicSets",
-            },
-            [LIBSETS_SETTYPE_IMPERIALCITY_MONSTER] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "monsterSets",
-            },
-            [LIBSETS_SETTYPE_CYRODIIL_MONSTER] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "monsterSets",
-            },
-            [LIBSETS_SETTYPE_CLASS] = {
-                [LIBSETS_TABLEKEY_TABLENAME] = "classSets",
-            },
-        }
+    -- LibSets is optional in the addon manifest.
+    if LibSets == nil then
+        AutoCategory.AddRuleFunc("autosettype", AutoCategory.dummyRuleFunc)
+        return
+    end
+    if LibSets.fullyLoaded then
         AutoCategory.AddRuleFunc("autosettype", AutoCategory_LibSets.RuleFunc.AutoSetType)
         AutoCat_Logger():Info("Initializing LibSets plugin integration")
     else
@@ -71,78 +18,79 @@ function AutoCategory_LibSets.Initialize()
 end
 
 -- autosettype() matches all known set types.
--- autosettype(6), autosettype("DUNGEON") or
--- autosettype("LIBSETS_SETTYPE_DUNGEON") only matches dungeon sets.
+-- Optional filter: a name in LibSets' cached UI language ("Donjon" in French),
+-- a numeric type ID, or a quoted exported constant name/suffix.
 function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
-    if not isLibSetsAvailable() then
+    if LibSets == nil then
         return false
     end
+    if LibSets.fullyLoaded then
+        local hasSet, setName, _, _, _, setId =
+            GetItemLinkSetInfo(AutoCategory.checking.ItemLink)
+        if not hasSet or not setId or setId <= 0 or type(setName) ~= "string" then
+            return false
+        end
 
-    local requestedSetType
-    if setType ~= nil then
-        if type(setType) == "string" then
-            local constantName = setType
-            if string.sub(constantName, 1, 16) ~= "LIBSETS_SETTYPE_" then
-                constantName = "LIBSETS_SETTYPE_" .. string.upper(constantName)
+        local actualSetType = LibSets.GetSetType(setId)
+        local typeNames = LibSets.setTypesToName[actualSetType]
+        if type(typeNames) ~= "table" then
+            return false
+        end
+
+        -- LibSets.clientLang is the normalized, supported UI language cached
+        -- by LibSets. Do not read GetCVar or maintain another language cache.
+        local setTypeName = typeNames[LibSets.clientLang]
+        if type(setTypeName) ~= "string" or setTypeName == "" then
+            setTypeName = typeNames[LibSets.fallbackLang or "en"]
+        end
+        if type(setTypeName) ~= "string" or setTypeName == "" then
+            return false
+        end
+
+        if setType ~= nil then
+            local requestedSetType = setType
+            if type(setType) == "string" then
+                requestedSetType = nil
+                local requestedName = LocaleAwareToLower(setType)
+                for typeId, names in pairs(LibSets.setTypesToName) do
+                    local name = names[LibSets.clientLang]
+                    if type(name) ~= "string" or name == "" then
+                        name = names[LibSets.fallbackLang or "en"]
+                    end
+                    if type(name) == "string" and LocaleAwareToLower(name) == requestedName then
+                        requestedSetType = typeId
+                        -- Shared translated names should match every such type,
+                        -- not whichever entry pairs() happens to visit first.
+                        if typeId == actualSetType then break end
+                    end
+                end
+                if requestedSetType == nil then
+                    local constantName = setType
+                    if string.sub(constantName, 1, 16) ~= "LIBSETS_SETTYPE_" then
+                        constantName = "LIBSETS_SETTYPE_" .. string.upper(constantName)
+                    end
+                    requestedSetType = rawget(_G, constantName)
+                end
             end
-            setType = rawget(_G, constantName)
+            if type(requestedSetType) ~= "number"
+                or type(LibSets.setTypesToName[requestedSetType]) ~= "table" then
+                error("error: autosettype(): expected a LibSets type ID, UI type name or constant name.")
+            end
+            if requestedSetType ~= actualSetType then
+                return false
+            end
         end
-        if type(setType) ~= "number" or not setTypeToLibraryInternalVariableNames[setType] then
-            error("error: autosettype(): expected a valid LibSets set type ID or constant name.")
+
+        setName = string.gsub(setName, "%^.*", "")
+        if setName == "" then
+            return false
         end
-        requestedSetType = setType
+        AutoCategory.AdditionCategoryName = "(" .. setTypeName .. ") " .. setName
+        AutoCategory.AdditionCategorySortName =
+            LocaleAwareToLower(setTypeName) .. "\001" .. LocaleAwareToLower(setName)
+        return true
     end
-
-    local hasSet, setName, _, _, _, setId =
-        GetItemLinkSetInfo(AutoCategory.checking.ItemLink)
-    if not hasSet or not setId or setId <= 0 or type(setName) ~= "string" then
-        return false
-    end
-
-    -- GetSetType returns nil while the database is not ready, while scanning,
-    -- or when this set is unknown to LibSets.
-    local actualSetType = LibSets.GetSetType(setId)
-    if not actualSetType or not setTypeToLibraryInternalVariableNames[actualSetType] then
-        return false
-    end
-    if requestedSetType and requestedSetType ~= actualSetType then
-        return false
-    end
-
-    -- Use the UI language explicitly instead of LibSets' cached default.
-    local uiLanguage = type(GetCVar) == "function" and GetCVar("language.2") or "en"
-    if type(uiLanguage) ~= "string" or uiLanguage == "" then
-        uiLanguage = "en"
-    else
-        uiLanguage = string.lower(uiLanguage)
-    end
-    if LibSets.supportedLanguages and not LibSets.supportedLanguages[uiLanguage] then
-        uiLanguage = "en"
-    end
-    local typeNames = LibSets.setTypesToName[actualSetType]
-    if type(typeNames) ~= "table" then
-        return false
-    end
-    local setTypeName = typeNames[uiLanguage]
-    if type(setTypeName) ~= "string" or setTypeName == "" then
-        setTypeName = typeNames.en
-    end
-    if type(setTypeName) ~= "string" or setTypeName == "" then
-        return false
-    end
-
-    -- Strip ESO grammar suffixes, as autoset() does.
-    setName = string.gsub(setName, "%^.*", "")
-    if setName == "" then
-        return false
-    end
-    AutoCategory.AdditionCategoryName = "(" .. setTypeName .. ") " .. setName
-    -- Keep the two alphabetical levels independent of display wrappers.
-    -- A separator before any printable character places a complete type name
-    -- before a longer type name sharing its prefix, regardless of set names.
-    AutoCategory.AdditionCategorySortName =
-        LocaleAwareToLower(setTypeName) .. "\001" .. LocaleAwareToLower(setName)
-    return true
+    return false
 end
 
 AutoCategory.RegisterPlugin("LibSets", AutoCategory_LibSets.Initialize)

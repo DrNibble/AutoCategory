@@ -1,5 +1,36 @@
 # Changes
 
+## 2026-11-03: Use fullyLoaded and LibSets' cached language
+
+- Delete `isLibSetsAvailable()` and the copied
+  `setTypeToLibraryInternalVariableNames` table. Use the explicit condition
+  `if LibSets.fullyLoaded then` during initialization and rule evaluation.
+  Retain only the separate nil check needed for the manifest's optional
+  LibSets dependency. Fully-loaded libraries are now trusted; missing API
+  functions/tables surface as errors instead of triggering compatibility
+  guards.
+- Detect and validate types directly from the live `LibSets.setTypesToName`
+  table. Accept its translated type names as filters, case-insensitively,
+  in addition to existing numeric IDs and quoted constants/suffixes.
+  Shared translated labels match all corresponding type IDs. No private
+  type mapping or hardcoded whitelist is maintained.
+- Delete `uiLanguage`, the plugin's `GetCVar` call, and plugin-side language
+  normalization. Use `LibSets.clientLang`, the library's cached UI default,
+  with `LibSets.fallbackLang` / `"en"` for missing or empty labels.
+- Preserve type-first/set-second alphabetical ordering, case normalization,
+  shared keyboard/gamepad keys, displayed labels, and display priorities.
+- A false `fullyLoaded` at initialization installs a dummy rule; there is
+  no automatic late activation. Reinitialize or reload after LibSets loads.
+- Update behavioral tests to extract and execute LibSets' actual language
+  caching block, reject any plugin `GetCVar` call, validate localized filters
+  and shared labels, discover a synthetic new type without whitelist edits,
+  and exercise false/true `fullyLoaded` and removed compatibility guards.
+  Lua 5.1 compilation passes for all six Lua files in the integration path;
+  2042 assertions pass both with upstream LibSets tables/language-cache code
+  and with standalone fixtures. Not tested in ESO.
+
+Reference: [LibSets language cache and type names](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets_ConstantsLibraryInternal.lua).
+
 ## 2026-11-03: Type-first, set-second inventory sorting
 
 - Read type labels directly from `LibSets.setTypesToName[setType]`, using

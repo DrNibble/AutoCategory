@@ -715,6 +715,8 @@ No Arguments, will make more than one category
 ## Auto Set Type (LibSets plugin)
 ```lua
 autosettype()
+autosettype("Donjon")  -- French UI
+autosettype("Arène")   -- French UI
 autosettype(6)
 autosettype("DUNGEON")
 autosettype("LIBSETS_SETTYPE_DUNGEON")
@@ -726,30 +728,37 @@ to `(localized type) localized set name`, for example `(Donjon) Nom du set` on a
 French client.
 
 Without an argument, matches every set whose type is known to LibSets. The
-optional argument filters by a LibSets numeric type ID, an exported constant
-name, or its suffix (case insensitive for the suffix). Invalid types raise a
-rule error. Do not use an unquoted constant in a rule: AutoCategory's rule
-environment does not expose LibSets globals.
+optional argument filters by a translated type name in LibSets' cached UI
+language, such as `"Donjon"` or `"Arène"` on a French UI. Type names are
+matched case-insensitively. Numeric type IDs and quoted exported constant
+names/suffixes remain supported. Invalid filters raise a rule error when an
+identifiable set is evaluated. Do not use an unquoted constant in a rule:
+AutoCategory's rule environment does not expose LibSets globals.
 
-The plugin contains a literal copy of
-`LibSets.setTypeToLibraryInternalVariableNames`, including the separate
-Cyrodiil/Imperial City monster types and class sets. This copy validates the
-requested and detected type IDs instead of `LibSets.allowedSetTypes`.
-It must be kept in sync when LibSets adds or changes types.
+The live global `LibSets.setTypesToName` table defines the supported type
+IDs and translated names. There is no copied
+`setTypeToLibraryInternalVariableNames` table or hardcoded type whitelist.
+If several type IDs have the same translated label, the label matches all
+of them; numeric IDs can still distinguish them.
 
-If LibSets is absent, the rule is registered as a dummy returning `false`.
-Initialization and rule evaluation use the local `isLibSetsAvailable()`:
-LibSets must expose `GetSetType`, `setTypesToName`, and `allowedSetTypes`.
-The plugin does not call `IsLibSetsAlreadyLoaded(true)` or emit its chat
-message, and does not require its `fullyLoaded` flag or version check.
-If its set database is not ready or the set/type is unknown, the function
-returns `false` without changing the dynamic category name. Missing translated
-type names fall back to English. The type language is explicitly read from
-the UI's `GetCVar("language.2")` and normalized to lowercase. Missing, empty,
-or unsupported UI languages default to `"en"`; ESO already supplies the set
-name in the UI language. Type labels are read directly from the global
-`LibSets.setTypesToName[setType][uiLanguage]` table, falling back to its `.en`
-entry; the plugin no longer calls `LibSets.GetSetTypeName`.
+Initialization and rule evaluation use `if LibSets.fullyLoaded then`.
+The former local `isLibSetsAvailable()` and per-API compatibility checks are
+removed. LibSets remains optional: an absent library, or `fullyLoaded` false
+at initialization, registers a dummy rule returning `false`. There is no
+automatic late re-registration; initialize again or reload once LibSets is
+loaded. During rule evaluation, an absent library or a false `fullyLoaded`
+flag returns `false` without changing the dynamic name or sort key.
+A library declaring itself fully loaded is trusted to expose its required
+API/tables; missing or incompatible APIs now surface as errors.
+
+Type names are read from
+`LibSets.setTypesToName[setType][LibSets.clientLang]`. `LibSets.clientLang`
+is LibSets' cached, normalized UI language, already defaulting unsupported
+languages to English. There is no `uiLanguage` variable, `GetCVar` call,
+additional language cache, or `GetSetTypeName` call in the plugin.
+Missing/empty labels use `LibSets.fallbackLang` (or `"en"` if absent).
+ESO supplies set names in the UI language. Unknown set types or missing
+names return `false` without altering the dynamic name or sort key.
 
 The inventory sort has two alphabetical levels within the existing display
 priority: first the localized type name, then the localized set name within

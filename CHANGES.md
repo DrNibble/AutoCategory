@@ -76,7 +76,7 @@ Reference: [LibSets language cache and type names](https://github.com/DrNibble/L
   the existing local `isLibSetsAvailable()` function.
 - Generate a separate two-component sort name: localized type name first,
   localized set name second, each lowercased using ESO's native
-  `LocaleAwareToLower`. Keep the displayed `(type) set name` unchanged.
+  `zo_strlower`. Keep the displayed `(type) set name` unchanged.
 - Add `AutoCategory.GetCategorySortName` to the plugin API and store custom
   dynamic keys only for successful rule matches. Reset the temporary sort
   name before each rule; clear old dynamic keys on ordinary matches.

@@ -52,14 +52,14 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
             local requestedSetType = setType
             if type(setType) == "string" then
                 requestedSetType = nil
-                local requestedName = LocaleAwareToLower(setType)
+                local requestedName = zo_strlower(setType)
                 -- Every language LibSets ships in setTypesToName is accepted,
                 -- not only the cached UI language or its English fallback.
                 local fallbackType
                 for typeId, names in pairs(LibSets.setTypesToName) do
                     for _, name in pairs(names) do
                         if type(name) == "string" and name ~= ""
-                            and LocaleAwareToLower(name) == requestedName then
+                            and zo_strlower(name) == requestedName then
                             if typeId == actualSetType then
                                 requestedSetType = typeId
                             elseif fallbackType == nil then
@@ -89,7 +89,7 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
         end
         AutoCategory.AdditionCategoryName = "(" .. setTypeName .. ") " .. setName
         AutoCategory.AdditionCategorySortName =
-            LocaleAwareToLower(setTypeName) .. "\001" .. LocaleAwareToLower(setName)
+            zo_strlower(setTypeName) .. "\001" .. zo_strlower(setName)
         return true
     end
     return false

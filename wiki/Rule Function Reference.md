@@ -771,7 +771,7 @@ names return `false` without altering the dynamic name or sort key.
 
 The inventory sort has two alphabetical levels within the existing display
 priority: first the localized type name, then the localized set name within
-that type. Both are normalized with ESO's native `LocaleAwareToLower`.
+that type. Both are normalized with ESO's native `zo_strlower`.
 They form separate internal keys, so one type name being a prefix of another
 does not let set names interfere with the type order. This uses Lua string
 ordering after lowercasing, not accent-folding or dictionary collation.

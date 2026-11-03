@@ -101,7 +101,7 @@ function GetCVar()
     error("The plugin must use LibSets' cached default, never GetCVar")
 end
 -- Simulate the native ESO function for the test strings, including accents.
-function LocaleAwareToLower(value)
+function zo_strlower(value)
     return (value:gsub("É", "é"):gsub("È", "è"):gsub("Ä", "ä"):lower())
 end
 function GetItemLinkSetInfo(itemLink)
@@ -139,7 +139,7 @@ local function match(filter, expectedName)
     equal(true, rule(filter), "matching rule")
     equal(expectedName, AutoCategory.AdditionCategoryName, "dynamic category")
     local expectedType, expectedSet = expectedName:match("^%((.*)%) (.*)$")
-    equal(LocaleAwareToLower(expectedType) .. "\001" .. LocaleAwareToLower(expectedSet),
+    equal(zo_strlower(expectedType) .. "\001" .. zo_strlower(expectedSet),
         AutoCategory.AdditionCategorySortName, "two-level sort name")
 end
 local function noMatch(filter)
@@ -167,7 +167,7 @@ for id in ipairs(constantNames) do
     match(nil, expectedName)
     match(id, expectedName)
     match(typeNames[id].fr, expectedName)
-    match(LocaleAwareToLower(typeNames[id].fr), expectedName)
+    match(zo_strlower(typeNames[id].fr), expectedName)
 end
 currentType = 6
 -- These globals exist in the fixture, but quoted constant names must never

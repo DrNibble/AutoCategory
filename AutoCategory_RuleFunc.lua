@@ -890,6 +890,57 @@ function AutoCategory.RuleFunc.Level( ... )
 	return GetItemRequiredLevel(AutoCategory.checking.BagId, AutoCategory.checking.SlotIndex)
 end
 
+function AutoCategory.RuleFunc.LevelDisplay( depth, section )
+	-- Hierarchical categories, based on the CategoryTree display: the
+	-- levels recorded during the rule evaluation of an item are joined
+	-- with the CategoryTree separator into one nested category name.
+	--
+	-- depth is the section level: 1 is the top-level section, 2 a
+	-- sub-section of it, 3 a sub-section of that, and so on.
+	-- section is either the section name (a string) or the condition for
+	-- the item to belong to that level (typically a rule call such as
+	-- type("armor")); in the second case the section takes the rule's
+	-- own name. Returns false when the condition is false.
+	--
+	-- Example rules (a bag's rule list, in order):
+	--   leveldisplay(1, "premier niveau")
+	--   leveldisplay(2, type("armor"))
+	--   leveldisplay(3, type("armorlight") or type("armormedium"))
+	-- The first rule names the top section, the second places armor items
+	-- in a sub-section named after its own rule, the third refines light
+	-- and medium armor one level deeper. A level with no matching rule is
+	-- simply skipped.
+	if section == nil then
+		error("error: leveldisplay(): expected a section name or rule expression.")
+	end
+	if type(depth) ~= "number" or depth < 1 or depth ~= math.floor(depth) then
+		error("error: leveldisplay(): expected a whole level number (1, 2, 3, ...).")
+	end
+
+	local name
+	if type(section) == "string" then
+		if section:match("^%s*$") then
+			error("error: leveldisplay(): empty section name.")
+		end
+		name = section
+	elseif section then
+		name = AutoCategory.checking.RuleName
+		if type(name) ~= "string" or name == "" then
+			error("error: leveldisplay(): no rule name available as section name.")
+		end
+	else
+		return false
+	end
+
+	local levelNames = AutoCategory.AdditionLevelNames
+	if type(levelNames) ~= "table" then
+		levelNames = {}
+		AutoCategory.AdditionLevelNames = levelNames
+	end
+	levelNames[depth] = name
+	return true
+end
+
 function AutoCategory.RuleFunc.CPLevel( ... )
 	--local fn = "cp"
 	return GetItemRequiredChampionPoints(AutoCategory.checking.BagId, AutoCategory.checking.SlotIndex)
@@ -1662,6 +1713,7 @@ AutoCategory.Environment = {
 	autoset      = AutoCategory.RuleFunc.AutoSetName,
 	combined_autoset = AutoCategory.RuleFunc.CombinedAutoSetName,
 	autofurniturecat = AutoCategory.RuleFunc.AutoFurnitureCategory,
+	leveldisplay = AutoCategory.RuleFunc.LevelDisplay,
     
 	--[[
 	-- see new implementatons in AutoCategory/Misc_Plugins.lua

@@ -128,11 +128,11 @@ local function adjustName(selfie, name, enhancement)
 		return enhancement
 
 	end
-	-- A hierarchical dynamic name (parent----child, see CategoryTree.lua)
+	-- A hierarchical dynamic name (nested levels, see CategoryTree.lua)
 	-- already carries its own structure: wrapping it in the rule name would
-	-- break the two-level display, so it is used as-is.
+	-- break the nested display, so it is used as-is.
 	if AutoCategory.CategoryTree
-		and select(2, AutoCategory.CategoryTree.Split(enhancement)) ~= nil then
+		and AutoCategory.CategoryTree.IsHierarchical(enhancement) then
 		return enhancement
 	end
 	-- combine the category and set names
@@ -174,6 +174,34 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	local getRuleByName = AutoCategory.GetRuleByName
 	local isCategoryCollapsed = AutoCategory.IsCategoryCollapsed
 	local compiledRules = AutoCategory.compiledRules
+	local categoryTree = AutoCategory.CategoryTree
+
+	-- leveldisplay() path state: the section names recorded per level
+	-- while the bag's rules are evaluated for this item, and the entry of
+	-- the rule that named the deepest level so far.
+	local recordedLevels = nil
+	local recordedEntry = nil
+	-- The recorded levels in order, outermost first.
+	local function pathParts(levels)
+		local depths = {}
+		for k in pairs(levels) do
+			depths[#depths + 1] = k
+		end
+		table.sort(depths)
+		local parts = {}
+		for _, k in ipairs(depths) do
+			parts[#parts + 1] = levels[k]
+		end
+		return parts
+	end
+
+	-- Append a name as the deepest level of the recorded path.
+	local function joinPath(levels, name)
+		local parts = pathParts(levels)
+		parts[#parts + 1] = name
+		return categoryTree.JoinName(parts)
+	end
+
 
 	for i = 1, #bag.rules do
 		local entry = bag.rules[i]
@@ -186,21 +214,71 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 				if ruleCode then
 					AutoCategory.AdditionCategoryName = ""	-- this may be changed by autoset() or alphagear
 					AutoCategory.AdditionCategorySortName = nil
+					-- reset the leveldisplay() levels of the previous rule
+					local levelNames = AutoCategory.AdditionLevelNames
+					if levelNames ~= nil and next(levelNames) ~= nil then
+						for k in pairs(levelNames) do
+							levelNames[k] = nil
+						end
+					end
+					AutoCategory.checking.RuleName = entry.name
 					local exec_ok, res = SF.safeCall( ruleCode )
+					AutoCategory.checking.RuleName = nil
 					if exec_ok then
-						local catname = adjustName(self, rule.name,
+						local levelDepth = 0
+						levelNames = AutoCategory.AdditionLevelNames
+						if levelNames ~= nil and next(levelNames) ~= nil then
+							for k in pairs(levelNames) do
+								if type(k) == "number" and k > levelDepth then
+									levelDepth = k
+								end
+							end
+						end
+
+						if levelDepth > 0 and res == true then
+							-- A leveldisplay() rule matched: merge its levels into
+							-- the recorded path (the first rule naming a level
+							-- wins it) and keep evaluating; a later rule may
+							-- refine the item one or more levels deeper.
+							local added = false
+							for k, v in pairs(levelNames) do
+								if type(k) == "number" then
+									if recordedLevels == nil then
+										recordedLevels = {}
+									end
+									if recordedLevels[k] == nil then
+										recordedLevels[k] = v
+										added = true
+									end
+								end
+							end
+							if added then
+								recordedEntry = entry
+							end
+
+						else
+							local catname = adjustName(self, rule.name,
 												AutoCategory.AdditionCategoryName)
-						setCategoryCollapsed(bag_type_id, catname,
-						isCategoryCollapsed(bag_type_id, catname))
-						if res == true then
-							AutoCategory.CategorySortNames[catname] =
-								AutoCategory.AdditionCategorySortName
-							return true, 
-								catname, 
-								entry.runpriority, 
-								entry.showpriority,
-								bag_type_id, 
-								entry.isHidden
+							setCategoryCollapsed(bag_type_id, catname,
+							isCategoryCollapsed(bag_type_id, catname))
+							if res == true then
+								local finalName = catname
+								if recordedLevels ~= nil then
+									-- a leveldisplay() section is open: the rule's
+									-- category becomes its deepest level
+									finalName = joinPath(recordedLevels, catname)
+									setCategoryCollapsed(bag_type_id, finalName,
+										isCategoryCollapsed(bag_type_id, finalName))
+								end
+								AutoCategory.CategorySortNames[finalName] =
+									AutoCategory.AdditionCategorySortName
+								return true,
+									finalName,
+									entry.runpriority,
+									entry.showpriority,
+									bag_type_id,
+									entry.isHidden
+							end
 						end
 
 					else
@@ -210,6 +288,23 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 				end
 			end
 		end
+	end
+
+	-- Only leveldisplay() rules matched: join the recorded levels into one
+	-- nested category name (the levels without a matching rule are simply
+	-- skipped) and stop at the rule that named the deepest level.
+	if recordedLevels ~= nil then
+		local entry = recordedEntry
+		local catname = categoryTree.JoinName(pathParts(recordedLevels))
+		setCategoryCollapsed(bag_type_id, catname,
+			isCategoryCollapsed(bag_type_id, catname))
+		AutoCategory.CategorySortNames[catname] = nil
+		return true,
+			catname,
+			entry.runpriority,
+			entry.showpriority,
+			bag_type_id,
+			entry.isHidden
 	end
 
 	return false, "", 0, 0, bag_type_id, false

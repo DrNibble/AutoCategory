@@ -282,8 +282,9 @@ local function isHiddenEntry(itemEntry)
         return true
     end
 
-    -- Items and child headers of a collapsed parent are hidden.
-    if CategoryTree.IsParentCollapsed(bagTypeId, data.AC_parentName) then
+    -- Items and headers under a collapsed level are hidden, whatever
+    -- the state of the levels in between.
+    if CategoryTree.IsAnyAncestorCollapsed(bagTypeId, data.AC_categoryName) then
         return true
     end
 
@@ -479,9 +480,10 @@ end
 local cnsd_categoryList = {} -- [name] {AC_catCount, AC_sortPriorityName,
                         	 --         AC_categoryName, AC_bagTypeId,
                         	 --         AC_parentName (children only) }
--- The parentList info of hierarchical categories ("parent----child" names)
--- is collected the same way and produces the level-1 headers.
-local cnsd_parentList = {}  -- [parentName] { AC_catCount, AC_sortPriorityName,
+-- The headerList info of the intermediate levels of hierarchical names
+-- ("a" and "a----b" for "a----b----c") is collected the same way and
+-- produces the level headers above the categories themselves.
+local cnsd_headerList = {}  -- [headerName] { AC_catCount, AC_sortPriorityName,
                         	 --              AC_categoryName, AC_bagTypeId,
                         	 --              AC_isParent, AC_headerLevel }
 --- Create list with visible items and headers (performs category count).
@@ -489,29 +491,51 @@ local function createNewScrollData(scrollData)
     local newScrollData = {}
 
     cnsd_categoryList = SF.safeClearTable(cnsd_categoryList)
-    cnsd_parentList = SF.safeClearTable(cnsd_parentList)
+    cnsd_headerList = SF.safeClearTable(cnsd_headerList)
 
     local otherCategory = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
 
-    -- Ensure a parent info exists in the parent list.
-    local function ensureParentInfo(parentName, bagTypeId)
-        local parentInfo = cnsd_parentList[parentName]
+    -- Ensure a header info exists for an intermediate level of a
+    -- hierarchical category name.
+    local function ensureHeaderInfo(headerName, level, bagTypeId)
+        local headerInfo = cnsd_headerList[headerName]
 
-        if not parentInfo then
-            parentInfo = {
-                AC_categoryName     = parentName,
+        if not headerInfo then
+            headerInfo = {
+                AC_categoryName     = headerName,
                 AC_bagTypeId        = bagTypeId,
                 AC_catCount         = 0,
                 AC_sortPriorityName = nil,
                 AC_isParent         = true,
-                AC_headerLevel      = 1,
-                AC_displayName      = parentName,
+                AC_headerLevel      = level,
+                AC_displayName      = CategoryTree.DisplayName(headerName),
             }
 
-            cnsd_parentList[parentName] = parentInfo
+            cnsd_headerList[headerName] = headerInfo
         end
 
-        return parentInfo
+        return headerInfo
+    end
+
+    -- Feed an entry's contribution to every header level above its
+    -- category, keeping the smallest (best priority) sort key seen.
+    local function feedAncestors(categoryName, bagTypeId, sortKey, contribution)
+        local levels = CategoryTree.Levels(categoryName)
+        if levels == nil or #levels < 2 then
+            return
+        end
+        for level = 1, #levels - 1 do
+            local headerName =
+                table.concat(levels, CategoryTree.SEPARATOR, 1, level)
+            local headerInfo = ensureHeaderInfo(headerName, level, bagTypeId)
+            headerInfo.AC_catCount = headerInfo.AC_catCount + contribution
+
+            local headerKey = CategoryTree.LevelSortKey(sortKey, level)
+            if headerKey and (headerInfo.AC_sortPriorityName == nil
+                or headerKey < headerInfo.AC_sortPriorityName) then
+                headerInfo.AC_sortPriorityName = headerKey
+            end
+        end
     end
 
     -- Create newScrollData with visible items and without headers.
@@ -529,17 +553,22 @@ local function createNewScrollData(scrollData)
         end
 
         local isHeader = itemEntry.typeId == CATEGORY_HEADER
-        -- A parent header in scrollData only carries its children's
-        -- total count; its children rebuild their own entries.
+        -- A header of an intermediate level in scrollData only carries its
+        -- descendants' total count; its descendants rebuild their own
+        -- entries.
         if isHeader and data.AC_isParent then
-            local parentInfo = ensureParentInfo(data.AC_categoryName,
-                data.AC_bagTypeId)
+            local headerInfo = ensureHeaderInfo(data.AC_categoryName,
+                data.AC_headerLevel or 1, data.AC_bagTypeId)
 
             if AutoCategory.IsCategoryCollapsed(data.AC_bagTypeId,
                 data.AC_categoryName) then
                 -- Content isn't present in scrollData, so reuse
-                -- the count stored on the header.
-                parentInfo.AC_catCount = data.AC_catCount or 0
+                -- the count stored on the header; it also feeds the
+                -- levels above this one.
+                local stored = data.AC_catCount or 0
+                headerInfo.AC_catCount = stored
+                feedAncestors(data.AC_categoryName, data.AC_bagTypeId,
+                    data.AC_sortPriorityName, stored)
             end
 
         else
@@ -559,9 +588,10 @@ local function createNewScrollData(scrollData)
                     AC_catCount         = 0,
                 }
 
-                if data.AC_parentName then
-                    catInfo.AC_parentName = data.AC_parentName
-                    catInfo.AC_headerLevel = 2
+                local levelCount = CategoryTree.LevelCount(categoryName)
+                if levelCount > 1 then
+                    catInfo.AC_parentName = CategoryTree.ParentOf(categoryName)
+                    catInfo.AC_headerLevel = levelCount
                     catInfo.AC_displayName =
                         CategoryTree.DisplayName(categoryName)
                 end
@@ -583,27 +613,39 @@ local function createNewScrollData(scrollData)
             end
             catInfo.AC_catCount = catInfo.AC_catCount + contribution
 
-            -- A hierarchical entry also feeds its parent's total.
-            if data.AC_parentName then
-                local parentInfo = ensureParentInfo(data.AC_parentName,
-                    data.AC_bagTypeId)
-                parentInfo.AC_catCount = parentInfo.AC_catCount + contribution
+            -- A hierarchical entry also feeds every level's total
+            -- above its category.
+            feedAncestors(categoryName, data.AC_bagTypeId,
+                data.AC_sortPriorityName, contribution)
+        end
+    end
 
-                local parentKey = CategoryTree.ParentSortKey(
-                    data.AC_sortPriorityName)
-                if parentKey and (parentInfo.AC_sortPriorityName == nil
-                    or parentKey < parentInfo.AC_sortPriorityName) then
-                    parentInfo.AC_sortPriorityName = parentKey
-                end
+    -- Merge the intermediate-level totals into a category that carries its
+    -- own items: its header must show direct items plus all descendants.
+    for _, headerInfo in pairs(cnsd_headerList) do
+        local catInfo = cnsd_categoryList[headerInfo.AC_categoryName]
+        if catInfo then
+            catInfo.AC_catCount = catInfo.AC_catCount
+                + headerInfo.AC_catCount
+            if headerInfo.AC_sortPriorityName
+                and (catInfo.AC_sortPriorityName == nil
+                    or headerInfo.AC_sortPriorityName
+                        < catInfo.AC_sortPriorityName) then
+                catInfo.AC_sortPriorityName = headerInfo.AC_sortPriorityName
             end
         end
     end
 
-    -- Append parent headers. A parent name that also exists as a flat
-    -- category reuses that flat header.
-    for _, parentInfo in pairs(cnsd_parentList) do
-        if cnsd_categoryList[parentInfo.AC_categoryName] == nil then
-            local headerEntry = createHeaderEntry(parentInfo)
+    -- Append the headers of the intermediate levels. A level name that
+    -- also exists as a category reuses that category's own header, and a
+    -- header is only shown while every level above it is expanded.
+    for _, headerInfo in pairs(cnsd_headerList) do
+        if cnsd_categoryList[headerInfo.AC_categoryName] == nil
+            and not CategoryTree.IsAnyAncestorCollapsed(
+                headerInfo.AC_bagTypeId,
+                headerInfo.AC_categoryName
+            ) then
+            local headerEntry = createHeaderEntry(headerInfo)
 
             if headerEntry then
                 newScrollData[#newScrollData + 1] = headerEntry
@@ -611,13 +653,12 @@ local function createNewScrollData(scrollData)
         end
     end
 
-    -- Append category headers. A child header is only shown while its
-    -- parent is expanded.
+    -- Append category headers. A nested category header is only shown
+    -- while every level above it is expanded.
     for _, catInfo in pairs(cnsd_categoryList) do
-        if catInfo.AC_parentName == nil
-            or not AutoCategory.IsCategoryCollapsed(
+        if not CategoryTree.IsAnyAncestorCollapsed(
                 catInfo.AC_bagTypeId,
-                catInfo.AC_parentName
+                catInfo.AC_categoryName
             ) then
             local headerEntry = createHeaderEntry(catInfo)
 

@@ -809,6 +809,54 @@ API references:
 
 Tested offline with Lua 5.1; not tested in ESO.
 
+## Level Display
+```lua
+leveldisplay(1, "premier niveau")
+leveldisplay(2, type("armor"))
+leveldisplay(3, type("armorlight") or type("armormedium"))
+```
+
+Builds nested (multi-level) categories from several rules instead of one
+hardcoded name. `depth` is the section level: `1` is the top-level section,
+`2` a sub-section of it, `3` a sub-section of that, and so on (any whole
+number, not only 1-3). `section` is either the section name (a string) or the
+condition for the item to belong to that level (typically a rule call such as
+`type("armor")`); with a condition, the section takes the rule's own name.
+
+Unlike a normal rule function, a matching `leveldisplay()` call does not stop
+the rule evaluation: the recorded levels of every matching rule are joined
+(with the `----` separator of the [nested categories](https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories))
+into one category name. For example, the three rules above, named
+`premier niveau`, `Armures` and `Légères` and assigned to the same bag,
+categorize a light armor item as `premier niveau----Armures----Légères`:
+
+```
+premier niveau      [-]
+    Armures         [-]
+        Légères     [-]
+```
+
+Details and edge cases:
+
+* The first rule naming a level wins it; a later matching rule cannot rename
+  an already named level, but may refine the item one or more levels deeper.
+* A level without a matching rule is simply skipped: `leveldisplay(1, ...)`
+  followed by `leveldisplay(3, ...)` builds a two-level name.
+* An ordinary rule that matches *before* any `leveldisplay()` rule behaves as
+  usual (flat category). An ordinary rule that matches *after* levels were
+  recorded joins them as the deepest level of the open path.
+* Use `or` to accept several conditions on the same level:
+  `leveldisplay(3, type("armorlight") or type("armormedium"))`. With `and`
+  (`type("armorlight") and type("armormedium")`) the condition can never be
+  true, since one item cannot be both light and medium armor.
+* A falsy condition returns `false` and records nothing; the section name of
+  a condition is the rule's own name, so the rule name must not be empty.
+* Errors (raised as rule errors): missing section, a depth that is not a whole
+  number ≥ 1, an empty or whitespace-only section name, a condition section
+  with no rule name available.
+
+Tested offline with Lua 5.1; not tested in ESO.
+
 ## Combined Auto Set
 ```
 combined_autoset()

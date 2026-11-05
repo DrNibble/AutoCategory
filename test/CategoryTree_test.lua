@@ -64,9 +64,28 @@ equal("Magie", select(2, CategoryTree.Split("Potions ---- Magie")), "split trims
 equal("----Magie", (CategoryTree.Split("----Magie")), "empty parent stays flat")
 equal(nil, select(2, CategoryTree.Split("----Magie")), "empty parent no child")
 equal("Potions----", (CategoryTree.Split("Potions----")), "empty child stays flat")
-equal("A", (CategoryTree.Split("A----B----C")), "first separator splits")
-equal("B----C", select(2, CategoryTree.Split("A----B----C")), "child keeps rest")
+equal("A----B", (CategoryTree.Split("A----B----C")), "split parent joins outer levels")
+equal("C", select(2, CategoryTree.Split("A----B----C")), "split child is the last level")
 equal(nil, CategoryTree.Split(42), "non-string name")
+
+equal("A", CategoryTree.Levels("A----B----C")[1], "levels first")
+equal("B", CategoryTree.Levels("A----B----C")[2], "levels second")
+equal("C", CategoryTree.Levels("A----B----C")[3], "levels third")
+equal(3, CategoryTree.LevelCount("A----B----C"), "level count")
+equal(1, CategoryTree.LevelCount("Potions"), "flat level count")
+equal(0, CategoryTree.LevelCount(42), "non-string level count")
+equal(true, CategoryTree.IsHierarchical("A----B"), "hierarchical name")
+equal(false, CategoryTree.IsHierarchical("Potions"), "flat is not hierarchical")
+equal(false, CategoryTree.IsHierarchical(42), "non-string is not hierarchical")
+equal("A----B", CategoryTree.JoinName({ "A", "B" }), "join two levels")
+equal("A----B----C", CategoryTree.JoinName({ "A", "B", "C" }), "join three levels")
+equal("A----B", CategoryTree.ParentOf("A----B----C"), "parent of three levels")
+local ancestors = CategoryTree.Ancestors("A----B----C")
+equal("A", ancestors[1], "first ancestor")
+equal("A----B", ancestors[2], "second ancestor")
+equal(2, #ancestors, "ancestor count")
+equal(nil, CategoryTree.Ancestors("A"), "flat has no ancestors")
+equal(nil, CategoryTree.Ancestors(42), "non-string has no ancestors")
 
 equal("Potions", CategoryTree.ParentOf("Potions----Magie"), "parent of child")
 equal(nil, CategoryTree.ParentOf("Potions"), "parent of flat")
@@ -94,14 +113,29 @@ equal(
     "flat key accepts unchanged sort name")
 equal("0990Potions", CategoryTree.ParentSortKey("0990Potions\001Magie"),
     "parent key truncates child")
+equal("0990A\001B", CategoryTree.ParentSortKey("0990A\001B\001C"),
+    "parent key of three levels")
 equal("0990Potions", CategoryTree.ParentSortKey("0990Potions"),
     "parent key of flat key")
 equal(nil, CategoryTree.ParentSortKey(nil), "parent key of nil")
+
+equal("0990A\001B\001C", CategoryTree.BuildSortKey(10, "A----B----C"),
+    "three-level key")
+equal("0990A", CategoryTree.LevelSortKey("0990A\001B\001C", 1), "level 1 key")
+equal("0990A\001B", CategoryTree.LevelSortKey("0990A\001B\001C", 2), "level 2 key")
+equal("0990A\001B\001C", CategoryTree.LevelSortKey("0990A\001B\001C", 3), "level 3 key")
+equal("0990A\001B\001C", CategoryTree.LevelSortKey("0990A\001B\001C", 9),
+    "key beyond deepest level")
+equal("0990Weapons", CategoryTree.LevelSortKey("0990Weapons", 1), "flat level key")
+equal(nil, CategoryTree.LevelSortKey(nil, 1), "nil level key")
+equal(nil, CategoryTree.LevelSortKey("0990Weapons", 0), "zero level key")
 
 equal("Magie", CategoryTree.DisplayName("Potions----Magie"), "child display")
 equal("Potions", CategoryTree.DisplayName("Potions"), "flat display")
 equal("Potions - Magie", CategoryTree.JoinDisplayName("Potions----Magie"),
     "joined display")
+equal("A - B - C", CategoryTree.JoinDisplayName("A----B----C"),
+    "joined three-level display")
 equal("Potions", CategoryTree.JoinDisplayName("Potions"), "joined flat display")
 
 equal(false, CategoryTree.IsParentCollapsed(1, nil), "no parent never collapsed")
@@ -110,6 +144,25 @@ AutoCategory.SetCategoryCollapsed(1, "Potions", true)
 equal(true, CategoryTree.IsParentCollapsed(1, "Potions"), "collapsed parent")
 equal(false, CategoryTree.IsParentCollapsed(nil, "Potions"), "nil bag")
 AutoCategory.SetCategoryCollapsed(1, "Potions", false)
+
+equal(false, CategoryTree.IsAnyAncestorCollapsed(1, "A----B----C"),
+    "no ancestor collapsed")
+AutoCategory.SetCategoryCollapsed(1, "A----B", true)
+equal(true, CategoryTree.IsAnyAncestorCollapsed(1, "A----B----C"),
+    "middle ancestor collapsed")
+equal(false, CategoryTree.IsAnyAncestorCollapsed(1, "A----B"),
+    "own collapse is not an ancestor")
+equal(true, CategoryTree.IsAnyAncestorCollapsed(1, "A----B----C----D"),
+    "deep entry hidden by middle collapse")
+AutoCategory.SetCategoryCollapsed(1, "A----B", false)
+equal(false, CategoryTree.IsAnyAncestorCollapsed(1, "A----B----C"),
+    "middle ancestor expanded")
+equal(false, CategoryTree.IsAnyAncestorCollapsed(1, "A"),
+    "flat never ancestor-collapsed")
+equal(false, CategoryTree.IsAnyAncestorCollapsed(nil, "A----B"),
+    "nil bag not collapsed")
+equal(false, CategoryTree.IsAnyAncestorCollapsed(1, nil),
+    "nil name not collapsed")
 
 -- ---------------------------------------------------------------------------
 -- Part 2: the real Hooks_Keyboard.lua blocks
@@ -329,6 +382,47 @@ built = H.createNewScrollData(flatAndChild)
 sortEntries(built)
 equalList({ "(1)Potions" }, built, "shared name collapse hides everything")
 AutoCategory.SetCategoryCollapsed(1, "Potions", false)
+
+-- ---------------------------------------------------------------------------
+-- Three-level names: a collapsed middle level hides the deepest one
+-- ---------------------------------------------------------------------------
+
+-- Each fake item announces which category name a rule produced.
+local threeItems = {}
+for slotIndex = 7, 9 do threeItems[#threeItems + 1] = itemEntry(slotIndex) end
+matchMap[7] = { category = "Armes----Épées----Lourdes" }
+matchMap[8] = { category = "Armes----Épées" }
+matchMap[9] = { category = "Armes----Boucliers" }
+runRules(threeItems)
+
+built = H.createNewScrollData(threeItems)
+sortEntries(built)
+equalList({ "(1)Armes", "(2)Boucliers", "9", "(2)Épées", "8", "(3)Lourdes", "7" },
+    built, "three-level headers in depth order")
+
+-- Collapsing the middle level keeps its header (total count) and hides
+-- both its own items and the deepest level.
+AutoCategory.SetCategoryCollapsed(1, "Armes----Épées", true)
+built = H.createNewScrollData(threeItems)
+sortEntries(built)
+equalList({ "(1)Armes", "(2)Boucliers", "9", "(2)Épées" }, built,
+    "collapsed middle hides own items and deepest level")
+for _, e in ipairs(built) do
+    if e.typeId == CATEGORY_HEADER and e.data.AC_categoryName == "Armes----Épées" then
+        equal(2, e.data.AC_catCount, "collapsed middle total count")
+    end
+end
+equal(true, H.isHiddenEntry(threeItems[1]), "deepest hidden by collapsed middle")
+equal(true, H.isHiddenEntry(threeItems[2]), "own item hidden by collapsed middle")
+AutoCategory.SetCategoryCollapsed(1, "Armes----Épées", false)
+
+-- Collapsing the top level hides the whole subtree.
+AutoCategory.SetCategoryCollapsed(1, "Armes", true)
+built = H.createNewScrollData(threeItems)
+sortEntries(built)
+equalList({ "(1)Armes" }, built, "collapsed top hides subtree")
+AutoCategory.SetCategoryCollapsed(1, "Armes", false)
+matchMap[7], matchMap[8], matchMap[9] = nil, nil, nil
 
 -- ---------------------------------------------------------------------------
 -- Old-format headers in scrollData still rebuild as flat categories

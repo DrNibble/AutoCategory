@@ -1,5 +1,43 @@
 # Changes
 
+## 2026-11-05: leveldisplay() rule function and N-level categories
+
+- New rule function `leveldisplay(depth, section)`: builds nested categories
+  from several rules instead of one hardcoded name. `depth` is the section
+  level (any whole number ≥ 1, not only 1-3); `section` is either the section
+  name (a string) or the condition for the item to belong to that level
+  (typically a rule call such as `type("armor")`), in which case the section
+  takes the rule's own name. Example bag rules:
+  `leveldisplay(1, "premier niveau")`, `leveldisplay(2, type("armor"))`,
+  `leveldisplay(3, type("armorlight"))` categorize a light armor item as
+  `premier niveau----Armures----Légères`.
+- A matching `leveldisplay()` does not stop the rule evaluation: MatchCategoryRules
+  (AutoCategory_API.lua) records the levels in AutoCategory.AdditionLevelNames,
+  merges them across rules (the first rule naming a level wins it, levels
+  without a matching rule are skipped) and joins them with the CategoryTree
+  separator at the end of the bag's rule list, using the deepest rule's
+  priorities. An ordinary rule matching after an open path joins it as the
+  deepest level; before it, it stays flat as usual. Errors: missing section,
+  non-whole depth, empty/whitespace name, condition section with no rule name.
+- CategoryTree.lua generalized to N levels: Levels/LevelCount/IsHierarchical/
+  Ancestors/JoinName/LevelSortKey/IsAnyAncestorCollapsed replace the two-level
+  view (Split and IsParentCollapsed kept for compatibility, Split now returns
+  all-but-last as parent). BuildSortKey and ParentSortKey handle any depth.
+- Hooks_Keyboard.lua: headers of any depth, collapse of any level hides every
+  deeper level (transitive, whatever the state of the levels in between), and
+  a hybrid category (own items plus deeper levels, e.g. `Armes----Épées` with
+  direct items next to `Armes----Épées----Lourdes`) now totals both in its
+  header count (previously only its direct items were counted).
+- Docs updated: wiki/Rule Function Reference.md (new Level Display section,
+  including the `or` vs `and` note — `type("armorlight") and
+  type("armormedium")` can never match), wiki/Creating Custom Categories.md
+  (N-level names, Building Levels from Rules).
+- Verified offline with Lua 5.1: all 65 delivered Lua files compile;
+  test/CategoryTree_test.lua passes 113 assertions (N-level API, three-level
+  keyboard scenarios, hybrid counts); new test/LevelDisplay_test.lua passes
+  39 assertions (function behavior and MatchCategoryRules integration);
+  test/LibSets_test.lua still passes 1969 assertions. Not tested in ESO.
+
 ## 2026-11-05: Nested collapsible sections for autosettype (LibSets)
 
 - The LibSets plugin now generates a hierarchical category name instead of a

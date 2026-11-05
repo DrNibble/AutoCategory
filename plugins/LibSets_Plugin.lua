@@ -87,9 +87,11 @@ function AutoCategory_LibSets.RuleFunc.AutoSetType(setType)
         if setName == "" then
             return false
         end
-        AutoCategory.AdditionCategoryName = "(" .. setTypeName .. ") " .. setName
-        AutoCategory.AdditionCategorySortName =
-            zo_strlower(setTypeName) .. "\001" .. zo_strlower(setName)
+        -- Hierarchical category (see CategoryTree.lua): the localized set
+        -- type (Arène, Artisanal, ...) is the collapsible parent section and
+        -- the set name its collapsible child. The two-level sort key is
+        -- derived from this name, so no separate sort name is registered.
+        AutoCategory.AdditionCategoryName = setTypeName .. "----" .. setName
         return true
     end
     return false

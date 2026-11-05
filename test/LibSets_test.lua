@@ -138,9 +138,9 @@ local function match(filter, expectedName)
     AutoCategory.AdditionCategorySortName = "unchanged"
     equal(true, rule(filter), "matching rule")
     equal(expectedName, AutoCategory.AdditionCategoryName, "dynamic category")
-    local expectedType, expectedSet = expectedName:match("^%((.*)%) (.*)$")
-    equal(zo_strlower(expectedType) .. "\001" .. zo_strlower(expectedSet),
-        AutoCategory.AdditionCategorySortName, "two-level sort name")
+    -- The hierarchical name carries both levels; the two-level sort key is
+    -- derived from it (CategoryTree.BuildSortKey), no separate sort name.
+    equal("unchanged", AutoCategory.AdditionCategorySortName, "no sort side effect")
 end
 local function noMatch(filter)
     AutoCategory.AdditionCategoryName = "unchanged"
@@ -163,7 +163,7 @@ end
 equal(15, #constantNames, "current upstream type count")
 for id in ipairs(constantNames) do
     currentType = id
-    local expectedName = "(" .. typeNames[id].fr .. ") Nom du set"
+    local expectedName = typeNames[id].fr .. "----Nom du set"
     match(nil, expectedName)
     match(id, expectedName)
     match(typeNames[id].fr, expectedName)
@@ -173,45 +173,45 @@ currentType = 6
 -- These globals exist in the fixture, but quoted constant names must never
 -- resolve through _G. Labels from every LibSets language are accepted.
 for _, constantName in ipairs(constantNames) do invalidFilter(constantName) end
-match("DUNGEON", "(Donjon) Nom du set")
-match("dungeon", "(Donjon) Nom du set")
+match("DUNGEON", "Donjon----Nom du set")
+match("dungeon", "Donjon----Nom du set")
 noMatch("ARENA")
 -- A German label matches a French UI, and an English label a German UI.
-match("Verlies", "(Donjon) Nom du set")
+match("Verlies", "Donjon----Nom du set")
 cacheClientLanguage(LibSets, "de")
-match("Dungeon", "(Verlies) Nom du set")
+match("Dungeon", "Verlies----Nom du set")
 cacheClientLanguage(LibSets, "fr")
 local messagesBeforeRule = chatMessages
-match(nil, "(Donjon) Nom du set")
+match(nil, "Donjon----Nom du set")
 equal(messagesBeforeRule, chatMessages, "no chat output in rule")
 cacheClientLanguage(LibSets, "FR")
-match(nil, "(Donjon) Nom du set")
+match(nil, "Donjon----Nom du set")
 cacheClientLanguage(LibSets, "de")
-match(nil, "(Verlies) Nom du set")
-match("Verlies", "(Verlies) Nom du set")
+match(nil, "Verlies----Nom du set")
+match("Verlies", "Verlies----Nom du set")
 cacheClientLanguage(LibSets, "en")
-match(nil, "(Dungeon) Nom du set")
-match("DUNGEON", "(Dungeon) Nom du set") -- English UI label, not a constant alias.
-match("Donjon", "(Dungeon) Nom du set") -- French label on an English UI.
+match(nil, "Dungeon----Nom du set")
+match("DUNGEON", "Dungeon----Nom du set") -- English UI label, not a constant alias.
+match("Donjon", "Dungeon----Nom du set") -- French label on an English UI.
 cacheClientLanguage(LibSets, "")
-match(nil, "(Dungeon) Nom du set")
+match(nil, "Dungeon----Nom du set")
 cacheClientLanguage(LibSets, "xx")
-match(nil, "(Dungeon) Nom du set")
+match(nil, "Dungeon----Nom du set")
 cacheClientLanguage(LibSets, "pl")
-match(nil, "(Dungeon) Nom du set")
+match(nil, "Dungeon----Nom du set")
 local getCVar = GetCVar
 cacheClientLanguage(LibSets, "fr")
 GetCVar = nil
-match(nil, "(Donjon) Nom du set")
+match(nil, "Donjon----Nom du set")
 GetCVar = getCVar
 noMatch(11)
 noMatch("Arène")
-match("DONJON", "(Donjon) Nom du set")
+match("DONJON", "Donjon----Nom du set")
 -- The live name table, not a copied list or allowedSetTypes, defines types.
 typeNames[99] = { fr = "Extension", en = "Extension" }
 currentType = 99
-match(99, "(Extension) Nom du set")
-match("Extension", "(Extension) Nom du set")
+match(99, "Extension----Nom du set")
+match("Extension", "Extension----Nom du set")
 noMatch("Donjon")
 currentType = 6
 noMatch("Extension")
@@ -219,9 +219,9 @@ typeNames[99] = nil
 local imperialMonsterName, cyrodiilMonsterName = typeNames[13].fr, typeNames[14].fr
 typeNames[13].fr, typeNames[14].fr = "Monstre partagé", "Monstre partagé"
 currentType = 13
-match("Monstre partagé", "(Monstre partagé) Nom du set")
+match("Monstre partagé", "Monstre partagé----Nom du set")
 currentType = 14
-match("MONSTRE PARTAGÉ", "(Monstre partagé) Nom du set")
+match("MONSTRE PARTAGÉ", "Monstre partagé----Nom du set")
 currentType = 6
 noMatch("Monstre partagé")
 typeNames[13].fr, typeNames[14].fr = imperialMonsterName, cyrodiilMonsterName
@@ -229,9 +229,9 @@ typeNames[13].fr, typeNames[14].fr = imperialMonsterName, cyrodiilMonsterName
 local imperialCityMonsterDe = typeNames[13].de
 typeNames[13].de = "Verlies"
 currentType = 13
-match("Verlies", "(" .. typeNames[13].fr .. ") Nom du set")
+match("Verlies", typeNames[13].fr .. "----Nom du set")
 currentType = 6
-match("Verlies", "(Donjon) Nom du set")
+match("Verlies", "Donjon----Nom du set")
 typeNames[13].de = imperialCityMonsterDe
 -- A label shared by several types still resolves to the checked item's type.
 currentType = 1
@@ -239,10 +239,10 @@ noMatch("Verlies")
 currentType = 6
 local frenchDungeonName = typeNames[6].fr
 typeNames[6].fr = nil
-match(6, "(Dungeon) Nom du set")
-match("Dungeon", "(Dungeon) Nom du set")
+match(6, "Dungeon----Nom du set")
+match("Dungeon", "Dungeon----Nom du set")
 typeNames[6].fr = ""
-match(6, "(Dungeon) Nom du set")
+match(6, "Dungeon----Nom du set")
 local dungeonNames = typeNames[6]
 typeNames[6] = {}
 noMatch()
@@ -284,12 +284,12 @@ noMatch()
 LibSets = library
 local loadedCheck = IsLibSetsAlreadyLoaded
 IsLibSetsAlreadyLoaded = nil
-match(6, "(Donjon) Nom du set")
+match(6, "Donjon----Nom du set")
 IsLibSetsAlreadyLoaded = loadedCheck
 LibSets.fullyLoaded, LibSets.version = false, 0.1
 noMatch(6)
 LibSets.fullyLoaded = true
-match(6, "(Donjon) Nom du set")
+match(6, "Donjon----Nom du set")
 LibSets.version = 0.93
 local names = LibSets.setTypesToName
 LibSets.setTypesToName = nil
@@ -297,9 +297,9 @@ equal(false, pcall(rule), "fullyLoaded now trusts the library table contract")
 LibSets.setTypesToName = names
 local allowedSetTypes = LibSets.allowedSetTypes
 LibSets.allowedSetTypes = nil
-match(6, "(Donjon) Nom du set")
+match(6, "Donjon----Nom du set")
 LibSets.allowedSetTypes = allowedSetTypes
-match(6, "(Donjon) Nom du set")
+match(6, "Donjon----Nom du set")
 local getSetType = LibSets.GetSetType
 LibSets.GetSetType = nil
 equal(false, pcall(rule), "fullyLoaded replaces individual API capability checks")
@@ -309,7 +309,7 @@ LibSets.GetSetType = getSetType
 local expression = assert(loadstring('return autosettype("Donjon")'))
 setfenv(expression, AutoCategory.Environment)
 equal(true, expression(), "rule environment execution")
-equal("(Donjon) Nom du set", AutoCategory.AdditionCategoryName, "expression name")
+equal("Donjon----Nom du set", AutoCategory.AdditionCategoryName, "expression name")
 local numericExpression = assert(loadstring("return autosettype(6)"))
 setfenv(numericExpression, AutoCategory.Environment)
 equal(true, numericExpression(), "numeric rule environment execution")
@@ -428,8 +428,9 @@ local function checkOrder(expected, label)
         keyboard[#keyboard + 1] = row
         runGamepadRules({}, gamepad, 1, slotIndex)
         runGamepadCraftRules({}, crafting, 1, slotIndex)
-        equal(AutoCategory.GetCategorySortName(row.data.AC_categoryName),
-            gamepad[slotIndex].sortPriorityName:sub(5), "shared key across views")
+        -- Both views derive the same two-level key from the category name.
+        equal(row.data.AC_sortPriorityName, gamepad[slotIndex].sortPriorityName,
+            "shared key across views")
     end
     table.sort(keyboard, function(left, right)
         return keyboardComparator({}, left, right)
@@ -452,33 +453,33 @@ local function checkOrder(expected, label)
 end
 
 cacheClientLanguage(LibSets, "fr")
-checkOrder({ 5, 2, 4, 3, 6, 1 }, "French type then set, mixed case, parent ignored")
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "French type then set, mixed case, parent ignored")
 AutoCategory.saved.general.SHOW_CATEGORY_SET_TITLE = false
-checkOrder({ 5, 2, 4, 3, 6, 1 }, "same order without parent title")
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "same order without parent title")
 cacheClientLanguage(LibSets, "en")
-checkOrder({ 5, 2, 4, 3, 6, 1 }, "English type then set")
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "English type then set")
 cacheClientLanguage(LibSets, "xx")
-checkOrder({ 5, 2, 4, 3, 6, 1 }, "unsupported language English fallback")
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "unsupported language English fallback")
 cacheClientLanguage(LibSets, "fr")
 -- Prefix types must remain separate levels, not be compared as display labels.
 local arenaFrenchName = typeNames[1].fr
 typeNames[1].fr = "Z-Arène"
-checkOrder({ 4, 3, 6, 1, 5, 2 }, "type order follows current French translation")
+checkOrder({ 4, 3, 6, 1, 2, 5 }, "type order follows current French translation")
 cacheClientLanguage(LibSets, "en")
-checkOrder({ 5, 2, 4, 3, 6, 1 }, "English order independent of French translation")
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "English order independent of French translation")
 cacheClientLanguage(LibSets, "fr")
 typeNames[1].fr = "Donjon étendu"
-checkOrder({ 4, 3, 6, 1, 5, 2 }, "short type before its longer prefix variant")
+checkOrder({ 4, 3, 6, 1, 2, 5 }, "short type before its longer prefix variant")
 typeNames[1].fr = arenaFrenchName
 local firstSetName, thirdSetName = inventory[1].name, inventory[3].name
 inventory[1].name, inventory[3].name = "ALPHA", "alpha"
-checkOrder({ 5, 2, 4, 1, 3, 6 }, "case-only name collisions keep distinct groups")
-equal(false, AutoCategory.GetCategorySortName("(Donjon) ALPHA") ==
-    AutoCategory.GetCategorySortName("(Donjon) alpha"), "distinct header keys")
+checkOrder({ 2, 5, 4, 1, 6, 3 }, "case-only name collisions keep distinct groups")
+equal(false, CategoryTree.BuildSortKey(10, "Donjon----ALPHA")
+    == CategoryTree.BuildSortKey(10, "Donjon----alpha"), "distinct header keys")
 inventory[1].name, inventory[3].name = firstSetName, thirdSetName
 -- Original display priority still takes precedence over the alphabetical key.
 bagRules[2].showpriority = 50
-checkOrder({ 4, 3, 6, 1, 5, 2 }, "display priority preserved")
+checkOrder({ 4, 3, 6, 1, 2, 5 }, "display priority preserved")
 bagRules[2].showpriority = 10
 AutoCategory.CategorySortNames.Ordinary = "stale"
 local matched, ordinaryName = AutoCategory:MatchCategoryRules(1, 7)

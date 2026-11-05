@@ -128,6 +128,13 @@ local function adjustName(selfie, name, enhancement)
 		return enhancement
 
 	end
+	-- A hierarchical dynamic name (parent----child, see CategoryTree.lua)
+	-- already carries its own structure: wrapping it in the rule name would
+	-- break the two-level display, so it is used as-is.
+	if AutoCategory.CategoryTree
+		and select(2, AutoCategory.CategoryTree.Split(enhancement)) ~= nil then
+		return enhancement
+	end
 	-- combine the category and set names
 	return name .. " (" .. enhancement .. ")"
 end

@@ -1,5 +1,35 @@
 # Changes
 
+## 2026-11-05: Nested collapsible sections for autosettype (LibSets)
+
+- The LibSets plugin now generates a hierarchical category name instead of a
+  flat one: `AutoCategory.AdditionCategoryName` is
+  `localized type----localized set name` (e.g. `Arène----Chance du valet`,
+  `Artisanal----Adversaire d'Oblivion`), reusing the CategoryTree two-level
+  display added on 2026-11-03. The inventory shows a collapsible parent
+  header per set type (Arène, Artisanal, ...) with the total count of its
+  sets, and a collapsible child header per set name with its own count.
+  Gamepad shows one-line `type - set name` headers.
+- The separate `AutoCategory.AdditionCategorySortName` registration is
+  removed: hierarchical sort keys are derived from the category name by
+  CategoryTree.BuildSortKey (parent part, then set name, raw Lua string
+  ordering — no more zo_strlower normalization). Keyboard and gamepad
+  paths share the same key; display priority and ordinary flat categories
+  are unchanged.
+- adjustName (AutoCategory_API.lua): a hierarchical dynamic name is returned
+  as-is instead of being wrapped in the rule name as `rule (type----set)`,
+  which would have broken the two levels. The "Show 'Set(name)' for
+  autosets" setting still wraps flat dynamic names (autoset, ...).
+- Docs updated (wiki/Rule Function Reference.md, Auto Set Type section) and
+  test/LibSets_test.lua reclassified: expected names are hierarchical, the
+  match helper no longer expects a registered sort name, and checkOrder
+  orders follow the raw string ordering (uppercase before lowercase).
+- Verified offline with Lua 5.1: all 64 delivered Lua files compile;
+  test/LibSets_test.lua passes 1969 assertions with fixtures (the
+  Windows-path harnesses were not runnable here before or after this
+  change); test/CategoryTree_test.lua still passes 72 assertions. Not
+  tested in ESO.
+
 ## 2026-11-03: Two-level collapsible categories (CategoryTree)
 
 - New CategoryTree library (CategoryTree.lua, loaded before the hooks). A

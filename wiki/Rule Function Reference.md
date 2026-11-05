@@ -724,8 +724,11 @@ autosettype(6)
 
 Requires the optional LibSets library. Like `autoset()`, returns a boolean and
 generates categories dynamically, but sets `AutoCategory.AdditionCategoryName`
-to `(localized type) localized set name`, for example `(Donjon) Nom du set` on a
-French client.
+to `localized type----localized set name`, for example
+`Donjon----Nom du set` on a French client. This is a two-level (nested)
+category name (see [Creating Custom Categories](https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories)):
+the localized set type (`Arène`, `Artisanal`, ...) is the parent header and
+the localized set name a collapsible sub-header under it.
 
 Without an argument, matches every set whose type is known to LibSets. The
 optional argument filters by a translated type name in any language LibSets
@@ -771,22 +774,26 @@ names return `false` without altering the dynamic name or sort key.
 
 The inventory sort has two alphabetical levels within the existing display
 priority: first the localized type name, then the localized set name within
-that type. Both are normalized with ESO's native `zo_strlower`.
-They form separate internal keys, so one type name being a prefix of another
-does not let set names interfere with the type order. This uses Lua string
-ordering after lowercasing, not accent-folding or dictionary collation.
+that type. Both come straight from the hierarchical category name through
+the CategoryTree key derivation, so one type name being a prefix of another
+does not let set names interfere with the type order. This uses raw Lua
+string ordering (case-sensitive, no accent-folding or dictionary collation).
 
-Keyboard and gamepad inventory/crafting/store paths use the same category
-sort-name lookup. Parent rule titles do not affect this two-level order.
-Display priorities remain dominant: use the same display priority for
-multiple `autosettype(...)` rules if they should share one alphabetical
+Keyboard and gamepad inventory/crafting/store paths derive the same key
+from the category name. Parent rule titles do not affect this two-level
+order. Display priorities remain dominant: use the same display priority
+for multiple `autosettype(...)` rules if they should share one alphabetical
 ordering. Ordinary categories keep their existing keys, headers still
-precede their items, and distinct labels with identical normalized keys
-remain separate contiguous groups.
+precede their items, and distinct labels always form distinct keys.
 
-Displayed headers remain `(type) set name`, optionally wrapped in the
-parent rule name. The two levels describe the sort order, not a new nested
-or separately collapsible type-header UI.
+Displayed headers are nested and collapsible at both levels: the parent
+header shows the localized set type with the total count of all its sets,
+each child header shows one set name with its own count. Both levels
+collapse independently through the usual `+`/`-` marker, context menu and
+header click, like any two-level category. On the gamepad, categories
+display as one-line `type - set name` headers. AutoCategory's existing
+"Show 'Set(name)' for autosets" setting still controls whether the parent
+rule name wraps this dynamic name.
 
 Add a rule using `autosettype()` to the desired bags. Give it a higher run
 priority than competing `autoset()` or `combined_autoset()` rules, or disable

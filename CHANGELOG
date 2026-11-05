@@ -1,10 +1,11 @@
-[COLOR="DeepSkyBlue"] Unreleased (2026-11-03)[/COLOR]:
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-05)[/COLOR]:
 [LIST]
+[*] autosettype() (LibSets plugin) now categorizes set items as nested collapsible sections: one parent header per localized set type (Arène, Artisanal, ...) showing the total count of its sets, and one collapsible child header per set name. Gamepad shows one-line "type - set name" headers. The dynamic name is no longer wrapped in the rule name when "Show 'Set(name)' for autosets" is enabled, so the two levels stay intact.
 [*] Two-level collapsible categories: a category name containing "----" displays as a parent header with collapsible child headers (keyboard inventory), e.g. "Potions----Magie" and "Potions----Santé" under "Potions". Gamepad shows "parent - child" one-line headers.
 [*] autosettype() string filters now accept a set type name in any LibSets language (English, German, French, Spanish, Polish, Japanese, Russian, Chinese), not only the current UI language. Displayed names still follow the UI language.
-[*] Read type labels directly from LibSets.setTypesToName and sort set categories by localized type, then by set name, case-insensitively. Share the key across keyboard/gamepad paths while keeping display priority and ordinary categories unchanged.
+[*] Read type labels directly from LibSets.setTypesToName and sort set categories by localized type, then by set name. Share the key across keyboard/gamepad paths while keeping display priority and ordinary categories unchanged.
 [*] Use LibSets.fullyLoaded directly; remove isLibSetsAvailable and the copied type mapping. Detect types and translated filter names from the live LibSets.setTypesToName table.
-[*] Added optional LibSets plugin: autosettype([type]) dynamically categorizes set items as "(localized type) set name".
+[*] Added optional LibSets plugin: autosettype([type]) dynamically categorizes set items as nested "localized type----set name" sections.
 [*] Supports live LibSets set types and filtering only by numeric ID or cached-UI-language type name. Remove global constant-name/suffix resolution.
 [*] Use LibSets.clientLang, its cached UI default, and LibSets.fallbackLang (English). No plugin uiLanguage variable or GetCVar call.
 [*] Missing LibSets or unavailable set data returns false. Existing rules are not changed automatically.

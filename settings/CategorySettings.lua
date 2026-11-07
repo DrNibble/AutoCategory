@@ -83,8 +83,10 @@ end
 -- The parent of a level 2-5 category: the category under which it is
 -- nested (its sub-menu path is the parent chain). Choices are the
 -- categories of the level just below (the parent of a level 2 category is
--- a level 1 category, and so on); "(none)" leaves the category without a
--- parent, which makes it a top-level section.
+-- a level 1 category, and so on); a Normal category is a top-level
+-- category, so it counts as level 1 and is a valid parent for a level 2
+-- category (it never has a parent itself). "(none)" leaves the category
+-- without a parent, which makes it a top-level section.
 local AC_PARENT_NONE = ""
 
 -- rebuild the parent choices from the current rule list (the current
@@ -104,8 +106,12 @@ function CatSet_ParentDD_LAM:refresh()
 		local rname = r.name
 		if rname and rname ~= "" and rname ~= curName and not seen[rname] then
 			-- keep the current parent visible even when its level no longer
-			-- matches (set before the level changed), so it can be changed
-			if CatSet_Level_getRuleLevel(r) == curLevel - 1
+			-- matches (set before the level changed), so it can be changed.
+			-- a Normal category is a top-level category: it counts as level 1
+			-- and is a valid parent for a level 2 category
+			local rlevel = CatSet_Level_getRuleLevel(r)
+			if rlevel == curLevel - 1
+				or (curLevel == 2 and rlevel == AC_LEVEL_NORMAL)
 				or (currentRule and currentRule.parent == rname) then
 				seen[rname] = true
 				names[#names + 1] = rname

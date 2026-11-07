@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 2)[/COLOR]:
+[LIST]
+[*] A Normal category now counts as a level 1 category in the Parent dropdown: a level 2 category can be nested under a Normal category. Levels 3-5 still require a parent of the level just below, and a Normal or level 1 category never has a parent itself.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08)[/COLOR]:
 [LIST]
 [*] Fixed the empty Parent dropdown in Edit Category (the choices never reached it) and filtered it by level: the parent of a level 2 category is chosen among the level 1 categories, and so on for levels 3-5; a parent whose level no longer matches stays visible so it can be changed.

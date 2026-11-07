@@ -1,5 +1,19 @@
 # Changes
 
+## 2026-11-08 (2): a Normal category counts as level 1 for the Parent dropdown
+
+- A Normal category is a top-level category: it now counts as level 1 and
+  is a valid parent for a level 2 category (the Parent dropdown of a
+  level 2 category lists the level 1 categories AND the Normal ones).
+  Levels 3-5 keep requiring a parent of the level just below (a level 3
+  category lists the level 2 categories only). A Normal or level 1
+  category never has a parent itself (the Parent dropdown stays disabled
+  below level 2).
+- Parent dropdown tooltip updated in en/de/fr/es/ru/zh to say so.
+- Not tested in ESO. The offline suites are unchanged: test/ParentDD_test
+  (15), test/RuleLevel_test (50), test/CategoryTree_test (113),
+  test/LibSets_test (1969) still pass.
+
 ## 2026-11-08: Parent dropdown shows only the categories of the level above
 
 - Bug: the Parent dropdown stayed empty. CVT:assign() silently ignores a

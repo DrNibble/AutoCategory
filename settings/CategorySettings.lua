@@ -58,13 +58,21 @@ local currentRule = AutoCategory.CreateRule("","")
 -- Parent enabled state) after the current rule, its level or its parent
 -- changed.
 local function CatSet_SyncEditRuleControls()
+	-- UpdateValue() WITHOUT a value only makes LAM re-read getFunc and
+	-- refresh the displayed text: it does not call setFunc. Passing a value
+	-- would call our setFunc, which calls CatSet_SyncEditRuleControls again
+	-- and recurses forever (Maximum call depth exceeded).
 	local lvlCtrl = WINDOW_MANAGER:GetControlByName("AC_DROPDOWN_EDITRULE_LEVEL")
 	if lvlCtrl then
-		lvlCtrl:UpdateValue(false, CatSet_Level_getRuleLevel(currentRule))
+		lvlCtrl:UpdateValue()
 	end
 	CatSet_ParentDD_LAM.cvt.indexValue = (currentRule and currentRule.parent) or ""
 	CatSet_ParentDD_LAM:updateControl()
 	local pctrl = WINDOW_MANAGER:GetControlByName("AC_DROPDOWN_EDITRULE_PARENT")
+	if pctrl then
+		-- same display-only refresh for the parent dropdown
+		pctrl:UpdateValue()
+	end
 	if pctrl and pctrl.UpdateDisabled then
 		pctrl:UpdateDisabled()
 	end
@@ -123,6 +131,14 @@ function CatSet_ParentDD_LAM:setValue(value)
 				break
 			end
 		end
+	end
+
+	-- BaseDD:updateControl calls UpdateValue(false, value), which calls the
+	-- setFunc -> setValue again: stop when the parent did not change, or
+	-- setValue -> updateControl -> setFunc -> setValue recurses forever.
+	local oldvalue = self:getValue() or AC_PARENT_NONE
+	if oldvalue == (value or AC_PARENT_NONE) then
+		return
 	end
 
 	currentRule.parent = value
@@ -767,6 +783,13 @@ function AC_UI.CatSet.controlDef()
                 end,
                 setFunc = function(value)
                     if not currentRule then return end
+                    -- LAM calls setFunc on every UpdateValue(false, value),
+                    -- including programmatic refreshes: stop when the level
+                    -- did not change, or setFunc -> sync -> UpdateValue ->
+                    -- setFunc recurses forever.
+                    if (currentRule.level or AC_LEVEL_NORMAL) == (value or AC_LEVEL_NORMAL) then
+                        return
+                    end
                     if value == nil or value == AC_LEVEL_NORMAL then
                         currentRule.level = nil
                     else

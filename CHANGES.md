@@ -1,5 +1,27 @@
 # Changes
 
+## 2026-11-07 (3): Fix infinite recursion when editing Level/Parent (Maximum call depth of 10000 exceeded)
+
+- LAM-2.0 calls a dropdown's setFunc on every UpdateValue(false, value),
+  including the programmatic refreshes done while the Edit Category panel
+  updates itself. The Level setFunc called CatSet_SyncEditRuleControls,
+  which pushed the level back into the dropdown (UpdateValue(false, level)
+  -> setFunc -> sync -> ...), and CatSet_ParentDD_LAM:setValue called
+  updateControl, which pushed the parent back into its dropdown
+  (setValue -> updateControl -> UpdateValue -> setFunc -> setValue -> ...):
+  both loops ended in "Maximum call depth of 10000 exceeded" as soon as
+  the Edit Category panel was used.
+- CatSet_SyncEditRuleControls now refreshes both dropdowns with
+  UpdateValue() WITHOUT a value: LAM then only re-reads getFunc and
+  updates the displayed text, without calling setFunc (verified against
+  the LibAddonMenu-2.0 source).
+- Both setFuncs (Level and Parent) are now idempotent: they return early
+  when the value did not change, which also breaks any remaining
+  setFunc -> refresh -> setFunc bounce.
+- Verified offline with Lua 5.1: the modified file compiles;
+  test/RuleLevel_test.lua (50), test/CategoryTree_test.lua (113) and
+  test/LibSets_test.lua (1969) still pass. Not tested in ESO.
+
 ## 2026-11-07 (2): Parent dropdown, parent chains and level in tooltips
 
 - New **Parent** dropdown in Edit Category, next to the Level dropdown:

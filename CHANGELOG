@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-07, 3)[/COLOR]:
+[LIST]
+[*] Fixed "Maximum call depth of 10000 exceeded" when using the Edit Category panel: the Level and Parent dropdown updates no longer call their own setFunc back (display refreshes use UpdateValue without a value, and the setFuncs ignore unchanged values).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-07, 2)[/COLOR]:
 [LIST]
 [*] New Parent dropdown in Edit Category, next to Level: for a level 2-5 category it chooses the category under which this one is nested, and the sub-menu path is the parent chain (the parent, its own parent, and so on). Sibling level-2 sections under the same parent now nest correctly; a dangling parent stops the chain; a parent that would create a cycle is refused. Selecting a Level fills an empty rule text with true (a level category is a display section named after its category), and the level and parent of a category now show in its tooltip.

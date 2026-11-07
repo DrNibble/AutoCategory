@@ -1,5 +1,39 @@
 # Changes
 
+## 2026-11-07 (2): Parent dropdown, parent chains and level in tooltips
+
+- New **Parent** dropdown in Edit Category, next to the Level dropdown:
+  for a level 2-5 category it chooses the category under which this one is
+  nested. Choices are all known categories (the current one excluded);
+  "(none)" leaves the category without a parent, which makes it a
+  top-level section. A parent that would create a cycle (this category
+  itself or one of its ancestors) is refused.
+- The sub-menu path is now the **parent chain**: the parent, its own
+  parent, and so on up to the top, then the category itself. A level rule
+  that matches records its whole chain; a deeper chain replaces a
+  shallower one (the first rule wins among chains of equal depth). This
+  replaces the former level-number ordering: two level-2 sections under
+  the same level-1 parent (siblings) now nest correctly, whatever the
+  bag's rule order. A dangling parent (deleted or renamed category) stops
+  the chain: the rule becomes a top-level section.
+- Level categories are display sections: when a Level is selected and the
+  rule text is empty, it is filled with `true` (the section name is the
+  category name). Conditions may still be used in level rules; ordinary
+  (Normal) rules matching after an open path still join it as the deepest
+  level.
+- The level (and parent) of a category now shows in its tooltip
+  (getDesc appends "Level: n - Parent: name"), i.e. in the Category
+  dropdowns and the bag rule list tooltips.
+- Rules: optional `parent` field validated by isValidRule (category name
+  other than its own name) and copied by CopyFrom. New strings in
+  en/de/fr/es/ru/zh.
+- Verified offline with Lua 5.1: the modified Lua files compile;
+  test/RuleLevel_test.lua passes 50 assertions (level/parent validation,
+  copies, tooltips and MatchCategoryRules parent chains, siblings,
+  dangling parents and cycles, on the delivered files);
+  test/CategoryTree_test.lua (113) and test/LibSets_test.lua (1969)
+  still pass. Not tested in ESO.
+
 ## 2026-11-07: Level dropdown in Edit Category (replaces leveldisplay())
 
 - New **Level** dropdown in the Edit Category section of the settings menu

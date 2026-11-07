@@ -176,29 +176,21 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	local compiledRules = AutoCategory.compiledRules
 	local categoryTree = AutoCategory.CategoryTree
 
-	-- rule Level path state: the category names recorded per level (the
-	-- Level dropdown of Edit Category) while the bag's rules are evaluated
-	-- for this item, and the entry of the rule that named the deepest
-	-- level so far.
-	local recordedLevels = nil
+	-- rule Level path state: the category names of the parent chain
+	-- (the Level and Parent dropdowns of Edit Category) recorded while
+	-- the bag's rules are evaluated for this item, and the entry of the
+	-- rule that opened the deepest path so far. The path of a level
+	-- category is its parent chain: the parent, its own parent, and so
+	-- on, up to the top, then the category itself.
+	local recordedPath = nil
 	local recordedEntry = nil
-	-- The recorded levels in order, outermost first.
-	local function pathParts(levels)
-		local depths = {}
-		for k in pairs(levels) do
-			depths[#depths + 1] = k
-		end
-		table.sort(depths)
-		local parts = {}
-		for _, k in ipairs(depths) do
-			parts[#parts + 1] = levels[k]
-		end
-		return parts
-	end
 
 	-- Append a name as the deepest level of the recorded path.
-	local function joinPath(levels, name)
-		local parts = pathParts(levels)
+	local function joinPath(path, name)
+		local parts = {}
+		for i = 1, #path do
+			parts[i] = path[i]
+		end
 		parts[#parts + 1] = name
 		return categoryTree.JoinName(parts)
 	end
@@ -224,16 +216,23 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 							and ruleLevel == math.floor(ruleLevel)
 
 						if isLevelRule then
-							-- A rule with a Level (Edit Category dropdown)
-							-- matched: record its level into the path (the
-							-- first rule naming a level wins it) and keep
-							-- evaluating; a later rule may refine the item
-							-- one or more levels deeper.
-							if recordedLevels == nil then
-								recordedLevels = {}
+							-- A rule with a Level (Edit Category dropdown) matched:
+							-- build its parent chain (the Parent dropdown) and record it
+							-- as the current path. A deeper chain replaces a shallower one
+							-- (the first rule wins among chains of equal depth), and a later
+							-- rule may refine the item one or more levels deeper.
+							local chain = { entry.name }
+							local visited = { [entry.name] = true }
+							local crule = rule
+							while type(crule.parent) == "string" and crule.parent ~= "" do
+								local prule = getRuleByName(crule.parent)
+								if not prule or visited[prule.name] then break end
+								table.insert(chain, 1, prule.name)
+								visited[prule.name] = true
+								crule = prule
 							end
-							if recordedLevels[ruleLevel] == nil then
-								recordedLevels[ruleLevel] = entry.name
+							if recordedPath == nil or #chain > #recordedPath then
+								recordedPath = chain
 								recordedEntry = entry
 							end
 
@@ -244,10 +243,10 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 								isCategoryCollapsed(bag_type_id, catname))
 							if res == true then
 								local finalName = catname
-								if recordedLevels ~= nil then
+								if recordedPath ~= nil then
 									-- a Level path is open: the rule's
 									-- category becomes its deepest level
-									finalName = joinPath(recordedLevels, catname)
+									finalName = joinPath(recordedPath, catname)
 									setCategoryCollapsed(bag_type_id, finalName,
 										isCategoryCollapsed(bag_type_id, finalName))
 								end
@@ -271,12 +270,12 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 		end
 	end
 
-	-- Only rules with a Level matched: join the recorded levels into one
-	-- nested category name (the levels without a matching rule are simply
-	-- skipped) and stop at the rule that named the deepest level.
-	if recordedLevels ~= nil then
+	-- Only rules with a Level matched: join the recorded parent chain into
+	-- one nested category name and stop at the rule that opened the
+	-- deepest path.
+	if recordedPath ~= nil then
 		local entry = recordedEntry
-		local catname = categoryTree.JoinName(pathParts(recordedLevels))
+		local catname = categoryTree.JoinName(recordedPath)
 		setCategoryCollapsed(bag_type_id, catname,
 			isCategoryCollapsed(bag_type_id, catname))
 		AutoCategory.CategorySortNames[catname] = nil

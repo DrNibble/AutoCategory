@@ -1,9 +1,9 @@
 -- Run from the addon root with Lua 5.1:
 -- lua5.1 test/RuleLevel_test.lua
--- Tests the rule Level property (the Edit Category "Level" dropdown that
--- replaces the former leveldisplay() rule function) and its
--- MatchCategoryRules integration, loading the delivered files (never
--- copies of them).
+-- Tests the rule Level and Parent properties (the Edit Category "Level"
+-- and "Parent" dropdowns that replace the former leveldisplay() rule
+-- function) and their MatchCategoryRules integration, loading the
+-- delivered files (never copies of them).
 
 local assertions = 0
 local function equal(expected, actual, message)
@@ -13,8 +13,8 @@ local function equal(expected, actual, message)
 end
 
 -- ---------------------------------------------------------------------------
--- Part 1: the level property of a rule (validation and copies), from the
--- delivered classes/RuleApi.lua
+-- Part 1: the level/parent properties of a rule (validation, copies and
+-- tooltips), from the delivered classes/RuleApi.lua
 -- ---------------------------------------------------------------------------
 AutoCategory = {
     RulesW = { ruleNames = {} },
@@ -22,6 +22,15 @@ AutoCategory = {
     Environment = {},
     checking = {},
 }
+
+-- string stubs for the tooltip (the real strings live in lang/)
+SI_AC_TIP_LEVEL = "Level: %d"
+SI_AC_TIP_PARENT = "Parent: %s"
+function GetString(si)
+    if si == SI_AC_TIP_LEVEL then return "Level: %d" end
+    if si == SI_AC_TIP_PARENT then return "Parent: %s" end
+    return tostring(si)
+end
 
 assert(loadfile("classes/RuleApi.lua"))()
 
@@ -44,15 +53,33 @@ equal(false, isValidRule({ name = "n", rule = "true", level = "1" }),
 equal(false, isValidRule({ name = "n", rule = "true", level = -1 }),
     "negative level is invalid")
 
--- CreateRule does not set a level; CopyFrom copies it.
+-- Parent validation: optional category name, other than its own name.
+equal(true, isValidRule({ name = "n", rule = "true", level = 2,
+    parent = "pn" }), "parent is valid")
+equal(false, isValidRule({ name = "n", rule = "true", level = 2,
+    parent = "n" }), "self parent is invalid")
+equal(false, isValidRule({ name = "n", rule = "true", level = 2,
+    parent = "" }), "empty parent is invalid")
+equal(false, isValidRule({ name = "n", rule = "true", level = 2,
+    parent = 3 }), "numeric parent is invalid")
+
+-- CreateRule sets no level/parent; CopyFrom copies both.
 local created = AutoCategory.CreateRule("created", "tag")
 equal(nil, created.level, "created rule has no level")
+equal(nil, created.parent, "created rule has no parent")
 local src = AutoCategory.CreateRule("source", "tag")
 src.level = 3
+src.parent = "pn"
 local copy = AutoCategory.CopyFrom(src)
 equal(3, copy.level, "CopyFrom copies the level")
-local flat = AutoCategory.CopyFrom(AutoCategory.CreateRule("flat", "tag"))
-equal(nil, flat.level, "CopyFrom of a level-less rule stays level-less")
+equal("pn", copy.parent, "CopyFrom copies the parent")
+
+-- getDesc shows the level (and the parent) so it appears in tooltips.
+local tt = src:getDesc()
+equal(true, tt:find("Level: 3", 1, true) ~= nil, "tooltip shows the level")
+equal(true, tt:find("Parent: pn", 1, true) ~= nil, "tooltip shows the parent")
+local flat = AutoCategory.CreateRule("flat", "tag")
+equal("flat", flat:getDesc(), "no level info without a level")
 
 -- ---------------------------------------------------------------------------
 -- Part 2: MatchCategoryRules integration with the delivered API file
@@ -96,10 +123,13 @@ function AutoCategory.GetRuleByName(name)
     return rulesByName[name]
 end
 
-local function newRule(name, definition, level)
+local function newRule(name, definition, level, parent)
     local rule = { name = name, rule = definition }
     if level then
         rule.level = level
+    end
+    if parent then
+        rule.parent = parent
     end
     function rule:key()
         return "R:" .. self.name
@@ -118,8 +148,8 @@ local function compileRule(rule)
     return rule
 end
 
-local function rule(name, definition, level)
-    return compileRule(newRule(name, definition, level))
+local function rule(name, definition, level, parent)
+    return compileRule(newRule(name, definition, level, parent))
 end
 
 -- The rule environment: a controllable type() with the ESO armor
@@ -157,15 +187,16 @@ local function match()
 end
 
 -- ---------------------------------------------------------------------------
--- Three levels: a top-level section plus conditions named by their rules
+-- Three levels through the parent chain: a display section (rule true)
+-- plus conditions in the deeper level rules
 -- ---------------------------------------------------------------------------
--- The former leveldisplay(1, "premier niveau") becomes a rule named
--- "premier niveau" with level 1; leveldisplay(2, type("armor")) becomes
--- a rule with level 2 and its condition as rule text, and so on.
+-- The former leveldisplay(1, "premier niveau") is a rule named
+-- "premier niveau" with Level 1 and rule text true; the deeper rules
+-- choose their parent with the Parent dropdown.
 rule("premier niveau", [[true]], 1)
-rule("Armures", [[type("armor")]], 2)
-rule("Légères", [[type("armorlight")]], 3)
-rule("Moyennes", [[type("armormedium")]], 3)
+rule("Armures", [[type("armor")]], 2, "premier niveau")
+rule("Légères", [[type("armorlight")]], 3, "Armures")
+rule("Moyennes", [[type("armormedium")]], 3, "Armures")
 
 bag.rules = {}
 addBagRule("premier niveau", 10, 1)
@@ -194,18 +225,6 @@ equal(true, ok, "medium armor matched")
 equal("premier niveau----Armures----Moyennes", name, "medium armor path")
 
 -- ---------------------------------------------------------------------------
--- A level without a matching rule is skipped (gap compaction)
--- ---------------------------------------------------------------------------
-bag.rules = {}
-addBagRule("premier niveau", 10, 1)
-addBagRule("Légères", 30, 3)
-itemType = "armorlight"
-ok, name, rp = match()
-equal(true, ok, "gap match")
-equal("premier niveau----Légères", name, "level 2 gap compacted")
-equal(30, rp, "gap run priority")
-
--- ---------------------------------------------------------------------------
 -- Only the top level matches: the parent path alone
 -- ---------------------------------------------------------------------------
 bag.rules = {}
@@ -219,15 +238,70 @@ equal("premier niveau", name, "parent-only path")
 equal(10, rp, "parent-only run priority")
 
 -- ---------------------------------------------------------------------------
--- A level rule with no higher level open is a flat category
+-- Sibling level-2 sections under the same parent
 -- ---------------------------------------------------------------------------
+rule("Armes", [[type("weapon")]], 2, "premier niveau")
 bag.rules = {}
-addBagRule("Légères", 30, 3)
+addBagRule("premier niveau", 10, 1)
+addBagRule("Armures", 20, 2)
+addBagRule("Armes", 25, 5)
+itemType = "weapon"
+ok, name, rp = match()
+equal(true, ok, "sibling match")
+equal("premier niveau----Armes", name, "sibling level 2 path")
+equal(25, rp, "sibling run priority")
+
+-- ---------------------------------------------------------------------------
+-- Display sections (rule true) with the conditions in ordinary rules:
+-- the ordinary rule joins the open parent chain as the deepest level
+-- ---------------------------------------------------------------------------
+rule("Trucs légers", [[type("armorlight")]]) -- ordinary (Normal) rule
+bag.rules = {}
+addBagRule("premier niveau", 10, 1)
+addBagRule("Armures", 20, 2) -- display section (rule true)
+addBagRule("Trucs légers", 30, 3)
+itemType = "armorlight"
+ok, name, rp = match()
+equal(true, ok, "ordinary after open path")
+equal("premier niveau----Armures----Trucs légers", name,
+    "ordinary rule appended as deepest level")
+equal(30, rp, "ordinary rule priority after path")
+
+-- ---------------------------------------------------------------------------
+-- A level rule with no parent is a top-level section
+-- ---------------------------------------------------------------------------
+rule("Solo", [[type("armorlight")]], 3) -- no parent
+bag.rules = {}
+addBagRule("Solo", 30, 3)
 itemType = "armorlight"
 ok, name, rp = match()
 equal(true, ok, "orphan level match")
-equal("Légères", name, "orphan level rule is flat")
+equal("Solo", name, "orphan level rule is a top section")
 equal(30, rp, "orphan level run priority")
+
+-- ---------------------------------------------------------------------------
+-- A dangling parent (deleted or renamed category) stops the chain:
+-- the rule becomes a top-level section
+-- ---------------------------------------------------------------------------
+rule("Fantôme", [[true]], 2, "Catégorie disparue")
+bag.rules = {}
+addBagRule("Fantôme", 20, 2)
+itemType = "armorlight"
+ok, name = match()
+equal(true, ok, "dangling parent match")
+equal("Fantôme", name, "dangling parent stops the chain")
+
+-- ---------------------------------------------------------------------------
+-- A parent cycle (A parent of B, B parent of A) does not loop: the
+-- chain stops at the first repeated name
+-- ---------------------------------------------------------------------------
+rule("Alpha", [[true]], 2, "Bêta")
+rule("Bêta", [[true]], 2, "Alpha")
+bag.rules = {}
+addBagRule("Alpha", 20, 2)
+ok, name = match()
+equal(true, ok, "cycle match")
+equal("Bêta----Alpha", name, "cycle stops the chain without looping")
 
 -- ---------------------------------------------------------------------------
 -- An ordinary rule before the level rules stays flat
@@ -243,20 +317,9 @@ equal("Trucs", name, "ordinary rule before stays flat")
 equal(5, rp, "ordinary rule priority")
 
 -- ---------------------------------------------------------------------------
--- An ordinary rule after an open level path joins it as the deepest level
+-- The first rule naming a level wins it (equal-depth chains)
 -- ---------------------------------------------------------------------------
-bag.rules = {}
-addBagRule("premier niveau", 10, 1)
-addBagRule("Trucs", 5, 0)
-ok, name, rp = match()
-equal(true, ok, "ordinary after match")
-equal("premier niveau----Trucs", name, "ordinary rule appended as deepest level")
-equal(5, rp, "ordinary rule priority after path")
-
--- ---------------------------------------------------------------------------
--- The first rule naming a level wins it
--- ---------------------------------------------------------------------------
-rule("Blindées", [[type("armor")]], 2)
+rule("Blindées", [[type("armor")]], 2, "premier niveau")
 bag.rules = {}
 addBagRule("premier niveau", 10, 1)
 addBagRule("Armures", 20, 2)
@@ -277,8 +340,7 @@ ok, name = match()
 equal("premier niveau----Armures", name, "second level 2 rule ignored")
 
 -- ---------------------------------------------------------------------------
--- A level rule that does not match records nothing (its flat name is
--- still registered for the collapse state, like any ordinary rule)
+-- A level rule that does not match records nothing
 -- ---------------------------------------------------------------------------
 bag.rules = {}
 addBagRule("premier niveau", 10, 1)

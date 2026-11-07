@@ -44,13 +44,15 @@ Details and edge cases:
 * The collapse state of a level is saved under its own prefix name (`Potions`, `Potions----Magie`, `Armes----Épées----Lourdes`, ...), exactly like any other category. Collapsing a level hides every deeper level under it, whatever the state of the levels in between.
 
 ## Building Levels from Rules
-Instead of hardcoding a nested name in one category, the **Level** dropdown of the Edit Category menu (Category Setting) assigns a sub-menu level to each category, next to its Name and Tag: `Normal` (the default) is the ordinary flat category, `1` is a top-level section, `2`-`5` are nested sub-sections of the level above. A section is always named after its own rule, so the level replaces the former `leveldisplay()` rule function:
+Instead of hardcoding a nested name in one category, the **Level** dropdown of the Edit Category menu (Category Setting) assigns a sub-menu level to each category, next to its Name and Tag: `Normal` (the default) is the ordinary flat category, `1` is a top-level section, `2`-`5` are nested sub-sections. For a level 2-5 category, the **Parent** dropdown next to it chooses the category under which this one is nested, and the sub-menu path is the parent chain: the parent, its own parent, and so on, up to the top, then the category itself. This replaces the former `leveldisplay()` rule function.
+
+A level category is a display section: its rule is usually just `true` (selecting a Level fills an empty rule text with `true` for you) and the section is named after the category. The conditions that decide where an item goes live in the level rules themselves, or in ordinary (`Normal`) rules that then join the open path as its deepest level:
 
 - `premier niveau` - Level `1`, rule `true` (matches every item, names the top section)
-- `Armures` - Level `2`, rule `type("armor")`
-- `Légères` - Level `3`, rule `type("armorlight")`
+- `Armures` - Level `2`, Parent `premier niveau`, rule `type("armor")`
+- `Légères` - Level `3`, Parent `Armures`, rule `type("armorlight")`
 
-A light armor item then lands in `premier niveau----Armures----Légères`. The first rule naming a level wins it, a level without a matching rule is skipped, and an ordinary (`Normal`) rule matching after an open path joins it as the deepest level.
+A light armor item then lands in `premier niveau----Armures----Légères`. Two level-2 categories under the same level-1 parent (siblings) each nest under it correctly, whatever the bag's rule order; the first rule naming a level wins among paths of equal depth; a level without a matching rule is skipped; an ordinary rule matching before an open path stays flat. The level and parent of a category show in its tooltip in the category dropdowns.
 
 ## Rule Expression Creation
 The Rule section is where the actual decision making takes place. You are basically creating an expression which will evaluate to either true or false to say if the item is to be included (true) or excluded (false). (By the way, in Lua, anything that is not `true` is `false`.) Each item in the bag is evaluated against the rule, one after another and AutoCategory has a number of rule functions to be able to get information about or reason about the particular item being evaluated. These rule functions are used along with `and`s, `or`s, `not`s, and arithmetic comparisons in order to include/exclude items.

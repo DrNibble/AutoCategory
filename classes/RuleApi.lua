@@ -1,6 +1,8 @@
 -- -------------------------------------------------------
 -- Rule functions and helpers
 
+local L = GetString
+
 -- based on the requested rule name, create a name that
 -- is not already in use (since rule names must be unique)
 function AutoCategory.GetUsableRuleName(name)
@@ -48,6 +50,14 @@ function AutoCategory.isValidRule(ruledef)
             return false, "level must be a whole number >= 1"
         end
     end
+    -- validate optional rule parent (the category under which a level 2-5
+    -- category is nested, set by the Parent dropdown in Edit Category)
+    if ruledef.parent ~= nil then -- parent is optional
+        if (type(ruledef.parent) ~= "string" or ruledef.parent == ""
+                or ruledef.parent == ruledef.name) then
+            return false, "parent must be a category name other than the rule's own name"
+        end
+    end
     return true
 end
 
@@ -89,6 +99,7 @@ function AutoCategory.CopyFrom(copyFrom)
 	newRule.description = copyFrom.description
 	newRule.rule = copyFrom.rule
 	newRule.level = copyFrom.level
+	newRule.parent = copyFrom.parent
 	newRule.damaged = copyFrom.damaged
 	newRule.err = copyFrom.err
 	newRule.pred = nil		-- defaults to not pre-defined, because copies are user-defined rules
@@ -114,11 +125,20 @@ AutoCategory.RuleApiMixin = {
 	    return self.pred == 1
 	end,
 
-	-- return the description if the rule has one, otherwise return the name
+	-- return the description if the rule has one, otherwise return the name;
+	-- for a category with a Level, append the level (and its parent) so
+	-- that the sub-menu position of the category shows in the tooltips
 	getDesc = function(self)
 			local tt = self.description
 			if not tt or tt == "" then
 				tt = self.name
+			end
+			if type(self.level) == "number" and self.level >= 1 then
+				local line = string.format(L(SI_AC_TIP_LEVEL), self.level)
+				if type(self.parent) == "string" and self.parent ~= "" then
+					line = line .. " - " .. string.format(L(SI_AC_TIP_PARENT), self.parent)
+				end
+				tt = tt .. "\n" .. line
 			end
 			return tt
 		end,

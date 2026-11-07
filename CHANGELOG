@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-07, 2)[/COLOR]:
+[LIST]
+[*] New Parent dropdown in Edit Category, next to Level: for a level 2-5 category it chooses the category under which this one is nested, and the sub-menu path is the parent chain (the parent, its own parent, and so on). Sibling level-2 sections under the same parent now nest correctly; a dangling parent stops the chain; a parent that would create a cycle is refused. Selecting a Level fills an empty rule text with true (a level category is a display section named after its category), and the level and parent of a category now show in its tooltip.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-07)[/COLOR]:
 [LIST]
 [*] New Level dropdown in Edit Category (next to Name and Tag): sets the sub-menu level of the category - Normal (default) is the ordinary flat category, 1 is a top-level section that keeps evaluating deeper levels, 2-5 are nested sub-sections. This replaces and removes the leveldisplay(depth, section) rule function: a former leveldisplay(2, type("armor")) becomes a rule with Level 2 and rule text type("armor"), the section being always named after the rule. The first rule naming a level wins it, levels without a matching rule are skipped, and an ordinary rule matching after an open path joins it as the deepest level.

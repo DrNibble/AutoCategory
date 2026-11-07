@@ -1,5 +1,22 @@
 # Changes
 
+## 2026-11-08 (3): level in the Categories dropdowns and indentation in the Display Order window
+
+- The Categories dropdowns (bag settings, edit category) now show the
+  level of the category after the display priorities, using the
+  localized "Level: n" string: "Legeres (10/20) Niveau : 2". formatShow()
+  (classes/BagRuleApi.lua) appends it in every branch (keyboard color,
+  hidden category, gamepad plain text); no level text for Normal
+  categories, invalid levels or a missing backing rule.
+- The "Category Display Order" window (settings/DisplayOrderWin.lua)
+  indents each category according to its level: level 1 and Normal
+  categories are not indented, each deeper level adds one indentation
+  (4 spaces per level).
+- New test/FormatShow_test.lua (17 assertions on the delivered
+  classes/BagRuleApi.lua). The other suites still pass: ParentDD_test
+  (15), RuleLevel_test (50), CategoryTree_test (113), LibSets_test
+  (1969). Not tested in ESO.
+
 ## 2026-11-08 (2): a Normal category counts as level 1 for the Parent dropdown
 
 - A Normal category is a top-level category: it now counts as level 1 and

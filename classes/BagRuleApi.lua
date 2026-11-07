@@ -82,13 +82,22 @@ local bagRuleApiMixin = {
 	-- based on if the bag rule is marked "hidden" or if the backing Rule has
 	-- disappeared (i.e the bag rule is now invalid).
 	-- If no priority is passed in then the rule's runpriority is used.
-	-- Returns the string for the bagrule dropdown. Format: "name (runpriority/showpriority)"
+	-- Returns the string for the bagrule dropdown. Format: "name (runpriority/showpriority) Level: n"
+	-- (the level only shows when the category has one)
 	formatShow	= function (self)
             local general = AutoCategory.saved.general
             local appearance = AutoCategory.saved.appearance
 
 			self:convertPriority()
 			local rule = self:getBackingRule()
+
+			-- the level of the category (if any) shows after the priorities
+			local levelTxt = ""
+			if rule and type(rule.level) == "number"
+				and rule.level >= 1 and rule.level <= 5
+				and rule.level == math.floor(rule.level) then
+				levelTxt = " " .. L(SI_AC_TIP_LEVEL):format(rule.level)
+			end
 
 			local sn
 			if not rule then
@@ -104,15 +113,15 @@ local bagRuleApiMixin = {
 						--r, g, b = unpack(AutoCategory.saved.appearance["HIDDEN_CATEGORY_FONT_COLOR"])
 						hex = SF.colorRGBToHex(r, g, b)
 					end
-					sn = string.format("|c%s%s (%d/%d)|r", hex, self.name, self.runpriority, self.showpriority)
+					sn = string.format("|c%s%s (%d/%d)%s|r", hex, self.name, self.runpriority, self.showpriority, levelTxt)
 
 				else
 					if  general["ENABLE_GAMEPAD"] then
-						sn = string.format("%s (%d/%d)", self.name, self.runpriority, self.showpriority)
+						sn = string.format("%s (%d/%d)%s", self.name, self.runpriority, self.showpriority, levelTxt)
 					else
 						local r, g, b = unpack(appearance["CATEGORY_FONT_COLOR"])
 						local hex = SF.colorRGBToHex(r, g, b)
-						sn = string.format("|c%s%s (%d/%d)|r", hex, self.name, self.runpriority, self.showpriority)
+						sn = string.format("|c%s%s (%d/%d)%s|r", hex, self.name, self.runpriority, self.showpriority, levelTxt)
 					end
 				end
 			end

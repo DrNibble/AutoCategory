@@ -11,7 +11,16 @@ local DEFAULT_SCROLL_HEIGHT = 400
 
 -- create a row for the category order scroll list
 local function setupDataRow(rowControl, data, scrollList)
-    rowControl:SetText(data:formatShow())
+    local text = data:formatShow()
+    -- indent the category according to its level: level 1 and Normal
+    -- categories are not indented, each deeper level adds one indent
+    local rule = data.getBackingRule and data:getBackingRule()
+    local level = rule and rule.level
+    if type(level) == "number" and level >= 2 and level <= 5
+        and level == math.floor(level) then
+        text = string.rep("    ", level - 1) .. text
+    end
+    rowControl:SetText(text)
     rowControl:SetFont("ZoFontWinH4")
 
     -- mouse handler for each row

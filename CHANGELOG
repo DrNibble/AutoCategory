@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 3)[/COLOR]:
+[LIST]
+[*] The Categories dropdowns now show the level of the category after the display priorities (localized "Level: n"), and the Category Display Order window indents each category according to its level (one indentation per level below the first).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 2)[/COLOR]:
 [LIST]
 [*] A Normal category now counts as a level 1 category in the Parent dropdown: a level 2 category can be nested under a Normal category. Levels 3-5 still require a parent of the level just below, and a Normal or level 1 category never has a parent itself.

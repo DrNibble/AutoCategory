@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08)[/COLOR]:
+[LIST]
+[*] Fixed the empty Parent dropdown in Edit Category (the choices never reached it) and filtered it by level: the parent of a level 2 category is chosen among the level 1 categories, and so on for levels 3-5; a parent whose level no longer matches stays visible so it can be changed.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-07, 3)[/COLOR]:
 [LIST]
 [*] Fixed "Maximum call depth of 10000 exceeded" when using the Edit Category panel: the Level and Parent dropdown updates no longer call their own setFunc back (display refreshes use UpdateValue without a value, and the setFuncs ignore unchanged values).

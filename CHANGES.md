@@ -1,5 +1,25 @@
 # Changes
 
+## 2026-11-08: Parent dropdown shows only the categories of the level above
+
+- Bug: the Parent dropdown stayed empty. CVT:assign() silently ignores a
+  plain table (it checks tblB.GetUses), and CatSet_ParentDD_LAM:refresh()
+  passed it one: the choices never reached the dropdown. refresh() now
+  builds a real CVT (CVT:New(nil, nil, CVT.USE_VALUES)), the pattern used
+  everywhere else in the addon, and assign() copies the lists and marks
+  the control dirty so updateControl() pushes them.
+- The Parent choices are now filtered by level: the parent of a level N
+  category is a level N-1 category (for a level 2 category the dropdown
+  lists the level 1 categories). A parent set before (whose level no
+  longer matches) stays visible so it can be changed; "(none)" remains
+  available.
+- New test/ParentDD_test.lua (15 assertions, delivered classes/CVT.lua
+  and classes/BaseUI.lua): documents that assign() ignores a plain table,
+  that a real CVT is copied and marks dirty, and that updateControl()
+  pushes the choices and the value to the LAM control. The other suites
+  still pass: RuleLevel_test (50), CategoryTree_test (113),
+  LibSets_test (1969). Not tested in ESO.
+
 ## 2026-11-07 (3): Fix infinite recursion when editing Level/Parent (Maximum call depth of 10000 exceeded)
 
 - LAM-2.0 calls a dropdown's setFunc on every UpdateValue(false, value),

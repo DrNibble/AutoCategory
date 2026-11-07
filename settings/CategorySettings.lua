@@ -81,9 +81,10 @@ end
 -- customization of BaseDD for CatSet_ParentDD_LAM (Edit Category)
 -- -------------------------------------------------------
 -- The parent of a level 2-5 category: the category under which it is
--- nested (its sub-menu path is the parent chain). Choices are the names
--- of all known categories; "(none)" leaves the category without a parent,
--- which makes it a top-level section.
+-- nested (its sub-menu path is the parent chain). Choices are the
+-- categories of the level just below (the parent of a level 2 category is
+-- a level 1 category, and so on); "(none)" leaves the category without a
+-- parent, which makes it a top-level section.
 local AC_PARENT_NONE = ""
 
 -- rebuild the parent choices from the current rule list (the current
@@ -93,11 +94,22 @@ function CatSet_ParentDD_LAM:refresh()
 	local values = { AC_PARENT_NONE }
 	local ruleList = AutoCategory.RulesW.ruleList
 	local curName = currentRule and currentRule.name
+	-- the parent of a level N category is a level N-1 category (the
+	-- dropdown is disabled below level 2, so this only feeds levels 2-5)
+	local curLevel = CatSet_Level_getRuleLevel(currentRule)
 	local names = {}
+	local seen = {}
 	for i = 1, #ruleList do
-		local rname = ruleList[i].name
-		if rname and rname ~= "" and rname ~= curName then
-			names[#names + 1] = rname
+		local r = ruleList[i]
+		local rname = r.name
+		if rname and rname ~= "" and rname ~= curName and not seen[rname] then
+			-- keep the current parent visible even when its level no longer
+			-- matches (set before the level changed), so it can be changed
+			if CatSet_Level_getRuleLevel(r) == curLevel - 1
+				or (currentRule and currentRule.parent == rname) then
+				seen[rname] = true
+				names[#names + 1] = rname
+			end
 		end
 	end
 	table.sort(names)
@@ -105,7 +117,12 @@ function CatSet_ParentDD_LAM:refresh()
 		choices[#choices + 1] = names[i]
 		values[#values + 1] = names[i]
 	end
-	self:assign({ choices = choices, choicesValues = values })
+	-- assign() silently ignores a plain table (it checks GetUses): build a
+	-- real CVT or the choices never reach the dropdown
+	local cvtTbl = CVT:New(nil, nil, CVT.USE_VALUES)
+	cvtTbl.choices = choices
+	cvtTbl.choicesValues = values
+	self:assign(cvtTbl)
 	self.cvt.indexValue = (currentRule and currentRule.parent) or AC_PARENT_NONE
 end
 

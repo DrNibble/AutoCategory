@@ -1,7 +1,9 @@
 -- Run from the addon root with Lua 5.1:
--- lua5.1 test/LevelDisplay_test.lua
--- Tests the leveldisplay() rule function and its MatchCategoryRules
--- integration, loading the delivered files (never copies of them).
+-- lua5.1 test/RuleLevel_test.lua
+-- Tests the rule Level property (the Edit Category "Level" dropdown that
+-- replaces the former leveldisplay() rule function) and its
+-- MatchCategoryRules integration, loading the delivered files (never
+-- copies of them).
 
 local assertions = 0
 local function equal(expected, actual, message)
@@ -9,71 +11,48 @@ local function equal(expected, actual, message)
     assert(expected == actual, (message or "") .. ": expected "
         .. tostring(expected) .. ", got " .. tostring(actual))
 end
-local function errorMessage(fn, ...)
-    local ok, err = pcall(fn, ...)
-    if ok then
-        error("expected an error, got none")
-    end
-    return tostring(err)
-end
 
 -- ---------------------------------------------------------------------------
--- Part 1: the LevelDisplay rule function itself, extracted from the
--- delivered AutoCategory_RuleFunc.lua
+-- Part 1: the level property of a rule (validation and copies), from the
+-- delivered classes/RuleApi.lua
 -- ---------------------------------------------------------------------------
-local rfFile = assert(io.open("AutoCategory_RuleFunc.lua", "r"))
-local rfSource = rfFile:read("*a")
-rfFile:close()
-rfSource = rfSource:gsub("\r\n", "\n")
-local ldSource = assert(rfSource:match(
-    "(function AutoCategory%.RuleFunc%.LevelDisplay%b().-\nend)"),
-    "LevelDisplay function not found")
-
 AutoCategory = {
+    RulesW = { ruleNames = {} },
     RuleFunc = {},
     Environment = {},
     checking = {},
 }
 
-assert(loadstring(ldSource))()
-local LevelDisplay = AutoCategory.RuleFunc.LevelDisplay
-equal("function", type(LevelDisplay), "LevelDisplay extracted")
+assert(loadfile("classes/RuleApi.lua"))()
 
--- A string section records the level name.
-equal(true, LevelDisplay(1, "premier niveau"), "string section matches")
-equal("premier niveau", AutoCategory.AdditionLevelNames[1], "level 1 name")
-equal(true, LevelDisplay(2, "Armures"), "second string section")
-equal("Armures", AutoCategory.AdditionLevelNames[2], "level 2 name")
+local isValidRule = AutoCategory.isValidRule
 
--- A falsy section does not match and records nothing.
-equal(false, LevelDisplay(3, false), "false section does not match")
-equal(nil, AutoCategory.AdditionLevelNames[3], "no level 3 recorded")
+-- No level at all is valid (the default, ordinary flat category).
+equal(true, isValidRule({ name = "n", rule = "true" }), "no level is valid")
+-- Valid levels.
+equal(true, isValidRule({ name = "n", rule = "true", level = 1 }),
+    "level 1 is valid")
+equal(true, isValidRule({ name = "n", rule = "true", level = 5 }),
+    "level 5 is valid")
+-- Invalid levels.
+equal(false, isValidRule({ name = "n", rule = "true", level = 0 }),
+    "level 0 is invalid")
+equal(false, isValidRule({ name = "n", rule = "true", level = 2.5 }),
+    "fractional level is invalid")
+equal(false, isValidRule({ name = "n", rule = "true", level = "1" }),
+    "string level is invalid")
+equal(false, isValidRule({ name = "n", rule = "true", level = -1 }),
+    "negative level is invalid")
 
--- A truthy condition takes the rule's own name as section name.
-AutoCategory.checking.RuleName = "Armures"
-equal(true, LevelDisplay(2, true), "condition section matches")
-equal("Armures", AutoCategory.AdditionLevelNames[2], "rule name as section")
-
--- Without a rule name, a condition section is an error.
-AutoCategory.checking.RuleName = nil
-local err = errorMessage(LevelDisplay, 2, true)
-equal(true, err:find("leveldisplay()", 1, true) ~= nil, "missing rule name error")
-
--- Validation errors.
-err = errorMessage(LevelDisplay)
-equal(true, err:find("expected a section name", 1, true) ~= nil,
-    "no section error")
-err = errorMessage(LevelDisplay, 0, "zéro")
-equal(true, err:find("whole level number", 1, true) ~= nil, "depth 0 error")
-err = errorMessage(LevelDisplay, 2.5, "milieu")
-equal(true, err:find("whole level number", 1, true) ~= nil, "fractional depth error")
-err = errorMessage(LevelDisplay, "1", "texte")
-equal(true, err:find("whole level number", 1, true) ~= nil, "string depth error")
-err = errorMessage(LevelDisplay, 1, "")
-equal(true, err:find("empty section name", 1, true) ~= nil, "empty name error")
-err = errorMessage(LevelDisplay, 1, "   ")
-equal(true, err:find("empty section name", 1, true) ~= nil,
-    "whitespace name error")
+-- CreateRule does not set a level; CopyFrom copies it.
+local created = AutoCategory.CreateRule("created", "tag")
+equal(nil, created.level, "created rule has no level")
+local src = AutoCategory.CreateRule("source", "tag")
+src.level = 3
+local copy = AutoCategory.CopyFrom(src)
+equal(3, copy.level, "CopyFrom copies the level")
+local flat = AutoCategory.CopyFrom(AutoCategory.CreateRule("flat", "tag"))
+equal(nil, flat.level, "CopyFrom of a level-less rule stays level-less")
 
 -- ---------------------------------------------------------------------------
 -- Part 2: MatchCategoryRules integration with the delivered API file
@@ -117,8 +96,11 @@ function AutoCategory.GetRuleByName(name)
     return rulesByName[name]
 end
 
-local function newRule(name, definition)
+local function newRule(name, definition, level)
     local rule = { name = name, rule = definition }
+    if level then
+        rule.level = level
+    end
     function rule:key()
         return "R:" .. self.name
     end
@@ -136,12 +118,12 @@ local function compileRule(rule)
     return rule
 end
 
-local function rule(name, definition)
-    return compileRule(newRule(name, definition))
+local function rule(name, definition, level)
+    return compileRule(newRule(name, definition, level))
 end
 
--- The rule environment: the real leveldisplay plus a controllable type()
--- with the ESO armor hierarchy (armor covers light, medium and heavy).
+-- The rule environment: a controllable type() with the ESO armor
+-- hierarchy (armor covers light, medium and heavy).
 local itemType = nil
 local typeMatches = {
     armor = { armor = true, armorlight = true, armormedium = true,
@@ -151,7 +133,6 @@ local typeMatches = {
     armorheavy = { armorheavy = true },
     weapon = { weapon = true },
 }
-AutoCategory.Environment.leveldisplay = LevelDisplay
 AutoCategory.Environment.type = function(kind)
     return (typeMatches[kind] or {})[itemType] or false
 end
@@ -176,15 +157,18 @@ local function match()
 end
 
 -- ---------------------------------------------------------------------------
--- Three levels: explicit name, then conditions named by their rules
+-- Three levels: a top-level section plus conditions named by their rules
 -- ---------------------------------------------------------------------------
-rule("Niveau 1", [[leveldisplay(1, "premier niveau")]])
-rule("Armures", [[leveldisplay(2, type("armor"))]])
-rule("Légères", [[leveldisplay(3, type("armorlight"))]])
-rule("Moyennes", [[leveldisplay(3, type("armormedium"))]])
+-- The former leveldisplay(1, "premier niveau") becomes a rule named
+-- "premier niveau" with level 1; leveldisplay(2, type("armor")) becomes
+-- a rule with level 2 and its condition as rule text, and so on.
+rule("premier niveau", [[true]], 1)
+rule("Armures", [[type("armor")]], 2)
+rule("Légères", [[type("armorlight")]], 3)
+rule("Moyennes", [[type("armormedium")]], 3)
 
 bag.rules = {}
-addBagRule("Niveau 1", 10, 1)
+addBagRule("premier niveau", 10, 1)
 addBagRule("Armures", 20, 2)
 addBagRule("Légères", 30, 3)
 addBagRule("Moyennes", 40, 4)
@@ -213,7 +197,7 @@ equal("premier niveau----Armures----Moyennes", name, "medium armor path")
 -- A level without a matching rule is skipped (gap compaction)
 -- ---------------------------------------------------------------------------
 bag.rules = {}
-addBagRule("Niveau 1", 10, 1)
+addBagRule("premier niveau", 10, 1)
 addBagRule("Légères", 30, 3)
 itemType = "armorlight"
 ok, name, rp = match()
@@ -225,7 +209,7 @@ equal(30, rp, "gap run priority")
 -- Only the top level matches: the parent path alone
 -- ---------------------------------------------------------------------------
 bag.rules = {}
-addBagRule("Niveau 1", 10, 1)
+addBagRule("premier niveau", 10, 1)
 addBagRule("Armures", 20, 2)
 addBagRule("Légères", 30, 3)
 itemType = "weapon"
@@ -235,12 +219,23 @@ equal("premier niveau", name, "parent-only path")
 equal(10, rp, "parent-only run priority")
 
 -- ---------------------------------------------------------------------------
--- An ordinary rule before the leveldisplay rules stays flat
+-- A level rule with no higher level open is a flat category
+-- ---------------------------------------------------------------------------
+bag.rules = {}
+addBagRule("Légères", 30, 3)
+itemType = "armorlight"
+ok, name, rp = match()
+equal(true, ok, "orphan level match")
+equal("Légères", name, "orphan level rule is flat")
+equal(30, rp, "orphan level run priority")
+
+-- ---------------------------------------------------------------------------
+-- An ordinary rule before the level rules stays flat
 -- ---------------------------------------------------------------------------
 rule("Trucs", [[true]])
 bag.rules = {}
 addBagRule("Trucs", 5, 0)
-addBagRule("Niveau 1", 10, 1)
+addBagRule("premier niveau", 10, 1)
 itemType = "armorlight"
 ok, name, rp = match()
 equal(true, ok, "ordinary first match")
@@ -248,11 +243,10 @@ equal("Trucs", name, "ordinary rule before stays flat")
 equal(5, rp, "ordinary rule priority")
 
 -- ---------------------------------------------------------------------------
--- An ordinary rule after an open leveldisplay path joins it as the
--- deepest level
+-- An ordinary rule after an open level path joins it as the deepest level
 -- ---------------------------------------------------------------------------
 bag.rules = {}
-addBagRule("Niveau 1", 10, 1)
+addBagRule("premier niveau", 10, 1)
 addBagRule("Trucs", 5, 0)
 ok, name, rp = match()
 equal(true, ok, "ordinary after match")
@@ -262,9 +256,9 @@ equal(5, rp, "ordinary rule priority after path")
 -- ---------------------------------------------------------------------------
 -- The first rule naming a level wins it
 -- ---------------------------------------------------------------------------
-rule("Blindées", [[leveldisplay(2, type("armor"))]])
+rule("Blindées", [[type("armor")]], 2)
 bag.rules = {}
-addBagRule("Niveau 1", 10, 1)
+addBagRule("premier niveau", 10, 1)
 addBagRule("Armures", 20, 2)
 addBagRule("Blindées", 25, 5)
 addBagRule("Légères", 30, 3)
@@ -276,10 +270,22 @@ equal("premier niveau----Armures----Légères", name,
 
 -- A later rule cannot steal an already named level either.
 bag.rules = {}
-addBagRule("Niveau 1", 10, 1)
+addBagRule("premier niveau", 10, 1)
 addBagRule("Armures", 20, 2)
 addBagRule("Blindées", 25, 5)
 ok, name = match()
 equal("premier niveau----Armures", name, "second level 2 rule ignored")
 
-print("PASS: " .. assertions .. " assertions (LevelDisplay)")
+-- ---------------------------------------------------------------------------
+-- A level rule that does not match records nothing (its flat name is
+-- still registered for the collapse state, like any ordinary rule)
+-- ---------------------------------------------------------------------------
+bag.rules = {}
+addBagRule("premier niveau", 10, 1)
+addBagRule("Armures", 20, 2)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "non-matching level rule match")
+equal("premier niveau", name, "non-matching level rule records nothing")
+
+print("PASS: " .. assertions .. " assertions (RuleLevel)")

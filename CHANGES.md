@@ -1,5 +1,43 @@
 # Changes
 
+## 2026-11-07: Level dropdown in Edit Category (replaces leveldisplay())
+
+- New **Level** dropdown in the Edit Category section of the settings menu
+  (next to the Name and Tag fields): it sets the sub-menu level of the
+  category. `Normal` (default) is the ordinary flat category (first matching
+  rule wins, unchanged behavior); `1` is a top-level section that keeps
+  evaluating the deeper levels; `2`-`5` are nested sub-sections of the level
+  above. The level is a property of the rule (saved with it in AutoCatRules),
+  so the same rule nests the same way in every bag.
+- This replaces the `leveldisplay(depth, section)` rule function, which is
+  removed (function, Environment registration and wiki section). A former
+  `leveldisplay(1, "premier niveau")` becomes a rule named
+  `premier niveau` with Level `1` and rule text `true`;
+  `leveldisplay(2, type("armor"))` becomes a rule with Level `2` and rule
+  text `type("armor")` (the section is always named after the rule).
+- MatchCategoryRules (AutoCategory_API.lua) now reads `rule.level` after the
+  rule matched instead of collecting the levels recorded by leveldisplay()
+  calls in AutoCategory.AdditionLevelNames. Behavior is otherwise identical:
+  the first rule naming a level wins it, a level without a matching rule is
+  skipped (gap compaction), a level rule with no higher level open is a flat
+  category, an ordinary rule matching before an open path stays flat and one
+  matching after joins it as the deepest level, and the final name is joined
+  with the CategoryTree separator using the deepest rule's priorities.
+- Rules: optional `level` field validated by isValidRule (whole number >= 1,
+  no upper bound; the dropdown offers 1-5 and falls back to Normal for
+  out-of-range values) and copied by CopyFrom (Copy Category). Predefined
+  rules are read-only for the level, like for Name/Tag/Rule.
+- Docs updated: wiki/Rule Function Reference.md (Level Display section
+  removed), wiki/Creating Custom Categories.md (Building Levels from Rules
+  rewritten for the dropdown).
+- Verified offline with Lua 5.1: the 10 modified/delivered Lua files
+  compile; new test/RuleLevel_test.lua passes 38 assertions (level
+  validation, copies and MatchCategoryRules integration on the delivered
+  files); test/CategoryTree_test.lua still passes 113 assertions and
+  test/LibSets_test.lua 1969 assertions. The other test/* files require the
+  author's local LibSFUtils fixtures and cannot run in this checkout
+  (unchanged). Not tested in ESO.
+
 ## 2026-11-05: leveldisplay() rule function and N-level categories
 
 - New rule function `leveldisplay(depth, section)`: builds nested categories

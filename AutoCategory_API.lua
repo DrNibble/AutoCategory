@@ -176,9 +176,10 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	local compiledRules = AutoCategory.compiledRules
 	local categoryTree = AutoCategory.CategoryTree
 
-	-- leveldisplay() path state: the section names recorded per level
-	-- while the bag's rules are evaluated for this item, and the entry of
-	-- the rule that named the deepest level so far.
+	-- rule Level path state: the category names recorded per level (the
+	-- Level dropdown of Edit Category) while the bag's rules are evaluated
+	-- for this item, and the entry of the rule that named the deepest
+	-- level so far.
 	local recordedLevels = nil
 	local recordedEntry = nil
 	-- The recorded levels in order, outermost first.
@@ -214,57 +215,37 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 				if ruleCode then
 					AutoCategory.AdditionCategoryName = ""	-- this may be changed by autoset() or alphagear
 					AutoCategory.AdditionCategorySortName = nil
-					-- reset the leveldisplay() levels of the previous rule
-					local levelNames = AutoCategory.AdditionLevelNames
-					if levelNames ~= nil and next(levelNames) ~= nil then
-						for k in pairs(levelNames) do
-							levelNames[k] = nil
-						end
-					end
-					AutoCategory.checking.RuleName = entry.name
 					local exec_ok, res = SF.safeCall( ruleCode )
-					AutoCategory.checking.RuleName = nil
 					if exec_ok then
-						local levelDepth = 0
-						levelNames = AutoCategory.AdditionLevelNames
-						if levelNames ~= nil and next(levelNames) ~= nil then
-							for k in pairs(levelNames) do
-								if type(k) == "number" and k > levelDepth then
-									levelDepth = k
-								end
-							end
-						end
+						local ruleLevel = rule.level
+						local isLevelRule = res == true
+							and type(ruleLevel) == "number"
+							and ruleLevel >= 1
+							and ruleLevel == math.floor(ruleLevel)
 
-						if levelDepth > 0 and res == true then
-							-- A leveldisplay() rule matched: merge its levels into
-							-- the recorded path (the first rule naming a level
-							-- wins it) and keep evaluating; a later rule may
-							-- refine the item one or more levels deeper.
-							local added = false
-							for k, v in pairs(levelNames) do
-								if type(k) == "number" then
-									if recordedLevels == nil then
-										recordedLevels = {}
-									end
-									if recordedLevels[k] == nil then
-										recordedLevels[k] = v
-										added = true
-									end
-								end
+						if isLevelRule then
+							-- A rule with a Level (Edit Category dropdown)
+							-- matched: record its level into the path (the
+							-- first rule naming a level wins it) and keep
+							-- evaluating; a later rule may refine the item
+							-- one or more levels deeper.
+							if recordedLevels == nil then
+								recordedLevels = {}
 							end
-							if added then
+							if recordedLevels[ruleLevel] == nil then
+								recordedLevels[ruleLevel] = entry.name
 								recordedEntry = entry
 							end
 
 						else
 							local catname = adjustName(self, rule.name,
-												AutoCategory.AdditionCategoryName)
+										AutoCategory.AdditionCategoryName)
 							setCategoryCollapsed(bag_type_id, catname,
-							isCategoryCollapsed(bag_type_id, catname))
+								isCategoryCollapsed(bag_type_id, catname))
 							if res == true then
 								local finalName = catname
 								if recordedLevels ~= nil then
-									-- a leveldisplay() section is open: the rule's
+									-- a Level path is open: the rule's
 									-- category becomes its deepest level
 									finalName = joinPath(recordedLevels, catname)
 									setCategoryCollapsed(bag_type_id, finalName,
@@ -290,7 +271,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 		end
 	end
 
-	-- Only leveldisplay() rules matched: join the recorded levels into one
+	-- Only rules with a Level matched: join the recorded levels into one
 	-- nested category name (the levels without a matching rule are simply
 	-- skipped) and stop at the rule that named the deepest level.
 	if recordedLevels ~= nil then

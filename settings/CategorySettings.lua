@@ -26,6 +26,29 @@ local CatSet_TagEdit_LAM = AC.BaseUI:New("AC_EDITBOX_EDITRULE_TAG")	-- editbox
 
 local AC_EMPTY_TAG_NAME = L(SI_AC_DEFAULT_NAME_EMPTY_TAG)
 
+-- Level dropdown (Edit Category): the sub-menu level of the category.
+-- Replaces the former leveldisplay() rule function: the level is now a
+-- property of the rule instead of a call inside its rule text.
+-- AC_LEVEL_NORMAL (no level set) is the ordinary flat category; 1 is a
+-- top-level section, 2-5 nested sub-sections (see MatchCategoryRules).
+local AC_LEVEL_NORMAL = 0
+local CatSet_Level_choices = {
+	L(SI_AC_MENU_EC_DROPDOWN_LEVEL_NORMAL),
+	"1", "2", "3", "4", "5",
+}
+local CatSet_Level_values = { AC_LEVEL_NORMAL, 1, 2, 3, 4, 5 }
+
+-- Returns the level of the rule for the dropdown, or AC_LEVEL_NORMAL when
+-- the rule has no (or an out-of-range) level.
+local function CatSet_Level_getRuleLevel(rule)
+	if rule and type(rule.level) == "number"
+		and rule.level >= 1 and rule.level <= 5
+		and rule.level == math.floor(rule.level) then
+		return rule.level
+	end
+	return AC_LEVEL_NORMAL
+end
+
 AC_UI.CatSet = {}
 
 local currentRule = AutoCategory.CreateRule("","")
@@ -622,6 +645,30 @@ function AC_UI.CatSet.controlDef()
 
             -- Tag EditBox - AC_EDITBOX_EDITRULE_TAG
             CatSet_TagEdit_LAM:controlDef(),
+
+            -- Level Dropdown - AC_DROPDOWN_EDITRULE_LEVEL
+            {
+                type = "dropdown",
+                name = SI_AC_MENU_EC_DROPDOWN_LEVEL,
+                tooltip = SI_AC_MENU_EC_DROPDOWN_LEVEL_TOOLTIP,
+                choices = CatSet_Level_choices,
+                choicesValues = CatSet_Level_values,
+                getFunc = function()
+                    return CatSet_Level_getRuleLevel(currentRule)
+                end,
+                setFunc = function(value)
+                    if not currentRule then return end
+                    if value == nil or value == AC_LEVEL_NORMAL then
+                        currentRule.level = nil
+                    else
+                        currentRule.level = value
+                    end
+                    AC_UI.RefreshControls()
+                end,
+                disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+                width = "half",
+                reference = "AC_DROPDOWN_EDITRULE_LEVEL",
+            },
 
             --Description EditBox
             {

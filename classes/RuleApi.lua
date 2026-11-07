@@ -40,6 +40,14 @@ function AutoCategory.isValidRule(ruledef)
             return false, "non-nil tag must be a string"
         end
     end
+    -- validate optional rule level (sub-menu level of the category,
+    -- set by the Level dropdown in Edit Category)
+    if ruledef.level ~= nil then -- level is optional
+        if (type(ruledef.level) ~= "number" or ruledef.level < 1
+                or ruledef.level ~= math.floor(ruledef.level)) then
+            return false, "level must be a whole number >= 1"
+        end
+    end
     return true
 end
 
@@ -80,6 +88,7 @@ function AutoCategory.CopyFrom(copyFrom)
     -- metatable already set from the CreateRule
 	newRule.description = copyFrom.description
 	newRule.rule = copyFrom.rule
+	newRule.level = copyFrom.level
 	newRule.damaged = copyFrom.damaged
 	newRule.err = copyFrom.err
 	newRule.pred = nil		-- defaults to not pre-defined, because copies are user-defined rules

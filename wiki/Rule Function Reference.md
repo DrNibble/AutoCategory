@@ -807,8 +807,6 @@ API references:
 [ESO live API](https://github.com/esoui/esoui/blob/live/ESOUIDocumentation.txt),
 [ESO table ordering](https://github.com/esoui/esoui/blob/live/esoui/libraries/utility/zo_tableutils.lua).
 
-Tested offline with Lua 5.1; not tested in ESO.
-
 ## Combined Auto Set
 ```
 combined_autoset()

@@ -1,5 +1,21 @@
 # Changes
 
+## 2026-11-08 (11): the inventory header menu lowers and raises the level
+
+- The right-click menu of a category header in the inventory
+  (AutoCategory.lua, AC_ItemRowHeader_OnShowContextMenu) has two new
+  entries, next to Collapse/Expand: "Lower level" and "Raise level"
+  step the level of the category's rule by one - Normal -> 1 -> ... ->
+  5 and back down (the shared AC_UI.CatSet.SetRuleLevel does the
+  change, so the automatic Parent attach of change 10 applies on the
+  way up, and an existing Parent is kept on the way down; a level 1
+  category steps down to Normal). The entry that cannot apply is not
+  shown (no "Lower level" on a Normal category, no "Raise level" on
+  level 5). Headers without a category of their own - the ungrouped
+  category, the dynamic autosettype set names - do not get the
+  entries. New strings SI_AC_MENU_LEVEL_LOWER / _RAISE in the 6
+  languages.
+
 ## 2026-11-08 (10): choosing a level 2-5 attaches the parent automatically
 
 - Choosing a level 2-5 - from the Level dropdown of Edit Category or

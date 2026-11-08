@@ -1210,6 +1210,37 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         )
     end
 
+    -- raise or lower the level of the category's rule by one: the name
+    -- of a header is the full level chain, its rule is the last level
+    -- of that chain (headers without a rule - the ungrouped category,
+    -- the dynamic set names - get no level entries)
+    local ruleLevels = CategoryTree.Levels(cateName)
+    local ruleName = ruleLevels and ruleLevels[#ruleLevels] or cateName
+    local levelRule = AutoCat.GetRuleByName(ruleName)
+    if levelRule and AC_UI and AC_UI.CatSet
+            and AC_UI.CatSet.StepRuleLevel then
+        -- the shared level change also refreshes the bag; the level
+        -- goes down to Normal (a category without a level) and up to 5
+        if AC_UI.CatSet.GetRuleLevel(levelRule) > 0 then
+            AddMenuItem(
+                L(SI_AC_MENU_LEVEL_LOWER),
+                function()
+                    AC_UI.CatSet.StepRuleLevel(levelRule, -1)
+                    AutoCat.RefreshCurrentList()
+                end
+            )
+        end
+        if AC_UI.CatSet.GetRuleLevel(levelRule) < 5 then
+            AddMenuItem(
+                L(SI_AC_MENU_LEVEL_RAISE),
+                function()
+                    AC_UI.CatSet.StepRuleLevel(levelRule, 1)
+                    AutoCat.RefreshCurrentList()
+                end
+            )
+        end
+    end
+
 	-- add Expand All to menu
     AddMenuItem(
         L(SI_CONTEXT_MENU_EXPAND_ALL),

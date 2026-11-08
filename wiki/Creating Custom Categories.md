@@ -51,7 +51,12 @@ this way also attaches the Parent automatically: the nearest category of the
 level just below in the display order of the bag (the section the category
 visually follows), or the first one when it sits above them all - Normal
 categories are never chosen, and a Parent already set is never touched. The
-Parent dropdown can still change it. The rule decides whether the section holds items itself: with `true` (or any condition) it also keeps, flat under it, the items it matches that no child took; with `false` it is display-only - it holds no item and only its children's sections show under it. The conditions that decide where an item goes live in the level rules themselves, or in a broad `Normal` (level 1) parent rule that its level 2-5 children then refine:
+Parent dropdown can still change it. The level can also be stepped right
+from the inventory: the right-click menu of a category header there has a
+**Lower level** and a **Raise level** entry (the same shared level
+change, with the automatic Parent on the way up); headers without a
+category of their own - the ungrouped category, the dynamic set names -
+do not get them. The rule decides whether the section holds items itself: with `true` (or any condition) it also keeps, flat under it, the items it matches that no child took; with `false` it is display-only - it holds no item and only its children's sections show under it. The conditions that decide where an item goes live in the level rules themselves, or in a broad `Normal` (level 1) parent rule that its level 2-5 children then refine:
 
 - `premier niveau` - Level `1`, rule `true` (matches every item, names the top section)
 - `Armures` - Level `2`, Parent `premier niveau`, rule `type("armor")`

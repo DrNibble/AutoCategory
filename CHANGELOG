@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 11)[/COLOR]:
+[LIST]
+[*] The right-click menu of a category header in the inventory has two new entries, next to Collapse/Expand: "Lower level" and "Raise level" step the level of the category by one (Normal to 1 to 5 and back down, with the automatic Parent on the way up); the entry that cannot apply is not shown, and headers without a category of their own (ungrouped, dynamic set names) do not get them.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 10)[/COLOR]:
 [LIST]
 [*] Choosing a level 2-5 (Level dropdown of Edit Category or right-click "Set level" in the Category Display Order window) now attaches the Parent automatically when the category has none: the nearest category of the level just below in the display order of the bag, or the first one when it sits above them all. Normal categories are never chosen, and a Parent already set is never touched (the Parent dropdown can still change it).

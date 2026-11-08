@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 6)[/COLOR]:
+[LIST]
+[*] A Normal category now counts as level 1, exactly like an explicit level 1: a broad Normal parent no longer swallows every item it matches - its level 2-5 children take their items and nest them under the parent, and the parent keeps the rest flat, before its sections, whatever the rule order. A later rule only refines the recorded path within the same family; the first matching rule otherwise wins.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 5)[/COLOR]:
 [LIST]
 [*] A Normal or level 1 category now displays first, followed by its level 2+ sections with their items (reverts the previous order), and fixed the inventory bug where a Normal or level 1 category following a level 2+ rule no longer displayed: the level category keeps the items it matches, the parent keeps the rest, whatever the evaluation order. The Categories list sorts the same way (parent first, then its level sections).

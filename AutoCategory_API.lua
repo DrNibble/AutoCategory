@@ -178,13 +178,46 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 
 	-- rule Level path state: the category names of the parent chain
 	-- (the Level and Parent dropdowns of Edit Category) recorded while
-	-- the bag's rules are evaluated for this item, and the entry of the
-	-- rule that opened the deepest path so far. The path of a level
-	-- category is its parent chain: the parent, its own parent, and so
-	-- on, up to the top, then the category itself.
+	-- the bag's rules are evaluated for this item, the entry of the
+	-- rule that opened the path and the plugin sort name it carried.
+	-- A Normal category counts as level 1 (effectiveRuleLevel below):
+	-- its rule claims the item at the top level and the evaluation
+	-- CONTINUES, so a deeper rule of the same family (a level 2-5
+	-- category whose parent chain starts with that category) can still
+	-- take the item and nest it under the parent, and the parent keeps
+	-- its own flat display for the items no child took. A rule of
+	-- another family evaluated later does not take the item: the first
+	-- matching rule wins, whatever the evaluation order.
 	local recordedPath = nil
 	local recordedEntry = nil
+	local recordedSortName = nil
 
+	-- The sub-menu level of a rule for the path logic: the Level
+	-- dropdown value when it is a whole number 1-5, and 1 for
+	-- everything else. A Normal category (no level set, or an
+	-- out-of-range value) is a top-level category: it counts as
+	-- level 1, exactly like a category set to level 1 explicitly.
+	local function effectiveRuleLevel(rule)
+		local lv = rule.level
+		if type(lv) == "number" and lv >= 1 and lv <= 5
+			and lv == math.floor(lv) then
+			return lv
+		end
+		return 1
+	end
+
+	-- True when chain extends base: base is nil, or base is a proper
+	-- prefix of chain (the new chain names the same family one or more
+	-- levels deeper). Anything else (equal depth, shallower, or another
+	-- family) does not replace the recorded path.
+	local function chainExtends(base, chain)
+		if base == nil then return true end
+		if #chain <= #base then return false end
+		for i = 1, #base do
+			if base[i] ~= chain[i] then return false end
+		end
+		return true
+	end
 
 	for i = 1, #bag.rules do
 		local entry = bag.rules[i]
@@ -199,61 +232,55 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 					AutoCategory.AdditionCategorySortName = nil
 					local exec_ok, res = SF.safeCall( ruleCode )
 					if exec_ok then
-						local ruleLevel = rule.level
-						local isLevelRule = res == true
-							and type(ruleLevel) == "number"
-							and ruleLevel >= 1
-							and ruleLevel == math.floor(ruleLevel)
-
-						if isLevelRule then
-							-- A rule with a Level (Edit Category dropdown) matched:
-							-- build its parent chain (the Parent dropdown) and record it
-							-- as the current path. A deeper chain replaces a shallower one
-							-- (the first rule wins among chains of equal depth), and a later
-							-- rule may refine the item one or more levels deeper.
-							local chain = { entry.name }
-							local visited = { [entry.name] = true }
-							local crule = rule
-							while type(crule.parent) == "string" and crule.parent ~= "" do
-								local prule = getRuleByName(crule.parent)
-								if not prule or visited[prule.name] then break end
-								table.insert(chain, 1, prule.name)
-								visited[prule.name] = true
-								crule = prule
+						if res == true then
+							-- A rule matched (a Normal rule counts as
+							-- level 1): build its category path and record
+							-- it as the current path. A later matching rule
+							-- only replaces it when its path extends it (the
+							-- same family, one or more levels deeper); any
+							-- other later match is ignored, so the first
+							-- matching rule keeps the item whatever the
+							-- evaluation order.
+							local chain
+							if effectiveRuleLevel(rule) == 1 then
+								-- A top-level category (Normal or level 1):
+								-- the category name is the whole path. The
+								-- adjusted name keeps the dynamic categories
+								-- (autoset) and their own hierarchy.
+								local catname = adjustName(self, rule.name,
+									AutoCategory.AdditionCategoryName)
+								chain = categoryTree.Levels(catname)
+								if chain == nil then chain = { catname } end
+							else
+								-- A level 2-5 category: its path is its
+								-- parent chain - the parent, its own parent,
+								-- and so on, up to the top, then the
+								-- category itself.
+								chain = { entry.name }
+								local visited = { [entry.name] = true }
+								local crule = rule
+								while effectiveRuleLevel(crule) > 1
+									and type(crule.parent) == "string"
+									and crule.parent ~= "" do
+									local prule = getRuleByName(crule.parent)
+									if not prule or visited[prule.name] then break end
+									table.insert(chain, 1, prule.name)
+									visited[prule.name] = true
+									crule = prule
+								end
 							end
-							if recordedPath == nil or #chain > #recordedPath then
+							if chainExtends(recordedPath, chain) then
 								recordedPath = chain
 								recordedEntry = entry
+								recordedSortName = AutoCategory.AdditionCategorySortName
 							end
-
-						else
+						elseif effectiveRuleLevel(rule) == 1 then
+							-- No match: keep the collapse state of the flat
+							-- category in step with the saved settings.
 							local catname = adjustName(self, rule.name,
-										AutoCategory.AdditionCategoryName)
+								AutoCategory.AdditionCategoryName)
 							setCategoryCollapsed(bag_type_id, catname,
 								isCategoryCollapsed(bag_type_id, catname))
-							if res == true then
-								if recordedPath == nil then
-									-- no Level path open: the ordinary rule
-									-- categorizes the item flat and stops the
-									-- evaluation
-									AutoCategory.CategorySortNames[catname] =
-										AutoCategory.AdditionCategorySortName
-									return true,
-										catname,
-										entry.runpriority,
-										entry.showpriority,
-										bag_type_id,
-										entry.isHidden
-								end
-								-- A Level path is open: the level category
-								-- keeps the item, so its section shows it. The
-								-- ordinary rule does not append to the path,
-								-- so a Normal or level 1 parent following a
-								-- level 2+ rule keeps its own display for the
-								-- items the level rules did not take. Put the
-								-- ordinary rule first in the bag to give it
-								-- precedence over the level rules.
-							end
 						end
 
 					else
@@ -265,15 +292,22 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 		end
 	end
 
-	-- Only rules with a Level matched: join the recorded parent chain into
-	-- one nested category name and stop at the rule that opened the
-	-- deepest path.
+	-- A rule matched (a Normal category counts as level 1): join the
+	-- recorded parent chain into one nested category name and stop at
+	-- the rule that opened the path, or refined it the deepest.
 	if recordedPath ~= nil then
 		local entry = recordedEntry
 		local catname = categoryTree.JoinName(recordedPath)
 		setCategoryCollapsed(bag_type_id, catname,
 			isCategoryCollapsed(bag_type_id, catname))
-		AutoCategory.CategorySortNames[catname] = nil
+		if #recordedPath == 1 then
+			-- A flat category (Normal or level 1): keep the sort name
+			-- registered while the rule ran (autoset plugins), like the
+			-- ordinary rules always did.
+			AutoCategory.CategorySortNames[catname] = recordedSortName
+		else
+			AutoCategory.CategorySortNames[catname] = nil
+		end
 		return true,
 			catname,
 			entry.runpriority,

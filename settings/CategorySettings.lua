@@ -30,8 +30,10 @@ local AC_EMPTY_TAG_NAME = L(SI_AC_DEFAULT_NAME_EMPTY_TAG)
 -- Level dropdown (Edit Category): the sub-menu level of the category.
 -- Replaces the former leveldisplay() rule function: the level is now a
 -- property of the rule instead of a call inside its rule text.
--- AC_LEVEL_NORMAL (no level set) is the ordinary flat category; 1 is a
--- top-level section, 2-5 nested sub-sections (see MatchCategoryRules).
+-- AC_LEVEL_NORMAL (no level set) is the ordinary flat category: it
+-- counts as level 1 (a top-level section), exactly like an explicit 1 -
+-- only the displayed level text differs; 2-5 are nested sub-sections
+-- (see MatchCategoryRules).
 local AC_LEVEL_NORMAL = 0
 local CatSet_Level_choices = {
 	L(SI_AC_MENU_EC_DROPDOWN_LEVEL_NORMAL),

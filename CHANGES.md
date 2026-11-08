@@ -1,5 +1,41 @@
 # Changes
 
+## 2026-11-08 (6): a Normal category counts as level 1 and its children can take their items
+
+- MatchCategoryRules (AutoCategory_API.lua) now counts a Normal
+  category (no level set, or an out-of-range value) as level 1, exactly
+  like a category set to level 1 explicitly - only the displayed level
+  text differs. A matching Normal rule no longer returns a flat
+  category immediately: it records its path (the category name, or the
+  levels of a dynamic autoset name) and the evaluation CONTINUES, so a
+  level 2-5 child whose parent chain starts with that category can
+  still take the item and nest it under the parent. This fixes the
+  reported inventory bug where all the items of a broad Normal parent
+  (e.g. "Conso") piled up flat under the parent instead of filling
+  their level 2 sections ("Max Magie", ...), whatever the rule order.
+- A later matching rule now replaces the recorded path only when its
+  chain EXTENDS it (the same family, one or more levels deeper);
+  anything else - equal depth, shallower, or a deeper chain of another
+  family - is ignored, so the first matching rule keeps the item
+  whatever the evaluation order (the historical first-match-wins
+  behavior, which the old deepest-chain-wins rule broke across
+  families). A Normal parent keeps the items none of its children
+  took, flat under it, before its sections (unchanged sort).
+- A flat category (Normal or level 1) keeps the plugin sort name
+  registered while its rule ran (autoset), like the ordinary rules
+  always did; deeper paths keep clearing it. The parent-chain walk now
+  stops at a Normal or level 1 parent (consistent with
+  BagRuleShowKey), and non-matching flat rules still re-register their
+  collapse state.
+- Level dropdown tooltip updated in en/de/fr/es/ru/zh; wiki
+  (Building Levels from Rules) updated to the new semantics.
+- test/RuleLevel_test.lua extended (65 assertions): a Normal parent
+  BEFORE its child lets the child take the item, a deeper rule of
+  another family does not steal it, a Normal rule keeps its plugin
+  sort name and its dynamic nested name. All the other suites still
+  pass: CategoryTree (117), BagOrder (6), FormatShow (17), ParentDD
+  (15), LibSets (1969). Not tested in ESO.
+
 ## 2026-11-08 (5): Normal/level 1 parent displays first, then its level 2+ sections
 
 - Reverts the display order of 2026-11-08 (4): a Normal or level 1

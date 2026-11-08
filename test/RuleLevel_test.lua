@@ -253,10 +253,10 @@ equal(25, rp, "sibling run priority")
 
 -- ---------------------------------------------------------------------------
 -- Display sections (rule true) with the conditions in ordinary rules:
--- the ordinary rule does not append to the open parent chain: the level
--- category keeps the item, so a Normal or level 1 parent following a
--- level 2+ rule keeps its own display for the items the level rules
--- did not take
+-- a Normal rule counts as level 1 and only refines the recorded path
+-- when it extends it (same family, deeper): the level category keeps
+-- the item, and a Normal or level 1 parent of ANOTHER family keeps its
+-- own display for the items the level rules did not take
 -- ---------------------------------------------------------------------------
 rule("Trucs légers", [[type("armorlight")]]) -- ordinary (Normal) rule
 bag.rules = {}
@@ -287,6 +287,71 @@ itemType = "armorheavy" -- not medium: the child does not match
 ok, name = match()
 equal(true, ok, "parent keeps rest match")
 equal("Protections", name, "parent keeps the other items flat")
+
+-- ---------------------------------------------------------------------------
+-- A Normal parent BEFORE its level 2 children (Normal counts as level 1):
+-- the parent no longer swallows every item it matches - a child of the
+-- family takes its specific items and nests them under the parent, the
+-- parent keeps the rest flat
+-- ---------------------------------------------------------------------------
+bag.rules = {}
+addBagRule("Protections", 30, 1) -- the Normal parent comes first
+addBagRule("Souples", 20, 2) -- its level 2 child follows it
+itemType = "armormedium" -- matches both the parent and the child
+ok, name = match()
+equal(true, ok, "parent before child match")
+equal("Protections----Souples", name,
+    "a Normal parent before its child lets the child take the item")
+itemType = "armorheavy" -- not medium: the child does not match
+ok, name = match()
+equal(true, ok, "parent keeps rest before match")
+equal("Protections", name, "the parent keeps its other items flat")
+
+-- ---------------------------------------------------------------------------
+-- A deeper rule of ANOTHER family does not steal the item from a Normal
+-- rule that matched first: the first matching rule wins
+-- ---------------------------------------------------------------------------
+rule("Toutes armes", [[type("weapon")]]) -- ordinary (Normal) rule
+rule("Étranger", [[type("weapon")]], 2, "premier niveau") -- another family
+bag.rules = {}
+addBagRule("Toutes armes", 30, 1)
+addBagRule("Étranger", 20, 2)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "cross-family match")
+equal("Toutes armes", name,
+    "a deeper rule of another family does not steal the item")
+
+-- ---------------------------------------------------------------------------
+-- A Normal rule keeps the sort name and the dynamic (autoset) category
+-- name its execution registered
+-- ---------------------------------------------------------------------------
+AutoCategory.Environment.setsort = function()
+    AutoCategory.AdditionCategorySortName = "sortkey"
+    return true
+end
+rule("Trié", [[setsort() and true]])
+bag.rules = {}
+addBagRule("Trié", 10, 1)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "sort name rule match")
+equal("Trié", name, "a Normal rule stays flat")
+equal("sortkey", AutoCategory.CategorySortNames["Trié"],
+    "a flat Normal category keeps its plugin sort name")
+
+AutoCategory.Environment.setcat = function(n)
+    AutoCategory.AdditionCategoryName = n
+    return true
+end
+rule("Dynamique", [[setcat("Sets----Truc")]])
+bag.rules = {}
+addBagRule("Dynamique", 10, 1)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "dynamic name rule match")
+equal("Sets----Truc", name,
+    "a dynamic nested name is kept for a Normal rule")
 
 -- ---------------------------------------------------------------------------
 -- A level rule with no parent is a top-level section

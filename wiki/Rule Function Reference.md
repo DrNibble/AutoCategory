@@ -728,7 +728,10 @@ to `localized type----localized set name`, for example
 `Donjon----Nom du set` on a French client. This is a two-level (nested)
 category name (see [Creating Custom Categories](https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories)):
 the localized set type (`Arène`, `Artisanal`, ...) is the parent header and
-the localized set name a collapsible sub-header under it.
+the localized set name a collapsible sub-header under it. In a level 2-5
+category, these dynamic levels nest under the category's parent chain
+(replacing the category's own name), so a level 2 child of an `Ensembles`
+level 1 category displays `Ensembles` -> set type -> set name.
 
 Without an argument, matches every set whose type is known to LibSets. The
 optional argument filters by a translated type name in any language LibSets

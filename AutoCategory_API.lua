@@ -254,9 +254,20 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 							else
 								-- A level 2-5 category: its path is its
 								-- parent chain - the parent, its own parent,
-								-- and so on, up to the top, then the
-								-- category itself.
-								chain = { entry.name }
+								-- and so on, up to the top - then the category
+								-- itself. A hierarchical dynamic name (autosettype:
+								-- "Type----Set name") carries its own levels: they
+								-- nest under the parent chain, replacing the
+								-- category's own name, exactly like a level 1
+								-- category uses a hierarchical dynamic name as-is.
+								local addition = AutoCategory.AdditionCategoryName
+								if addition ~= nil and addition ~= ""
+									and categoryTree.IsHierarchical(addition) then
+									chain = categoryTree.Levels(addition)
+									if chain == nil then chain = { entry.name } end
+								else
+									chain = { entry.name }
+								end
 								local visited = { [entry.name] = true }
 								local crule = rule
 								while effectiveRuleLevel(crule) > 1

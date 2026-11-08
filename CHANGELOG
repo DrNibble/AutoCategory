@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 9)[/COLOR]:
+[LIST]
+[*] The Parent dropdown of Edit Category only offers categories with an explicit level of exactly one below (a level 1 category for a level 2 child): Normal categories are no longer listed (the current parent stays visible so it can be changed). A Normal category still counts as level 1 when matching.
+[*] autosettype() now works in a level 2-5 category: the set type and set name sections nest under the category's parent chain (previously the dynamic name was dropped and the set items displayed flat under the category).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 8)[/COLOR]:
 [LIST]
 [*] The context menu of the Category Display Order window (right click on a category) has a new "Set level" entry with the same Normal and 1-5 choices as the Level dropdown of Edit Category (the current level is shown in gold); both use the same shared level change.

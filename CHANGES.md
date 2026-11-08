@@ -1,5 +1,34 @@
 # Changes
 
+## 2026-11-08 (9): the Parent dropdown no longer lists Normal categories, and a level 2-5 autosettype nests its dynamic levels
+
+- The Parent dropdown of Edit Category (settings/CategorySettings.lua)
+  now offers only categories with an explicit level of exactly one
+  below the edited category (a level 1 category for a level 2 child,
+  and so on): Normal categories are no longer listed. The current
+  parent stays visible even when its level no longer matches (set
+  before the level changed), so it can still be changed. The dropdown
+  tooltip was updated in en/de/fr/es/ru/zh. The matching semantics are
+  unchanged: a Normal category still counts as level 1, so a level 2-5
+  child whose parent is a Normal category keeps nesting under it
+  (requested: the dozens of Normal categories cluttered the choices).
+- MatchCategoryRules (AutoCategory_API.lua): a level 2-5 rule whose
+  execution registers a hierarchical dynamic name (autosettype
+  registers "Type----Set name") now nests those dynamic levels under
+  the parent chain, replacing the category's own name - exactly like a
+  Normal or level 1 category uses a hierarchical dynamic name as-is.
+  Previously the dynamic name was dropped for level 2-5 rules, so a
+  level 2 "Set" child of "Ensembles" with autosettype() displayed its
+  set items flat under "Ensembles----Set" without the set type / set
+  name sections. A plain (non-hierarchical) dynamic name at level 2-5
+  keeps the previous behavior (the category's own name).
+- CatSet_ParentDD_LAM is now exposed as AC_UI.CatSet_ParentDD_LAM
+  (like the other Edit Category dropdowns).
+- test/RuleLevel_test.lua extended (74 assertions: level 2 and 3
+  dynamic names nest under the parent chain, plain dynamic name
+  unchanged); test/LevelMenu_test.lua extended (41 assertions: parent
+  choices exclude Normal, current Normal parent stays visible). Other
+  suites unchanged. Not tested in ESO.
 ## 2026-11-08 (8): right-click level choice in the Display Order window, and autosettype survives a late-loading LibSets
 
 - The context menu of the Category Display Order window (right click on

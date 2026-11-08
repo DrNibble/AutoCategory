@@ -17,6 +17,8 @@ local CatSet_SelectRule_LAM = AC.BaseDD:New("AC_DROPDOWN_EDITRULE_RULE", nil,  C
 local CatSet_ParentDD_LAM = AC.BaseDD:New("AC_DROPDOWN_EDITRULE_PARENT", nil, CVT.USE_VALUES) -- uses choicesValues
 -- Make accessible to BagSet
 AC_UI.CatSet_SelectRule_LAM = CatSet_SelectRule_LAM
+-- Make accessible to the Display Order window and the tests
+AC_UI.CatSet_ParentDD_LAM = CatSet_ParentDD_LAM
 
 -- local to this screen
 local catSet_NewCat_LAM = AC.BaseUI:New() 	-- button
@@ -131,10 +133,11 @@ end
 -- The parent of a level 2-5 category: the category under which it is
 -- nested (its sub-menu path is the parent chain). Choices are the
 -- categories of the level just below (the parent of a level 2 category is
--- a level 1 category, and so on); a Normal category is a top-level
--- category, so it counts as level 1 and is a valid parent for a level 2
--- category (it never has a parent itself). "(none)" leaves the category
--- without a parent, which makes it a top-level section.
+-- a level 1 category, and so on); Normal categories are not listed -
+-- only categories with an explicit level can be chosen as a parent. The
+-- current parent stays visible even when its level no longer matches, so
+-- it can still be changed. "(none)" leaves the category without a
+-- parent, which makes it a top-level section.
 local AC_PARENT_NONE = ""
 
 -- rebuild the parent choices from the current rule list (the current
@@ -155,11 +158,10 @@ function CatSet_ParentDD_LAM:refresh()
 		if rname and rname ~= "" and rname ~= curName and not seen[rname] then
 			-- keep the current parent visible even when its level no longer
 			-- matches (set before the level changed), so it can be changed.
-			-- a Normal category is a top-level category: it counts as level 1
-			-- and is a valid parent for a level 2 category
+			-- Normal categories are not offered: only categories with an
+			-- explicit level of exactly one below are valid choices
 			local rlevel = CatSet_Level_getRuleLevel(r)
 			if rlevel == curLevel - 1
-				or (curLevel == 2 and rlevel == AC_LEVEL_NORMAL)
 				or (currentRule and currentRule.parent == rname) then
 				seen[rname] = true
 				names[#names + 1] = rname

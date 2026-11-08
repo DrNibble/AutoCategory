@@ -220,4 +220,69 @@ AC_UI.DspWin = AC_UI.DspWin or {}
 assert(loadfile("settings/DisplayOrderWin.lua"))()
 equal(true, AC_UI.DspWin ~= nil, "DisplayOrderWin: loads")
 
+-- ---------------------------------------------------------------------------
+-- Part 5: the Parent dropdown of Edit Category offers only categories with
+-- an explicit level of exactly one below - Normal categories are not listed
+-- ---------------------------------------------------------------------------
+AutoCategory.dictionary = {}
+local function makeRule(name, level)
+    local r = AutoCategory.CreateRule(name, "tag")
+    if level then r.level = level end
+    r:compile()
+    return r
+end
+local lvl1 = makeRule("Niveau un", 1)
+local norm = makeRule("Ordinaire", nil) -- Normal (no level)
+local lvl2 = makeRule("Enfants", 2)
+local lvl3 = makeRule("Petits-enfants", 3)
+AutoCategory.RulesW.ruleList = { lvl1, norm, lvl2, lvl3 }
+AutoCategory.GetRuleByName = function(name)
+    for _, r in ipairs(AutoCategory.RulesW.ruleList) do
+        if r.name == name then return r end
+    end
+    return nil
+end
+
+local function parentChoices()
+    local out = {}
+    for _, v in ipairs(AC_UI.CatSet_ParentDD_LAM.cvt.choicesValues) do
+        out[#out + 1] = v
+    end
+    return out
+end
+local function hasChoice(list, value)
+    for _, v in ipairs(list) do
+        if v == value then return true end
+    end
+    return false
+end
+
+-- a level 2 category: only level 1 categories are offered, not the
+-- Normal ones, and "(none)" stays first
+AC_UI.CatSet_SelectRule_LAM:setValue("Enfants")
+local choices = parentChoices()
+equal("", choices[1], "parent choices: (none) first")
+equal(true, hasChoice(choices, "Niveau un"), "parent choices: level 1 offered")
+equal(false, hasChoice(choices, "Ordinaire"),
+    "parent choices: Normal not offered")
+equal(false, hasChoice(choices, "Enfants"), "parent choices: self excluded")
+equal(false, hasChoice(choices, "Petits-enfants"),
+    "parent choices: deeper level not offered")
+
+-- a level 3 category: only level 2 categories are offered
+AC_UI.CatSet_SelectRule_LAM:setValue("Petits-enfants")
+choices = parentChoices()
+equal(true, hasChoice(choices, "Enfants"), "level 3: level 2 offered")
+equal(false, hasChoice(choices, "Niveau un"), "level 3: level 1 not offered")
+equal(false, hasChoice(choices, "Ordinaire"), "level 3: Normal not offered")
+
+-- the current parent stays visible even when it is a Normal category,
+-- so it can still be changed
+lvl2.parent = "Ordinaire"
+AC_UI.CatSet_SelectRule_LAM:setValue("Enfants")
+choices = parentChoices()
+equal(true, hasChoice(choices, "Ordinaire"),
+    "current Normal parent stays visible")
+lvl2.parent = nil
+
 print("PASS: " .. assertions .. " assertions (level menu and late LibSets)")

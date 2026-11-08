@@ -354,6 +354,48 @@ equal("Sets----Truc", name,
     "a dynamic nested name is kept for a Normal rule")
 
 -- ---------------------------------------------------------------------------
+-- A level 2-5 rule with a hierarchical dynamic name (autosettype
+-- registers "Type----Set name"): the dynamic levels nest under the
+-- parent chain, replacing the category's own name - the same behavior
+-- as a Normal or level 1 rule
+-- ---------------------------------------------------------------------------
+rule("Ensembles", [[false]], 1) -- display-only section
+rule("Set", [[setcat("Sets----Truc")]], 2, "Ensembles")
+bag.rules = {}
+addBagRule("Ensembles", 10, 1)
+addBagRule("Set", 20, 2)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "level 2 dynamic name match")
+equal("Ensembles----Sets----Truc", name,
+    "a level 2 dynamic name nests under the parent chain")
+
+-- a deeper parent chain keeps the dynamic levels at its end
+rule("Niveau un", [[false]], 1)
+rule("Niveau deux", [[false]], 2, "Niveau un")
+rule("Profond", [[setcat("Sets----Truc")]], 3, "Niveau deux")
+bag.rules = {}
+addBagRule("Niveau un", 10, 1)
+addBagRule("Niveau deux", 20, 2)
+addBagRule("Profond", 30, 3)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "level 3 dynamic name match")
+equal("Niveau un----Niveau deux----Sets----Truc", name,
+    "a level 3 dynamic name nests at the end of the parent chain")
+
+-- a plain (non-hierarchical) dynamic name at level 2 does not change
+-- the level path: only a nested name carries its own levels
+rule("Simple", [[setcat("Truc")]], 2, "Ensembles")
+bag.rules = {}
+addBagRule("Simple", 20, 2)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "level 2 plain dynamic name match")
+equal("Ensembles----Simple", name,
+    "a plain dynamic name does not change the level path")
+
+-- ---------------------------------------------------------------------------
 -- A level category with the rule false: it holds no item itself, but its
 -- children still nest under it - the level is display-only
 -- ---------------------------------------------------------------------------

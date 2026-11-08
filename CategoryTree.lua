@@ -26,11 +26,6 @@ local CategoryTree = {
     -- sorts before every printable character so a header of any level
     -- always precedes its lower levels and their items
     SORT_SEPARATOR = "\001",
-    -- tail marker appended to flat (single level) sort keys: sorts after
-    -- every printable level name, so a flat category that also carries
-    -- deeper levels (a Normal or level 1 parent) displays its own items
-    -- after the level 2+ sections of the same priority
-    FLAT_TAIL = "\255",
 }
 AutoCategory.CategoryTree = CategoryTree
 
@@ -127,14 +122,11 @@ function CategoryTree.JoinName(levels)
 end
 
 -- Build the sort key of an item (or header) of the category.
--- Flat categories keep the historical key ordering: the key gains only a
--- tail marker after the name, which changes nothing between flat
--- categories, but sorts after the deeper levels of a hierarchical key
--- sharing the same base: the flat items of a Normal or level 1 category
--- display after the level 2+ sections of the same priority. A
--- hierarchical key places the outer levels first, which makes the headers
--- of every level, their sub-levels and their items sort together, in that
--- order.
+-- Flat categories keep the historical single-level key format, so existing
+-- rules sort exactly as before. A hierarchical key places the outer levels
+-- first, which makes the headers of every level, their sub-levels and
+-- their items sort together, in that order: the flat items of a Normal or
+-- level 1 category display BEFORE the level 2+ sections nested under it.
 -- sortName (optional) overrides the base of a flat key: plugins may
 -- register a sort name for a category (AutoCategory.GetCategorySortName).
 -- Hierarchical keys always use their own levels, which keeps the
@@ -143,7 +135,6 @@ function CategoryTree.BuildSortKey(showPriority, fullName, sortName)
     local levels = CategoryTree.Levels(fullName)
     if levels == nil or #levels == 1 then
         return string.format("%04d%s", 1000 - showPriority, sortName or fullName)
-            .. SORT_SEPARATOR .. CategoryTree.FLAT_TAIL
     end
     return string.format("%04d%s", 1000 - showPriority, levels[1])
         .. SORT_SEPARATOR .. table.concat(levels, SORT_SEPARATOR, 2, #levels)

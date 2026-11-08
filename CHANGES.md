@@ -1,5 +1,34 @@
 # Changes
 
+## 2026-11-08 (5): Normal/level 1 parent displays first, then its level 2+ sections
+
+- Reverts the display order of 2026-11-08 (4): a Normal or level 1
+  category now displays FIRST, followed by its level 2+ sections with
+  the items associated with each level. The flat sort key is back to
+  the historical format (CategoryTree.BuildSortKey, no tail marker),
+  which sorts the parent's own items before the deeper levels of the
+  same name ("0000Potions" sorts before "0000Potions----Magie").
+- Fixed the inventory bug where a Normal or level 1 category following
+  a level 2+ rule no longer displayed: MatchCategoryRules
+  (AutoCategory_API.lua) no longer appends an ordinary rule to an open
+  Level path (the doubled name hid the parent's flat display). The
+  level category keeps the item it matches, and the Normal or level 1
+  parent keeps its own display for the items the level rules did not
+  take, whatever the evaluation order. Put the ordinary rule first in
+  the bag to give it precedence over the level rules.
+- The Categories list (InitScrollBag) now sorts with the same order as
+  the bag (AutoCat.SortBagRulesByDisplay): showpriority desc, Normal
+  and level 1 categories first, then the level 2-5 sections grouped
+  under their parent chain (like the bag display, alphabetical within
+  a group); entries without a priority sort last.
+- test/CategoryTree_test.lua updated (117 assertions), test/
+  RuleLevel_test.lua extended (54: the ordinary rule no longer appends
+  to an open path; a Normal parent and its level 2 child keep their
+  own items whatever the order), new test/BagOrder_test.lua (6
+  assertions on SortBagRulesByDisplay). Other suites still pass:
+  ParentDD_test (15), FormatShow_test (17), LibSets_test (1969).
+  Not tested in ESO.
+
 ## 2026-11-08 (4): Normal/level 1 categories display after the level 2+ sections
 
 - In the bag, the direct items of a flat category (Normal or level 1)

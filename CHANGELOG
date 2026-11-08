@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 5)[/COLOR]:
+[LIST]
+[*] A Normal or level 1 category now displays first, followed by its level 2+ sections with their items (reverts the previous order), and fixed the inventory bug where a Normal or level 1 category following a level 2+ rule no longer displayed: the level category keeps the items it matches, the parent keeps the rest, whatever the evaluation order. The Categories list sorts the same way (parent first, then its level sections).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 4)[/COLOR]:
 [LIST]
 [*] Normal and level 1 categories now display after the level 2+ sections: in the bag the parent category's own items come after its nested sections (same priority), and in the Category Display Order window and the Categories dropdowns the level 2-5 categories list before the Normal and level 1 ones.

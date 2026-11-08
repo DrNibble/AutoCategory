@@ -5,6 +5,7 @@ local SF = LibSFUtils
 local AutoCat = AutoCategory
 
 local CVT = AutoCategory.CVT
+local CategoryTree = AutoCategory.CategoryTree
 
 -- restore a version of d() that is not captured by libDebugLogger
 local sysd = function(msg)
@@ -172,34 +173,82 @@ local function RuleSortingFunction(a, b)
     return a.name < b.name
 end
 
--- the level of the category of a bag rule (0 when Normal, level 1 or
--- not set): level 2-5 categories display before the Normal and
--- level 1 ones
-local function BagRuleLevel(bagrule)
-    if not bagrule or not bagrule.name then return 0 end
+-- the sort key of a bag rule for the display order of the Categories
+-- list and of the addon settings bag rule lists: Normal and level 1
+-- categories display first, then the level 2-5 sections nested under
+-- them, so the entries of a bag read like the bag: the parent, then its
+-- levels. A level 2-5 entry uses its parent chain (AutoCategory.CategoryTree
+-- format "Parent----Child"), so the parent displays, then its level
+-- sections under it. Normal entries, level 1 entries and entries whose
+-- rule is missing or has an invalid level keep the flat key of the
+-- category alone.
+local function BagRuleShowKey(bagrule, byName)
+    if not bagrule or not bagrule.name then return "" end
     local rule = AutoCat.GetRuleByName(bagrule.name)
+    local level = 0
     if rule and type(rule.level) == "number"
         and rule.level >= 2 and rule.level <= 5
         and rule.level == math.floor(rule.level) then
-        return rule.level
+        level = rule.level
     end
-    return 0
+    -- showpriority when set, runpriority otherwise; a rule without any
+    -- priority sorts last
+    local function priorityOf(br)
+        if not br then return 0 end
+        return br.showpriority or br.runpriority or 0
+    end
+    if level < 2 then
+        return CategoryTree.BuildSortKey(priorityOf(bagrule), bagrule.name,
+            AutoCategory.GetCategorySortName(bagrule.name))
+    end
+    local chain = {}
+    local crule = rule
+    while crule do
+        if chain[crule.name] then break end
+        chain[crule.name] = true
+        table.insert(chain, 1, crule.name)
+        if not (type(crule.parent) == "string" and crule.parent ~= ""
+            and crule.level and crule.level > 1) then
+            break
+        end
+        crule = AutoCat.GetRuleByName(crule.parent)
+    end
+    local fullName = table.concat(chain, "----")
+    local top = byName and byName[chain[1]]
+    local priority = (top and priorityOf(top)) or priorityOf(bagrule)
+    return CategoryTree.BuildSortKey(priority, fullName)
+end
+
+-- sort a bag rule list in display order (InitScrollBag): showpriority
+-- desc, Normal and level 1 categories first, then the level 2-5 sections
+-- grouped under their parent chain, name asc within a group
+function AutoCat.SortBagRulesByDisplay(rules)
+    if not rules then return end
+    local byName = {}
+    for ndx = 1, #rules do
+        local bagrule = rules[ndx]
+        if bagrule and bagrule.name then byName[bagrule.name] = bagrule end
+    end
+    local keys = {}
+    for ndx = 1, #rules do
+        local bagrule = rules[ndx]
+        if bagrule then keys[bagrule] = BagRuleShowKey(bagrule, byName) end
+    end
+    local function byKey(a, b)
+        local ka = (a and keys[a]) or ""
+        local kb = (b and keys[b]) or ""
+        if ka ~= kb then return ka < kb end
+        return (a and a.name or "") < (b and b.name or "")
+    end
+    table.sort(rules, byKey)
 end
 
 -- for sorting bagged rules by showpriority and name
 -- returns true if the a should come before b
 -- priorities are always either numeric or nil
--- level 2-5 categories come before the Normal and level 1 ones
 local function BagRuleShowSortingFunction(a, b)
     if not a or not b then return false end
     if not a.name or not b.name then return false end
-
-    -- level 2-5 categories display before the Normal and level 1 ones
-    local aDeep = BagRuleLevel(a) >= 2
-    local bDeep = BagRuleLevel(b) >= 2
-    if aDeep ~= bDeep then
-        return aDeep
-    end
 
     local aPriority = a.showpriority
 	if aPriority == nil then
@@ -474,7 +523,7 @@ function AutoCat.InitScrollBag(bagId)
 	local svdbag = AutoCat.saved.bags[bagId]		-- alias
 	if not svdbag or not svdbag.rules then return end
 	
-	table.sort(svdbag.rules, BagRuleShowSortingFunction)
+	AutoCat.SortBagRulesByDisplay(svdbag.rules)
 
 	-- Populate the display list in show order.
 	local win = AutoCat.dspWin

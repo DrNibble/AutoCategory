@@ -253,7 +253,10 @@ equal(25, rp, "sibling run priority")
 
 -- ---------------------------------------------------------------------------
 -- Display sections (rule true) with the conditions in ordinary rules:
--- the ordinary rule joins the open parent chain as the deepest level
+-- the ordinary rule does not append to the open parent chain: the level
+-- category keeps the item, so a Normal or level 1 parent following a
+-- level 2+ rule keeps its own display for the items the level rules
+-- did not take
 -- ---------------------------------------------------------------------------
 rule("Trucs légers", [[type("armorlight")]]) -- ordinary (Normal) rule
 bag.rules = {}
@@ -263,9 +266,27 @@ addBagRule("Trucs légers", 30, 3)
 itemType = "armorlight"
 ok, name, rp = match()
 equal(true, ok, "ordinary after open path")
-equal("premier niveau----Armures----Trucs légers", name,
-    "ordinary rule appended as deepest level")
-equal(30, rp, "ordinary rule priority after path")
+equal("premier niveau----Armures", name,
+    "ordinary rule does not append to the open path")
+equal(20, rp, "level rule keeps its priority")
+
+-- ---------------------------------------------------------------------------
+-- A Normal parent and its level 2 child: the child takes its specific
+-- items whatever the evaluation order, the parent keeps the rest flat
+-- ---------------------------------------------------------------------------
+rule("Protections", [[type("armor")]]) -- ordinary (Normal) parent
+rule("Souples", [[type("armormedium")]], 2, "Protections")
+bag.rules = {}
+addBagRule("Souples", 20, 2) -- the level 2 rule comes first
+addBagRule("Protections", 30, 1) -- the Normal parent follows it
+itemType = "armormedium"
+ok, name = match()
+equal(true, ok, "child before parent match")
+equal("Protections----Souples", name, "child takes its items")
+itemType = "armorheavy" -- not medium: the child does not match
+ok, name = match()
+equal(true, ok, "parent keeps rest match")
+equal("Protections", name, "parent keeps the other items flat")
 
 -- ---------------------------------------------------------------------------
 -- A level rule with no parent is a top-level section

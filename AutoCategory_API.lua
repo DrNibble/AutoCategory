@@ -185,16 +185,6 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	local recordedPath = nil
 	local recordedEntry = nil
 
-	-- Append a name as the deepest level of the recorded path.
-	local function joinPath(path, name)
-		local parts = {}
-		for i = 1, #path do
-			parts[i] = path[i]
-		end
-		parts[#parts + 1] = name
-		return categoryTree.JoinName(parts)
-	end
-
 
 	for i = 1, #bag.rules do
 		local entry = bag.rules[i]
@@ -242,22 +232,27 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 							setCategoryCollapsed(bag_type_id, catname,
 								isCategoryCollapsed(bag_type_id, catname))
 							if res == true then
-								local finalName = catname
-								if recordedPath ~= nil then
-									-- a Level path is open: the rule's
-									-- category becomes its deepest level
-									finalName = joinPath(recordedPath, catname)
-									setCategoryCollapsed(bag_type_id, finalName,
-										isCategoryCollapsed(bag_type_id, finalName))
+								if recordedPath == nil then
+									-- no Level path open: the ordinary rule
+									-- categorizes the item flat and stops the
+									-- evaluation
+									AutoCategory.CategorySortNames[catname] =
+										AutoCategory.AdditionCategorySortName
+									return true,
+										catname,
+										entry.runpriority,
+										entry.showpriority,
+										bag_type_id,
+										entry.isHidden
 								end
-								AutoCategory.CategorySortNames[finalName] =
-									AutoCategory.AdditionCategorySortName
-								return true,
-									finalName,
-									entry.runpriority,
-									entry.showpriority,
-									bag_type_id,
-									entry.isHidden
+								-- A Level path is open: the level category
+								-- keeps the item, so its section shows it. The
+								-- ordinary rule does not append to the path,
+								-- so a Normal or level 1 parent following a
+								-- level 2+ rule keeps its own display for the
+								-- items the level rules did not take. Put the
+								-- ordinary rule first in the bag to give it
+								-- precedence over the level rules.
 							end
 						end
 

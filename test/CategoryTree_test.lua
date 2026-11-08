@@ -91,8 +91,23 @@ equal("Potions", CategoryTree.ParentOf("Potions----Magie"), "parent of child")
 equal(nil, CategoryTree.ParentOf("Potions"), "parent of flat")
 equal(nil, CategoryTree.ParentOf(42), "parent of non-string")
 
-equal(string.format("%04d%s", 990, "Weapons"),
-    CategoryTree.BuildSortKey(10, "Weapons"), "flat key keeps legacy format")
+equal(string.format("%04d%s", 990, "Weapons") .. "\001\255",
+    CategoryTree.BuildSortKey(10, "Weapons"), "flat key carries the tail marker")
+equal(true,
+    CategoryTree.BuildSortKey(10, "Potions----Magie")
+        < CategoryTree.BuildSortKey(10, "Potions"),
+    "flat parent sorts after its level 2 section")
+equal(true,
+    CategoryTree.BuildSortKey(10, "Potions----Magie----Soins")
+        < CategoryTree.BuildSortKey(10, "Potions"),
+    "flat parent sorts after its deepest section")
+equal(true,
+    CategoryTree.BuildSortKey(20, "Potions----Magie")
+        < CategoryTree.BuildSortKey(10, "Potions"),
+    "section with better priority still sorts before the flat parent")
+equal(true,
+    CategoryTree.BuildSortKey(10, "Aaa") < CategoryTree.BuildSortKey(10, "Bbb"),
+    "flat key ordering between flat categories unchanged")
 equal("0990Potions\001Magie",
     CategoryTree.BuildSortKey(10, "Potions----Magie"), "hierarchical key")
 equal(
@@ -100,7 +115,7 @@ equal(
     CategoryTree.BuildSortKey(10, "Potions----Magie", "registered sort name"),
     "hierarchical key ignores registered sort name")
 equal(
-    string.format("%04d%s", 990, "donjon\001(Donjon) Alpha"),
+    string.format("%04d%s", 990, "donjon\001(Donjon) Alpha") .. "\001\255",
     (function()
         AutoCategory.CategorySortNames["(Donjon) Alpha"] = "donjon"
         return CategoryTree.BuildSortKey(10, "(Donjon) Alpha",
@@ -108,7 +123,7 @@ equal(
     end)(),
     "flat key uses registered sort name")
 equal(
-    string.format("%04d%s", 990, "Ordinary"),
+    string.format("%04d%s", 990, "Ordinary") .. "\001\255",
     CategoryTree.BuildSortKey(10, "Ordinary", "Ordinary"),
     "flat key accepts unchanged sort name")
 equal("0990Potions", CategoryTree.ParentSortKey("0990Potions\001Magie"),
@@ -266,7 +281,7 @@ equal(true, entry.data.AC_matched, "item matched")
 matchMap[1] = { category = "Weapons" }
 H.runRulesOnEntry(entry)
 equal(nil, entry.data.AC_parentName, "flat item has no parent")
-equal("0990Weapons", entry.data.AC_sortPriorityName, "flat item legacy key")
+equal("0990Weapons\001\255", entry.data.AC_sortPriorityName, "flat item key with tail marker")
 
 matchMap[1] = nil
 H.runRulesOnEntry(entry)
@@ -373,8 +388,8 @@ runRules({ items[6] })
 local flatAndChild = { items[1], items[2], items[3], items[6] }
 built = H.createNewScrollData(flatAndChild)
 sortEntries(built)
-equalList({ "(1)Potions", "6", "(2)Magie", "1", "2", "(2)Santé", "3" }, built,
-    "flat category serves as parent header")
+equalList({ "(1)Potions", "(2)Magie", "1", "2", "(2)Santé", "3", "6" }, built,
+    "flat category serves as parent header, own items after the sections")
 
 -- Collapsing the shared name hides the flat items and the children.
 AutoCategory.SetCategoryCollapsed(1, "Potions", true)

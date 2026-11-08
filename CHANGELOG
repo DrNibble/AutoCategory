@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 4)[/COLOR]:
+[LIST]
+[*] Normal and level 1 categories now display after the level 2+ sections: in the bag the parent category's own items come after its nested sections (same priority), and in the Category Display Order window and the Categories dropdowns the level 2-5 categories list before the Normal and level 1 ones.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 3)[/COLOR]:
 [LIST]
 [*] The Categories dropdowns now show the level of the category after the display priorities (localized "Level: n"), and the Category Display Order window indents each category according to its level (one indentation per level below the first).

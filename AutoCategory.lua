@@ -172,12 +172,34 @@ local function RuleSortingFunction(a, b)
     return a.name < b.name
 end
 
+-- the level of the category of a bag rule (0 when Normal, level 1 or
+-- not set): level 2-5 categories display before the Normal and
+-- level 1 ones
+local function BagRuleLevel(bagrule)
+    if not bagrule or not bagrule.name then return 0 end
+    local rule = AutoCat.GetRuleByName(bagrule.name)
+    if rule and type(rule.level) == "number"
+        and rule.level >= 2 and rule.level <= 5
+        and rule.level == math.floor(rule.level) then
+        return rule.level
+    end
+    return 0
+end
+
 -- for sorting bagged rules by showpriority and name
 -- returns true if the a should come before b
 -- priorities are always either numeric or nil
+-- level 2-5 categories come before the Normal and level 1 ones
 local function BagRuleShowSortingFunction(a, b)
     if not a or not b then return false end
     if not a.name or not b.name then return false end
+
+    -- level 2-5 categories display before the Normal and level 1 ones
+    local aDeep = BagRuleLevel(a) >= 2
+    local bDeep = BagRuleLevel(b) >= 2
+    if aDeep ~= bDeep then
+        return aDeep
+    end
 
     local aPriority = a.showpriority
 	if aPriority == nil then

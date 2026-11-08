@@ -1,5 +1,27 @@
 # Changes
 
+## 2026-11-08 (4): Normal/level 1 categories display after the level 2+ sections
+
+- In the bag, the direct items of a flat category (Normal or level 1)
+  that also carries deeper levels now display AFTER its level 2+
+  sections: the flat sort key gains a tail marker (CategoryTree.FLAT_TAIL,
+  byte 255) that sorts after every level name, so with equal
+  showpriorities the sections come first, then the parent's own items.
+  Nothing changes between flat categories or between different parents;
+  a parent with an explicitly HIGHER showpriority than its children
+  still displays its own items first (the priority wins).
+- In the Category Display Order window and the Categories dropdowns,
+  level 2-5 categories now list before the Normal and level 1 ones
+  (BagRuleShowSortingFunction groups by level first, then keeps the
+  showpriority order within each group).
+- test/CategoryTree_test.lua updated and extended (117 assertions):
+  flat key tail marker, flat parent after its sections (also with a
+  deeper chain), priority still winning, flat-vs-flat order unchanged,
+  and the extracted header-building scenario now expects the parent's
+  own items after the sections. Other suites still pass: RuleLevel_test
+  (50), ParentDD_test (15), FormatShow_test (17), LibSets_test (1969).
+  Not tested in ESO.
+
 ## 2026-11-08 (3): level in the Categories dropdowns and indentation in the Display Order window
 
 - The Categories dropdowns (bag settings, edit category) now show the

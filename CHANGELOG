@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 12)[/COLOR]:
+[LIST]
+[*] "Lower level" and "Raise level" in the right-click menu of a category header in the inventory now fold and unfold the sub-levels under the category instead of stepping the level of its rule: "Lower level" collapses every lower-level header (the category itself stays expanded, with its own items and its folded sub-headers), "Raise level" expands the category when folded and every folded sub-level with it. An entry that cannot apply is not shown.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 11)[/COLOR]:
 [LIST]
 [*] The right-click menu of a category header in the inventory has two new entries, next to Collapse/Expand: "Lower level" and "Raise level" step the level of the category by one (Normal to 1 to 5 and back down, with the automatic Parent on the way up); the entry that cannot apply is not shown, and headers without a category of their own (ungrouped, dynamic set names) do not get them.

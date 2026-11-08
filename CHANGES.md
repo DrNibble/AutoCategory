@@ -1,5 +1,26 @@
 # Changes
 
+## 2026-11-08 (12): the inventory header menu folds and unfolds the sub-levels
+
+- "Lower level" and "Raise level" in the right-click menu of a category
+  header in the inventory (AutoCategory.lua,
+  AC_ItemRowHeader_OnShowContextMenu) now fold and unfold the display
+  of the sub-levels under the category, instead of stepping the level
+  of its rule (change 11): "Lower level" collapses every lower-level
+  header of the chain - the category itself stays expanded, with its
+  own items and its folded sub-headers - and "Raise level" expands the
+  category when folded and every folded sub-level with it. The
+  sub-level names come from the inventory lists of the bag type and
+  from the collapses table (the folded ones are absent from the
+  lists); an entry that cannot apply is not shown (nothing to fold on
+  a category without sub-levels or already fully folded, nothing to
+  unfold when everything is expanded). New pure helper
+  CategoryTree.IsSubLevelOf (CategoryTree.lua). AC_UI.CatSet.
+  StepRuleLevel of change 11 is removed with its tests. The strings
+  SI_AC_MENU_LEVEL_LOWER / _RAISE now read "Fold lower levels" /
+  "Unfold lower levels" (fr: "Réduire le niveau" / "Développer le
+  niveau", unchanged).
+
 ## 2026-11-08 (11): the inventory header menu lowers and raises the level
 
 - The right-click menu of a category header in the inventory

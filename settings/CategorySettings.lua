@@ -62,21 +62,6 @@ function AC_UI.CatSet.GetRuleLevel(rule)
 	return CatSet_Level_getRuleLevel(rule)
 end
 
--- Raise or lower the level of a rule by one step (the inventory header
--- context menu): Normal -> 1 -> ... -> 5 and back down. Returns the new
--- level, or nil when nothing was applied (no rule, a step out of the
--- Normal..5 range, or no step at all).
-function AC_UI.CatSet.StepRuleLevel(rule, delta)
-	if not rule then return nil end
-	local level = AC_UI.CatSet.GetRuleLevel(rule)
-	local target = level + (delta or 0)
-	if target < AC_LEVEL_NORMAL or target > 5 or target == level then
-		return nil
-	end
-	AC_UI.CatSet.SetRuleLevel(rule, target)
-	return AC_UI.CatSet.GetRuleLevel(rule)
-end
-
 local currentRule = AutoCategory.CreateRule("","")
 
 -- Refresh the displayed value of the Level and Parent dropdowns (and the

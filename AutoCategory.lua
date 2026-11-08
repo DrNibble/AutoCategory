@@ -1138,6 +1138,46 @@ local function getBagTypeId(header)
 	return bagTypeId
 end
 
+-- The names of the sub-levels displayed under a category of a bag: the
+-- ones present in the inventory lists of that bag type (every entry
+-- carries its full level chain), and the folded ones remembered in the
+-- collapses table - those are absent from the lists while folded, or
+-- hidden under a folded level. Deduplicated; the category itself is
+-- never included.
+local function subLevelNames(fullName, bagTypeId)
+    local names = {}
+    local seen = {}
+    local function add(name)
+        if not seen[name] then
+            seen[name] = true
+            names[#names + 1] = name
+        end
+    end
+    for _, info in pairs(inven_data) do
+        local listView = info.listView
+        local dataList = listView and ZO_ScrollList_GetDataList(listView)
+        if dataList then
+            for _, entry in ipairs(dataList) do
+                local data = entry and entry.data
+                if data and data.AC_bagTypeId == bagTypeId
+                        and CategoryTree.IsSubLevelOf(
+                            data.AC_categoryName, fullName) then
+                    add(data.AC_categoryName)
+                end
+            end
+        end
+    end
+    local collapsedNames = AutoCat.saved.collapses[bagTypeId]
+    if collapsedNames then
+        for name in pairs(collapsedNames) do
+            if CategoryTree.IsSubLevelOf(name, fullName) then
+                add(name)
+            end
+        end
+    end
+    return names
+end
+
 -- called from AutoCategory.xml
 function AC_ItemRowHeader_OnMouseEnter(header)
     local cateName = header.slot.dataEntry.data.AC_categoryName
@@ -1210,35 +1250,45 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         )
     end
 
-    -- raise or lower the level of the category's rule by one: the name
-    -- of a header is the full level chain, its rule is the last level
-    -- of that chain (headers without a rule - the ungrouped category,
-    -- the dynamic set names - get no level entries)
-    local ruleLevels = CategoryTree.Levels(cateName)
-    local ruleName = ruleLevels and ruleLevels[#ruleLevels] or cateName
-    local levelRule = AutoCat.GetRuleByName(ruleName)
-    if levelRule and AC_UI and AC_UI.CatSet
-            and AC_UI.CatSet.StepRuleLevel then
-        -- the shared level change also refreshes the bag; the level
-        -- goes down to Normal (a category without a level) and up to 5
-        if AC_UI.CatSet.GetRuleLevel(levelRule) > 0 then
-            AddMenuItem(
-                L(SI_AC_MENU_LEVEL_LOWER),
-                function()
-                    AC_UI.CatSet.StepRuleLevel(levelRule, -1)
-                    AutoCat.RefreshCurrentList()
-                end
-            )
+    -- fold or unfold the display of the sub-levels under this category:
+    -- every lower-level header of the chain (the category itself keeps
+    -- its own items and its folded sub-headers)
+    local subLevels = subLevelNames(cateName, bagTypeId)
+    local anySubExpanded = false
+    local anySubCollapsed = false
+    for _, name in ipairs(subLevels) do
+        if AutoCat.IsCategoryCollapsed(bagTypeId, name) then
+            anySubCollapsed = true
+        else
+            anySubExpanded = true
         end
-        if AC_UI.CatSet.GetRuleLevel(levelRule) < 5 then
-            AddMenuItem(
-                L(SI_AC_MENU_LEVEL_RAISE),
-                function()
-                    AC_UI.CatSet.StepRuleLevel(levelRule, 1)
-                    AutoCat.RefreshCurrentList()
+    end
+    -- fold: collapse every sub-level, the category stays expanded
+    if anySubExpanded then
+        AddMenuItem(
+            L(SI_AC_MENU_LEVEL_LOWER),
+            function()
+                for _, name in ipairs(subLevels) do
+                    setCategoryCollapsed(bagTypeId, name, true)
                 end
-            )
-        end
+                AutoCat.RefreshCurrentList()
+            end
+        )
+    end
+    -- unfold: expand the category itself when folded, and every folded
+    -- sub-level with it
+    if anySubCollapsed
+            or AutoCat.IsCategoryCollapsed(bagTypeId, cateName) then
+        AddMenuItem(
+            L(SI_AC_MENU_LEVEL_RAISE),
+            function()
+                setCategoryCollapsed(bagTypeId, cateName, false)
+                for _, name in ipairs(subLevels) do
+                    setCategoryCollapsed(bagTypeId, name, false)
+                end
+                AutoCat.RefreshCurrentList()
+            end
+        )
     end
 
 	-- add Expand All to menu

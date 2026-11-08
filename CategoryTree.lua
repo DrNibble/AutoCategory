@@ -78,6 +78,18 @@ function CategoryTree.IsHierarchical(fullName)
     return CategoryTree.LevelCount(fullName) > 1
 end
 
+-- Is a category one of the sub-levels displayed under another category?
+-- A sub-level name starts with the other name followed by the separator:
+-- "A----B" and "A----B----C" are sub-levels of "A", "AB" is not (the
+-- separator must follow), and no name is a sub-level of itself.
+function CategoryTree.IsSubLevelOf(fullName, parentName)
+    if type(fullName) ~= "string" or type(parentName) ~= "string" then
+        return false
+    end
+    local prefix = parentName .. SEPARATOR
+    return fullName:sub(1, #prefix) == prefix
+end
+
 -- Two-level view of a name: parent (all levels but the last, re-joined)
 -- and child (the last level). Returns fullName, nil for a flat name.
 -- Kept for compatibility with two-level callers.

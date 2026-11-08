@@ -61,6 +61,7 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_MENU_BS_BUTTON_SHOW_TOOLTIP = "Open a window that shows the categories in the display order that you have selected." ,
     SI_AC_MENU_BS_BUTTON_EDIT = "Edit Category",
     SI_AC_MENU_BS_BUTTON_EDIT_TOOLTIP = "Edit selected category in the category setting.",
+    SI_AC_MENU_DSO_SUBMENU_LEVEL = "Set level",
     SI_AC_MENU_BS_HIDE_CAT = "Hide Category",
     SI_AC_MENU_BS_SHOW_CAT = "Show Category",
     SI_AC_MENU_BS_BUTTON_REMOVE = "Remove from Bag",

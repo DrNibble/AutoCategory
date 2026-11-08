@@ -36,6 +36,44 @@ local function setupDataRow(rowControl, data, scrollList)
                 local shortname = selectedData.name
 
                 -- Add the varioius menu items to the context menu
+                -- AddMenuItem entries below use the plain ZO menu;
+                -- AddCustomSubMenuItem comes from LibCustomMenu (a hard
+                -- dependency of the addon).
+
+                -- Set the level of the category (Normal or 1-5): the same
+                -- action as the level dropdown of Edit Category, applied
+                -- with a right click.
+                local rule = AutoCategory.GetRuleByName(shortname)
+                if rule and not rule:isPredefined() then
+                    local currentLevel = AC_UI.CatSet.GetRuleLevel(rule)
+                    -- 0 is "no level" (Normal): SetRuleLevel reads it as such
+                    local levelValues = { 0, 1, 2, 3, 4, 5 }
+                    local levelLabels = {
+                        GetString(SI_AC_MENU_EC_DROPDOWN_LEVEL_NORMAL),
+                        "1", "2", "3", "4", "5",
+                    }
+                    local entries = {}
+                    for i = 1, #levelValues do
+                        local value = levelValues[i]
+                        local label = levelLabels[i]
+                        if value == currentLevel then
+                            -- mark the level the category currently has
+                            label = "|cEECA7A" .. label .. "|r"
+                        end
+                        entries[#entries + 1] = {
+                            label = label,
+                            callback = function()
+                                AC_UI.BagSet.SelectRule(shortname)
+                                AC_UI.CatSet.SetRuleLevel(rule, value)
+                                AC_UI.BagSet_RefreshOrder()
+                            end,
+                        }
+                    end
+                    AddCustomSubMenuItem(
+                        GetString(SI_AC_MENU_DSO_SUBMENU_LEVEL), entries
+                    )
+                end
+
                 if not AC_UI.BagSet_GetHideCatStatus(shortname) then
                     AddMenuItem(
                         GetString(SI_AC_MENU_BS_HIDE_CAT),

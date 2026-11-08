@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 8)[/COLOR]:
+[LIST]
+[*] The context menu of the Category Display Order window (right click on a category) has a new "Set level" entry with the same Normal and 1-5 choices as the Level dropdown of Edit Category (the current level is shown in gold); both use the same shared level change.
+[*] autosettype() now works as soon as the LibSets library finished loading, even when it was not ready when AutoCategory started: previously a not-yet-loaded LibSets made the rule return false for the whole session (the sets then fell through to the broad gear categories) until a UI reload.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 7)[/COLOR]:
 [LIST]
 [*] The Level dropdown tooltip now documents the rule of a level category: false makes it display-only - it holds no item itself, only its children's sections show under it; true (or any condition) also keeps the matched items that no child took, flat under the section.

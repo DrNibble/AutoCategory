@@ -82,14 +82,28 @@ function IsLibSetsAlreadyLoaded()
 end
 LibSets = {}
 AutoCategory.Plugins.LibSets.init()
-equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
-    "missing fullyLoaded dummy")
+equal(AutoCategory_LibSets.RuleFunc.AutoSetType, AutoCategory.Environment.autosettype,
+    "real function registered without fullyLoaded")
+equal(false, AutoCategory.Environment.autosettype(), "no match without fullyLoaded")
 LibSets = { fullyLoaded = false }
 AutoCategory.Plugins.LibSets.init()
-equal(AutoCategory.dummyRuleFunc, AutoCategory.Environment.autosettype,
-    "fullyLoaded false dummy")
+equal(AutoCategory_LibSets.RuleFunc.AutoSetType, AutoCategory.Environment.autosettype,
+    "real function registered while not fully loaded")
+equal(false, AutoCategory.Environment.autosettype(), "no match while not fully loaded")
+-- once LibSets finished loading, the same registration starts matching:
+-- no re-registration and no reloadui needed (the function reads
+-- LibSets.fullyLoaded on every call)
 LibSets.fullyLoaded = true
-equal(false, AutoCategory.Environment.autosettype(), "no automatic late registration")
+LibSets.GetSetType = function(id) return 1 end
+LibSets.setTypesToName = { [1] = { fr = "Donjon", en = "Dungeon" } }
+LibSets.clientLang = "fr"
+LibSets.fallbackLang = "en"
+function GetItemLinkSetInfo(itemLink)
+    return true, "Nom du set", 5, 0, 5, 123, 0
+end
+equal(true, AutoCategory.Environment.autosettype(), "late-loaded LibSets matches")
+equal("Donjon----Nom du set", AutoCategory.AdditionCategoryName,
+    "late-loaded dynamic category")
 AutoCategory.Plugins.LibSets.init()
 equal(AutoCategory_LibSets.RuleFunc.AutoSetType, AutoCategory.Environment.autosettype,
     "fullyLoaded alone controls registration, with no per-API guards")

@@ -55,6 +55,7 @@ AutoCategory_localization_strings["es"] = {
     --SI_AC_MENU_BS_SLIDER_CATEGORY_PRIORITY_TOOLTIP = "La prioridad determina el orden de la categoría en la bolsa, más alto significa más posición por delante.",
     SI_AC_MENU_BS_BUTTON_EDIT = "Editar categoría",
     SI_AC_MENU_BS_BUTTON_EDIT_TOOLTIP = "Editar categoría seleccionada en la configuración de categoría.",
+    SI_AC_MENU_DSO_SUBMENU_LEVEL = "Definir nivel",
     SI_AC_MENU_BS_HIDE_CAT = "Ocultar categoría",
     SI_AC_MENU_BS_SHOW_CAT = "Mostrar categoría",
     SI_AC_MENU_BS_BUTTON_REMOVE = "Eliminar de la bolsa",

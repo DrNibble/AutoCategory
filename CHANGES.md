@@ -1,5 +1,40 @@
 # Changes
 
+## 2026-11-08 (8): right-click level choice in the Display Order window, and autosettype survives a late-loading LibSets
+
+- The context menu of the Category Display Order window (right click on
+  a category) has a new "Set level" entry with the same Normal and 1-5
+  choices as the Level dropdown of Edit Category: the level the
+  category currently has is shown in gold. The change is applied by a
+  new shared AC_UI.CatSet.SetRuleLevel (settings/CategorySettings.lua)
+  that both the Level dropdown and the context menu call, so the two
+  paths change the level exactly the same way (including the
+  defaulting of an empty rule text to true); the Level dropdown
+  setFunc now delegates to it. String SI_AC_MENU_DSO_SUBMENU_LEVEL
+  added in en/de/fr/es/ru/zh.
+- The LibSets plugin (plugins/LibSets_Plugin.lua) now registers the
+  real autosettype rule function whenever LibSets is installed, even
+  when it is not fully loaded yet: the function already checks
+  LibSets.fullyLoaded on every call and returns false while LibSets is
+  still loading, then starts matching as soon as it is ready - without
+  a re-registration or a UI reload. Previously a dummy was registered
+  when LibSets was not ready at AutoCategory's initialization, and it
+  kept returning false for the whole session even after LibSets
+  finished loading - a plausible cause of "sets no longer display"
+  (they fall through to the broad gear categories) after a reloadui.
+  With LibSets not installed at all, the dummy is still registered.
+- Investigation of the reported "Ensembles (level 1 + autosettype)
+  does not display its sets" with the delivered files: with the
+  user's priorities (Sets de monstre 52, Set mythique 51, Ensembles
+  50, Armes 46, Armures 46), the offline evaluation puts set items
+  under the Ensembles autoset name, so the level 1 selection is not
+  the cause; the execution priority order works as documented. The
+  remaining suspect was the LibSets load timing above.
+- test/LevelMenu_test.lua added (32 assertions: GetRuleLevel,
+  SetRuleLevel, the late-loading LibSets registration, DisplayOrderWin
+  load); test/LibSets_test.lua updated to the new registration
+  contract (2242 assertions). Other suites unchanged. Not tested in
+  ESO.
 ## 2026-11-08 (7): the Level tooltip documents the rule false (display-only level)
 
 - The Level dropdown tooltip (SI_AC_MENU_EC_DROPDOWN_LEVEL_TOOLTIP)

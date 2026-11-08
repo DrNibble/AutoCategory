@@ -54,6 +54,12 @@ end
 
 AC_UI.CatSet = {}
 
+-- Returns the level of the rule for the UI (1-5), or AC_LEVEL_NORMAL
+-- (a Normal category) when the rule has no (or an out-of-range) level.
+function AC_UI.CatSet.GetRuleLevel(rule)
+	return CatSet_Level_getRuleLevel(rule)
+end
+
 local currentRule = AutoCategory.CreateRule("","")
 
 -- Refresh the displayed value of the Level and Parent dropdowns (and the
@@ -78,6 +84,46 @@ local function CatSet_SyncEditRuleControls()
 	if pctrl and pctrl.UpdateDisabled then
 		pctrl:UpdateDisabled()
 	end
+end
+
+-- Apply a level change (AC_LEVEL_NORMAL or 1-5) to a rule and refresh
+-- everything that depends on it. Shared by the Edit Category level
+-- dropdown and the Display Order window context menu, so both change
+-- the level exactly the same way.
+function AC_UI.CatSet.SetRuleLevel(rule, level)
+	if not rule then return end
+	-- LAM calls setFunc on every UpdateValue(false, value), including
+	-- programmatic refreshes: stop when the level did not change, or
+	-- setFunc -> SetRuleLevel -> sync -> UpdateValue -> setFunc recurses
+	-- forever.
+	if (rule.level or AC_LEVEL_NORMAL) == (level or AC_LEVEL_NORMAL) then
+		return
+	end
+	if level == nil or level == AC_LEVEL_NORMAL then
+		rule.level = nil
+	else
+		rule.level = level
+		-- a level category is a display section: default its rule text
+		-- to true when it is empty
+		if rule.rule == nil or rule.rule == "" then
+			rule.rule = "true"
+			rule:compile()
+		end
+	end
+	-- keep the Edit Category rule editbox in step when it shows this rule
+	if currentRule == rule then
+		local rctrl = WINDOW_MANAGER:GetControlByName("AC_EDITBOX_EDITRULE_RULE")
+		if rctrl and rctrl.editbox then
+			rctrl.editbox:SetText(rule.rule or "")
+		end
+	end
+	CatSet_ParentDD_LAM:refresh()
+	CatSet_SyncEditRuleControls()
+	-- the level of the rule shows in the category tooltips
+	AutoCategory.cacheInitialize()
+	AC_UI.RefreshDropdownData()
+	AC_UI.RefreshControls()
+	AC_UI.BagSet_RefreshOrder()
 end
 
 -- customization of BaseDD for CatSet_ParentDD_LAM (Edit Category)
@@ -808,34 +854,7 @@ function AC_UI.CatSet.controlDef()
                 end,
                 setFunc = function(value)
                     if not currentRule then return end
-                    -- LAM calls setFunc on every UpdateValue(false, value),
-                    -- including programmatic refreshes: stop when the level
-                    -- did not change, or setFunc -> sync -> UpdateValue ->
-                    -- setFunc recurses forever.
-                    if (currentRule.level or AC_LEVEL_NORMAL) == (value or AC_LEVEL_NORMAL) then
-                        return
-                    end
-                    if value == nil or value == AC_LEVEL_NORMAL then
-                        currentRule.level = nil
-                    else
-                        currentRule.level = value
-                        -- a level category is a display section: default
-                        -- its rule text to true when it is empty
-                        if currentRule.rule == nil or currentRule.rule == "" then
-                            currentRule.rule = "true"
-                            currentRule:compile()
-                            local rctrl = WINDOW_MANAGER:GetControlByName("AC_EDITBOX_EDITRULE_RULE")
-                            if rctrl and rctrl.editbox then
-                                rctrl.editbox:SetText("true")
-                            end
-                        end
-                    end
-                    CatSet_ParentDD_LAM:refresh()
-                    CatSet_SyncEditRuleControls()
-                    -- the level of the rule shows in the category tooltips
-                    AutoCategory.cacheInitialize()
-                    AC_UI.RefreshDropdownData()
-                    AC_UI.RefreshControls()
+                    AC_UI.CatSet.SetRuleLevel(currentRule, value)
                 end,
                 disabled = function() return currentRule == nil or currentRule:isPredefined() end,
                 width = "half",

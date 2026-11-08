@@ -51,6 +51,7 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_MENU_BS_BUTTON_SHOW_TOOLTIP = "Ouvrez une fenêtre qui affiche les catégories dans l’ordre d’affichage que vous avez sélectionné. Ouvrez une fenêtre qui affiche les catégories dans l’ordre d’affichage que vous avez sélectionné." ,
     SI_AC_MENU_BS_BUTTON_EDIT = "Modifier",
     SI_AC_MENU_BS_BUTTON_EDIT_TOOLTIP = "Modifie la catégorie sélectionnée.",
+    SI_AC_MENU_DSO_SUBMENU_LEVEL = "Définir le niveau",
     SI_AC_MENU_BS_HIDE_CAT = "Masquer la catégorie",
     SI_AC_MENU_BS_SHOW_CAT = "Afficher la catégorie",
     SI_AC_MENU_BS_BUTTON_REMOVE = "Supprimer",

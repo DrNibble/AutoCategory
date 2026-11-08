@@ -60,6 +60,7 @@ AutoCategory_localization_strings["ru"] = {
     SI_AC_MENU_BS_BUTTON_SHOW_TOOLTIP = "Открывает окно со списком категорий в выбранном порядке отображения.",
     SI_AC_MENU_BS_BUTTON_EDIT = "Изменить категорию",
     SI_AC_MENU_BS_BUTTON_EDIT_TOOLTIP = "Редактирование выбранной категории в настройках категории.",
+    SI_AC_MENU_DSO_SUBMENU_LEVEL = "Задать уровень",
     SI_AC_MENU_BS_HIDE_CAT = "Скрыть категорию",
     SI_AC_MENU_BS_SHOW_CAT = "Показать категорию",
     SI_AC_MENU_BS_BUTTON_REMOVE = "Убрать из сумки",

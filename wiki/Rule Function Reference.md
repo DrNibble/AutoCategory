@@ -744,6 +744,12 @@ UI language. Invalid filters raise a rule error when
 an identifiable set is evaluated. The plugin never looks up filter names
 in `_G`; AutoCategory's rule environment does not expose LibSets globals.
 
+If LibSets is installed but not fully loaded yet when AutoCategory starts,
+the rule function is registered anyway: it returns `false` (no match) while
+LibSets is still loading, then starts matching as soon as LibSets is ready -
+without a UI reload. If LibSets is not installed at all, the function is a
+dummy that always returns `false`.
+
 The live global `LibSets.setTypesToName` table defines the supported type
 IDs and translated names, and every language it contains is accepted for
 filter names. There is no copied

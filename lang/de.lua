@@ -43,6 +43,7 @@ AutoCategory_localization_strings["de"] = {
     SI_AC_MENU_BS_BUTTON_SHOW = "Kategoriereihenfolge anzeigen" ,
     SI_AC_TITLE_DSO = "Anzeigereihenfolge der Kategorien",
     SI_AC_MENU_BS_BUTTON_SHOW_TOOLTIP = "Öffnet ein Fenster, in dem die Kategorien in der von Ihnen gewählten Anzeigereihenfolge angezeigt werden." ,
+    SI_AC_MENU_DSO_SUBMENU_LEVEL = "Level festlegen",
     SI_AC_MENU_BS_HIDE_CAT = "Kategorie ausblenden",
     SI_AC_MENU_BS_SHOW_CAT = "Kategorie anzeigen",
     SI_AC_MENU_BS_RESET_SHOW_PRIOR = "Showpriorität zurücksetzen",

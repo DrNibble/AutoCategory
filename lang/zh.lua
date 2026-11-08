@@ -50,6 +50,7 @@ AutoCategory_localization_strings["zh"] = {
     --SI_AC_MENU_BS_SLIDER_CATEGORY_PRIORITY_TOOLTIP = "分类优先级决定了它在背包中的顺序，更高的优先级意味着更靠前的位置",
     SI_AC_MENU_BS_BUTTON_EDIT = "编辑分类",
     SI_AC_MENU_BS_BUTTON_EDIT_TOOLTIP = "在分类设置中编辑这个分类",
+    SI_AC_MENU_DSO_SUBMENU_LEVEL = "设置级别",
     SI_AC_MENU_BS_HIDE_CAT = "隐藏类别",
     SI_AC_MENU_BS_SHOW_CAT = "显示类别",
     SI_AC_MENU_BS_BUTTON_REMOVE = "移除分类",

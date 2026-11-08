@@ -9,11 +9,15 @@ function AutoCategory_LibSets.Initialize()
         AutoCategory.AddRuleFunc("autosettype", AutoCategory.dummyRuleFunc)
         return
     end
+    -- Register the real rule function even when LibSets is not fully
+    -- loaded yet: AutoSetType checks LibSets.fullyLoaded on every call
+    -- and returns false while LibSets is still loading, then matches as
+    -- soon as it finished - no re-registration needed. A dummy registered
+    -- here would keep returning false for the whole session even after
+    -- LibSets became ready.
+    AutoCategory.AddRuleFunc("autosettype", AutoCategory_LibSets.RuleFunc.AutoSetType)
     if LibSets.fullyLoaded then
-        AutoCategory.AddRuleFunc("autosettype", AutoCategory_LibSets.RuleFunc.AutoSetType)
         AutoCat_Logger():Info("Initializing LibSets plugin integration")
-    else
-        AutoCategory.AddRuleFunc("autosettype", AutoCategory.dummyRuleFunc)
     end
 end
 

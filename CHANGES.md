@@ -1,5 +1,19 @@
 # Changes
 
+## 2026-11-08 (10): choosing a level 2-5 attaches the parent automatically
+
+- Choosing a level 2-5 - from the Level dropdown of Edit Category or
+  from the right-click "Set level" entry of the Category Display Order
+  window (settings/CategorySettings.lua, AC_UI.CatSet.SetRuleLevel) -
+  now also attaches the Parent automatically when the category has
+  none: the nearest category of the level just below in the display
+  order of the current bag (the section the category visually follows
+  there), or the first one when it sits above them all. Normal
+  categories are never chosen (they are not offered as parents in the
+  dropdown either), and a Parent already set is never touched - the
+  Parent dropdown can still change it afterwards. A level without any
+  matching category of the level below stays top-level.
+
 ## 2026-11-08 (9): the Parent dropdown no longer lists Normal categories, and a level 2-5 autosettype nests its dynamic levels
 
 - The Parent dropdown of Edit Category (settings/CategorySettings.lua)

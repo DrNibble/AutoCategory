@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 10)[/COLOR]:
+[LIST]
+[*] Choosing a level 2-5 (Level dropdown of Edit Category or right-click "Set level" in the Category Display Order window) now attaches the Parent automatically when the category has none: the nearest category of the level just below in the display order of the bag, or the first one when it sits above them all. Normal categories are never chosen, and a Parent already set is never touched (the Parent dropdown can still change it).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 9)[/COLOR]:
 [LIST]
 [*] The Parent dropdown of Edit Category only offers categories with an explicit level of exactly one below (a level 1 category for a level 2 child): Normal categories are no longer listed (the current parent stays visible so it can be changed). A Normal category still counts as level 1 when matching.

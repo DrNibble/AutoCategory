@@ -88,6 +88,58 @@ local function CatSet_SyncEditRuleControls()
 	end
 end
 
+-- Attach to a level 2-5 category the parent of the level just below,
+-- automatically: the nearest level N-1 category above it in the display
+-- order of the current bag (the section it visually follows there), or
+-- the first one when it sits above them all. Only categories with an
+-- explicit level are candidates (Normal categories are not offered as
+-- parents). A parent already set is never touched.
+local function autoAttachParent(rule)
+	local level = rule.level
+	if type(level) ~= "number" or level < 2 or level > 5 then
+		return
+	end
+	if type(rule.parent) == "string" and rule.parent ~= "" then
+		return -- the parent is left as the user set it
+	end
+	local bagId = AutoCategory.getCurrentBagId()
+	local savedBag = AutoCategory.saved and AutoCategory.saved.bags[bagId]
+	if not savedBag or not savedBag.rules then return end
+
+	-- the display order of the Category Display Order window:
+	-- show priority high to low, then name
+	local ordered = {}
+	for _, brule in ipairs(savedBag.rules) do
+		if brule and type(brule.name) == "string" and brule.name ~= "" then
+			ordered[#ordered + 1] = brule
+		end
+	end
+	table.sort(ordered, function(a, b)
+		local ap = a.showpriority or a.runpriority or 0
+		local bp = b.showpriority or b.runpriority or 0
+		if ap ~= bp then
+			return ap > bp
+		end
+		return a.name < b.name
+	end)
+
+	local nearest, first, passedSelf
+	for _, brule in ipairs(ordered) do
+		if brule.name == rule.name then
+			passedSelf = true
+		else
+			local r = AutoCategory.GetRuleByName(brule.name)
+			if r and CatSet_Level_getRuleLevel(r) == level - 1 then
+				first = first or brule.name
+				if not passedSelf then
+					nearest = brule.name
+				end
+			end
+		end
+	end
+	rule.parent = nearest or first
+end
+
 -- Apply a level change (AC_LEVEL_NORMAL or 1-5) to a rule and refresh
 -- everything that depends on it. Shared by the Edit Category level
 -- dropdown and the Display Order window context menu, so both change
@@ -111,6 +163,11 @@ function AC_UI.CatSet.SetRuleLevel(rule, level)
 			rule.rule = "true"
 			rule:compile()
 		end
+		-- a level 2-5 category nests under a parent of the level just
+		-- below: attach the nearest one automatically when no parent is
+		-- set yet, so choosing the level right away nests the category.
+		-- The Parent dropdown can still change it.
+		autoAttachParent(rule)
 	end
 	-- keep the Edit Category rule editbox in step when it shows this rule
 	if currentRule == rule then

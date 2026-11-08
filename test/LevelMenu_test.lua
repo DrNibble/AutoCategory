@@ -285,4 +285,100 @@ equal(true, hasChoice(choices, "Ordinaire"),
     "current Normal parent stays visible")
 lvl2.parent = nil
 
+-- ---------------------------------------------------------------------------
+-- Part 6: choosing a level 2-5 automatically attaches the parent of the
+-- level just below - the nearest category above in the display order
+-- ---------------------------------------------------------------------------
+local function bagRule(name, prio)
+    return { name = name, runpriority = prio, showpriority = prio }
+end
+
+local conso = makeRule("Conso", 1)
+local haut = makeRule("Haut", 1)
+local bas = makeRule("Bas", 1)
+local norm2 = makeRule("Ordinaire deux", nil)
+local target = makeRule("Max Vigueur", nil)
+AutoCategory.RulesW.ruleList = { conso, haut, bas, norm2, target }
+AutoCategory.saved = {
+    bags = {
+        [1] = { -- the bag rules, in the Display Order window order
+            rules = {
+                bagRule("Haut", 50),
+                bagRule("Max Vigueur", 45),
+                bagRule("Bas", 20),
+                bagRule("Ordinaire deux", 10),
+            },
+        },
+    },
+}
+
+-- a level 2 choice nests the category under the level 1 category right
+-- above it in the display order
+AC_UI.CatSet.SetRuleLevel(target, 2)
+equal(2, AC_UI.CatSet.GetRuleLevel(target), "auto-attach: level set")
+equal("Haut", target.parent, "auto-attach: nearest level 1 above")
+
+-- a category sitting above every level 1 attaches to the first one
+local top = makeRule("Tout en haut", nil)
+AutoCategory.RulesW.ruleList = { conso, haut, bas, norm2, target, top }
+AutoCategory.saved.bags[1].rules = {
+    bagRule("Tout en haut", 60),
+    bagRule("Haut", 50),
+    bagRule("Bas", 20),
+}
+AC_UI.CatSet.SetRuleLevel(top, 2)
+equal("Haut", top.parent, "auto-attach: first level 1 when above all")
+
+-- the saved bag is the source of the order, not the global rule list:
+-- the first level 1 of the bag ("Bas") wins over the first level 1 of
+-- the rule list ("Conso", not even in this bag)
+AutoCategory.saved.bags[1].rules = {
+    bagRule("Max Magie", 45),
+    bagRule("Bas", 30),
+    bagRule("Ordinaire deux", 10),
+}
+local target2 = makeRule("Max Magie", nil)
+AutoCategory.RulesW.ruleList = { conso, haut, bas, norm2, target, top, target2 }
+AC_UI.CatSet.SetRuleLevel(target2, 2)
+equal("Bas", target2.parent,
+    "auto-attach: bag order drives the choice, not the rule list")
+
+-- a parent already set is never touched
+local kept = makeRule("Déjà rattaché", nil)
+kept.parent = "Conso"
+AutoCategory.RulesW.ruleList = { conso, haut, bas, norm2, target, top, target2, kept }
+AC_UI.CatSet.SetRuleLevel(kept, 2)
+equal("Conso", kept.parent, "auto-attach: existing parent kept")
+
+-- level 1 and Normal never attach a parent
+local lvl1cat = makeRule("Niveau un cat", nil)
+AutoCategory.RulesW.ruleList = { conso, haut, bas, norm2, target, top, target2, kept, lvl1cat }
+AC_UI.CatSet.SetRuleLevel(lvl1cat, 1)
+equal(1, AC_UI.CatSet.GetRuleLevel(lvl1cat), "auto-attach: level 1 set")
+equal(nil, lvl1cat.parent, "auto-attach: level 1 gets no parent")
+AC_UI.CatSet.SetRuleLevel(lvl1cat, 0) -- Normal
+equal(0, AC_UI.CatSet.GetRuleLevel(lvl1cat), "auto-attach: Normal set")
+equal(nil, lvl1cat.parent, "auto-attach: Normal gets no parent")
+
+-- Normal categories are never candidates
+AutoCategory.saved.bags[1].rules = {
+    bagRule("Ordinaire deux", 10),
+    bagRule("Orphelin", 5),
+}
+local orphan = makeRule("Orphelin", nil)
+AutoCategory.RulesW.ruleList = { conso, haut, bas, norm2, target, top, target2, kept, lvl1cat, orphan }
+AC_UI.CatSet.SetRuleLevel(orphan, 2)
+equal(nil, orphan.parent,
+    "auto-attach: no parent when only Normal categories exist")
+
+-- with no level 1 category in the bag either, the parent stays empty
+AutoCategory.saved.bags[1].rules = { bagRule("Orphelin", 5) }
+local orphan2 = makeRule("Orphelin deux", nil)
+AutoCategory.RulesW.ruleList[#AutoCategory.RulesW.ruleList + 1] = orphan2
+AC_UI.CatSet.SetRuleLevel(orphan2, 2)
+equal(nil, orphan2.parent,
+    "auto-attach: no parent when no level 1 in the bag")
+
+AutoCategory.saved = nil
+
 print("PASS: " .. assertions .. " assertions (level menu and late LibSets)")

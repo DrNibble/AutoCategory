@@ -354,6 +354,24 @@ equal("Sets----Truc", name,
     "a dynamic nested name is kept for a Normal rule")
 
 -- ---------------------------------------------------------------------------
+-- A level category with the rule false: it holds no item itself, but its
+-- children still nest under it - the level is display-only
+-- ---------------------------------------------------------------------------
+rule("Conteneur", [[false]], 1) -- display-only level: rule false
+rule("Enfants", [[type("armorlight")]], 2, "Conteneur")
+bag.rules = {}
+addBagRule("Conteneur", 10, 1)
+addBagRule("Enfants", 20, 2)
+itemType = "armorlight" -- matches the child only
+ok, name = match()
+equal(true, ok, "false level with child match")
+equal("Conteneur----Enfants", name,
+    "a child nests under a level whose rule is false")
+itemType = "weapon" -- matches nothing
+ok, name = match()
+equal(false, ok, "a false level holds no item")
+
+-- ---------------------------------------------------------------------------
 -- A level rule with no parent is a top-level section
 -- ---------------------------------------------------------------------------
 rule("Solo", [[type("armorlight")]], 3) -- no parent

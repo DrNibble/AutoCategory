@@ -1,5 +1,18 @@
 # Changes
 
+## 2026-11-08 (7): the Level tooltip documents the rule false (display-only level)
+
+- The Level dropdown tooltip (SI_AC_MENU_EC_DROPDOWN_LEVEL_TOOLTIP)
+  now documents what the rule of a level category decides: with true
+  (or any condition) the section also keeps, flat under it, the items
+  it matches that no child took; with false the level is display-only
+  - it holds no item itself and only its children's sections show
+  under it (verified offline: a level 2 child still nests under a
+  level 1 parent whose rule is false). Tooltip updated in
+  en/de/fr/es/ru/zh; wiki (Building Levels from Rules) updated.
+- test/RuleLevel_test.lua extended (68 assertions). Other suites
+  unchanged. Not tested in ESO.
+
 ## 2026-11-08 (6): a Normal category counts as level 1 and its children can take their items
 
 - MatchCategoryRules (AutoCategory_API.lua) now counts a Normal

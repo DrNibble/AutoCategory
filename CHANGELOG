@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 7)[/COLOR]:
+[LIST]
+[*] The Level dropdown tooltip now documents the rule of a level category: false makes it display-only - it holds no item itself, only its children's sections show under it; true (or any condition) also keeps the matched items that no child took, flat under the section.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 6)[/COLOR]:
 [LIST]
 [*] A Normal category now counts as level 1, exactly like an explicit level 1: a broad Normal parent no longer swallows every item it matches - its level 2-5 children take their items and nest them under the parent, and the parent keeps the rest flat, before its sections, whatever the rule order. A later rule only refines the recorded path within the same family; the first matching rule otherwise wins.

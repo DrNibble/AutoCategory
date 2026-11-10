@@ -168,6 +168,32 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 
 	-- call the rules for this bag against the entry, stop when one matches
 	-- return values from SF.safeCall func
+	-- categories are tied to a bag: the parent chain of a level 2-5
+	-- category does not follow a parent that is a category of ANOTHER
+	-- bag (a bank category while evaluating the inventory bag) - that
+	-- parent is not a section here, so the chain stops and the category
+	-- displays under its own name instead of nesting under a category
+	-- that does not exist in this bag. A parent that is a category of
+	-- no bag at all is still followed: it is only a display path.
+	local crossBagCategoryNames = {}
+	local savedBags = AutoCategory.saved.bags
+	for otherBagId, otherBag in pairs(savedBags) do
+		if otherBagId ~= bag_type_id and otherBag and otherBag.rules then
+			for i = 1, #otherBag.rules do
+				local e = otherBag.rules[i]
+				if e.name then
+					crossBagCategoryNames[e.name] = true
+				end
+			end
+		end
+	end
+	for i = 1, #bag.rules do
+		local e = bag.rules[i]
+		if e.name then
+			crossBagCategoryNames[e.name] = nil
+		end
+	end
+
 
 	-- localized aliases
 	local setCategoryCollapsed = AutoCategory.SetCategoryCollapsed
@@ -275,6 +301,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 									and crule.parent ~= "" do
 									local prule = getRuleByName(crule.parent)
 									if not prule or visited[prule.name] then break end
+									if crossBagCategoryNames[prule.name] then break end
 									table.insert(chain, 1, prule.name)
 									visited[prule.name] = true
 									crule = prule

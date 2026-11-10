@@ -496,4 +496,35 @@ ok, name = match()
 equal(true, ok, "non-matching level rule match")
 equal("premier niveau", name, "non-matching level rule records nothing")
 
+-- ---------------------------------------------------------------------------
+-- A parent that is a category of ANOTHER bag: categories are tied to a
+-- bag, the parent chain does not follow it - the category displays
+-- under its own name instead of nesting under a category that does not
+-- exist in this bag. A parent that is a category of no bag at all is
+-- still followed (it is only a display path - see "Ensembles" above).
+-- ---------------------------------------------------------------------------
+AC_BAG_TYPE_BANK = 2
+local bankBag = { rules = {} }
+AutoCategory.saved.bags[AC_BAG_TYPE_BANK] = bankBag
+bankBag.rules[#bankBag.rules + 1] = {
+    name = "Banque parent", runpriority = 10, showpriority = 1, isHidden = false,
+}
+rule("Enfants banque", [[type("armor")]], 2, "Banque parent")
+bag.rules = {}
+addBagRule("Enfants banque", 20, 2)
+itemType = "armor"
+ok, name = match()
+equal(true, ok, "cross-bag parent match")
+equal("Enfants banque", name, "a parent of another bag is not followed")
+
+-- a parent that is a category of no bag at all is still followed
+rule("Hors sac", [[false]], 1)
+rule("Enfants libre", [[type("weapon")]], 2, "Hors sac")
+bag.rules = {}
+addBagRule("Enfants libre", 20, 2)
+itemType = "weapon"
+ok, name = match()
+equal(true, ok, "no-bag parent match")
+equal("Hors sac----Enfants libre", name, "a parent of no bag is still followed")
+
 print("PASS: " .. assertions .. " assertions (RuleLevel)")

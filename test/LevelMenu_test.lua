@@ -257,8 +257,31 @@ local function hasChoice(list, value)
     return false
 end
 
--- a level 2 category: only level 1 categories are offered, not the
--- Normal ones, and "(none)" stays first
+-- categories are tied to a bag: the candidates come from the
+-- categories of the current bag (bag 1), never from another bag
+local bag2cat = makeRule("Catégorie banque", 1)
+AutoCategory.RulesW.ruleList = { lvl1, norm, lvl2, lvl3, bag2cat }
+AutoCategory.saved = {
+    bags = {
+        [1] = { -- the current bag
+            rules = {
+                { name = "Niveau un", runpriority = 40, showpriority = 40 },
+                { name = "Ordinaire", runpriority = 30, showpriority = 30 },
+                { name = "Enfants", runpriority = 20, showpriority = 20 },
+                { name = "Petits-enfants", runpriority = 10, showpriority = 10 },
+            },
+        },
+        [2] = { -- another bag (a bank)
+            rules = {
+                { name = "Catégorie banque", runpriority = 10, showpriority = 10 },
+            },
+        },
+    },
+}
+
+-- a level 2 category: only level 1 categories of the current bag are
+-- offered, not the Normal ones, not the categories of another bag, and
+-- "(none)" stays first
 AC_UI.CatSet_SelectRule_LAM:setValue("Enfants")
 local choices = parentChoices()
 equal("", choices[1], "parent choices: (none) first")
@@ -268,6 +291,8 @@ equal(false, hasChoice(choices, "Ordinaire"),
 equal(false, hasChoice(choices, "Enfants"), "parent choices: self excluded")
 equal(false, hasChoice(choices, "Petits-enfants"),
     "parent choices: deeper level not offered")
+equal(false, hasChoice(choices, "Catégorie banque"),
+    "parent choices: another bag not offered")
 
 -- a level 3 category: only level 2 categories are offered
 AC_UI.CatSet_SelectRule_LAM:setValue("Petits-enfants")
@@ -283,6 +308,17 @@ AC_UI.CatSet_SelectRule_LAM:setValue("Enfants")
 choices = parentChoices()
 equal(true, hasChoice(choices, "Ordinaire"),
     "current Normal parent stays visible")
+lvl2.parent = nil
+
+-- the current parent of ANOTHER bag stays visible so it can still be
+-- changed: choosing it again is refused and keeps no parent instead
+lvl2.parent = "Catégorie banque"
+AC_UI.CatSet_SelectRule_LAM:setValue("Enfants")
+choices = parentChoices()
+equal(true, hasChoice(choices, "Catégorie banque"),
+    "current parent of another bag stays visible")
+AC_UI.CatSet_ParentDD_LAM:setValue("Catégorie banque")
+equal(nil, lvl2.parent, "parent of another bag refused by setValue")
 lvl2.parent = nil
 
 -- ---------------------------------------------------------------------------

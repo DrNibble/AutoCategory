@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-10, 13)[/COLOR]:
+[LIST]
+[*] Categories are tied to a bag, and the levels know it: the Parent dropdown of Edit Category only offers the categories of the bag being edited (a category of another bag - a bank category for an inventory category - is never offered as a parent), a parent of another bag is refused, and the display no longer nests a category under a parent that is not a section of its bag.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 12)[/COLOR]:
 [LIST]
 [*] "Lower level" and "Raise level" in the right-click menu of a category header in the inventory now fold and unfold the sub-levels under the category instead of stepping the level of its rule: "Lower level" collapses every lower-level header (the category itself stays expanded, with its own items and its folded sub-headers), "Raise level" expands the category when folded and every folded sub-level with it. An entry that cannot apply is not shown.

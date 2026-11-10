@@ -195,28 +195,40 @@ end
 -- current parent stays visible even when its level no longer matches, so
 -- it can still be changed. "(none)" leaves the category without a
 -- parent, which makes it a top-level section.
+-- Categories are tied to a bag (inventory, bank, guild bank, ...): a
+-- parent must be a category of the SAME bag as the category it nests.
+-- The candidates come from the categories of the current bag (its bag
+-- rules), not from the global rule list - a category of another bag (a
+-- bank category for an inventory category) is never offered, so a higher
+-- level category of one bag cannot be nested under a lower level
+-- category of another bag.
 local AC_PARENT_NONE = ""
 
--- rebuild the parent choices from the current rule list (the current
--- category is excluded: it cannot be its own parent)
+-- rebuild the parent choices from the categories of the current bag (the
+-- current category is excluded: it cannot be its own parent)
 function CatSet_ParentDD_LAM:refresh()
 	local choices = { L(SI_AC_MENU_EC_DROPDOWN_PARENT_NONE) }
 	local values = { AC_PARENT_NONE }
-	local ruleList = AutoCategory.RulesW.ruleList
 	local curName = currentRule and currentRule.name
 	-- the parent of a level N category is a level N-1 category (the
 	-- dropdown is disabled below level 2, so this only feeds levels 2-5)
 	local curLevel = CatSet_Level_getRuleLevel(currentRule)
+	-- categories are tied to a bag: the candidates are the categories of
+	-- the current bag (its bag rules), never the categories of the other
+	-- bags that share the global rule list
+	local bagId = AutoCategory.getCurrentBagId()
+	local savedBag = AutoCategory.saved and AutoCategory.saved.bags[bagId]
 	local names = {}
 	local seen = {}
-	for i = 1, #ruleList do
-		local r = ruleList[i]
-		local rname = r.name
+	local numRules = (savedBag and savedBag.rules) and #savedBag.rules or 0
+	for i = 1, numRules do
+		local rname = savedBag.rules[i].name
 		if rname and rname ~= "" and rname ~= curName and not seen[rname] then
 			-- keep the current parent visible even when its level no longer
 			-- matches (set before the level changed), so it can be changed.
 			-- Normal categories are not offered: only categories with an
 			-- explicit level of exactly one below are valid choices
+			local r = AutoCategory.GetRuleByName(rname)
 			local rlevel = CatSet_Level_getRuleLevel(r)
 			if rlevel == curLevel - 1
 				or (currentRule and currentRule.parent == rname) then
@@ -224,6 +236,15 @@ function CatSet_ParentDD_LAM:refresh()
 				names[#names + 1] = rname
 			end
 		end
+	end
+	-- keep the current parent visible even when it is not a category
+	-- of the current bag (set before categories were restricted to
+	-- their bag), so it can still be changed - choosing it again is
+	-- refused by setValue, which keeps no parent instead
+	local curParent = currentRule and currentRule.parent
+	if type(curParent) == "string" and curParent ~= ""
+		and curParent ~= curName and not seen[curParent] then
+		names[#names + 1] = curParent
 	end
 	table.sort(names)
 	for i = 1, #names do
@@ -259,6 +280,25 @@ function CatSet_ParentDD_LAM:setValue(value)
 				prule = AutoCategory.GetRuleByName(prule.parent)
 			else
 				break
+			end
+		end
+		-- categories are tied to a bag: refuse a parent that is not a
+		-- category of the current bag (a category of another bag) and
+		-- keep no parent instead - the dropdown only offers the
+		-- categories of the current bag, this guards the rest
+		if value ~= nil then
+			local bagId = AutoCategory.getCurrentBagId()
+			local savedBag = AutoCategory.saved and AutoCategory.saved.bags[bagId]
+			local inCurrentBag = false
+			local numRules = (savedBag and savedBag.rules) and #savedBag.rules or 0
+			for i = 1, numRules do
+				if savedBag.rules[i].name == value then
+					inCurrentBag = true
+					break
+				end
+			end
+			if not inCurrentBag then
+				value = nil
 			end
 		end
 	end

@@ -1,5 +1,36 @@
 # Changes
 
+## 2026-11-10 (13): the levels know the bag of their categories
+
+- Categories are tied to a bag (inventory, bank, guild bank, ...), and
+  the Level/Parent system now knows it: a parent must be a category of
+  the SAME bag as the category it nests. The Parent dropdown of Edit
+  Category (settings/CategorySettings.lua, CatSet_ParentDD_LAM:refresh)
+  draws its candidates from the categories of the current bag (its bag
+  rules) instead of the global rule list, so a category of another bag
+  (a bank category for an inventory category) is never offered - a
+  higher level category of one bag cannot be nested under a lower
+  level category of another bag. CatSet_ParentDD_LAM:setValue refuses
+  (and keeps no parent instead) a parent that is not a category of
+  the current bag, the same guard as the cyclic parents. The current
+  parent stays visible in the dropdown even when it is a category of
+  another bag (set before this restriction), so it can still be
+  changed - choosing it again clears it.
+- MatchCategoryRules (AutoCategory_API.lua) follows the same rule at
+  display time: the parent chain of a level 2-5 category stops at a
+  parent that is a category of ANOTHER bag (a bank category while
+  evaluating the inventory bag) - that parent is not a section in
+  this bag, so the category displays under its own name instead of
+  nesting under a category that does not exist here. A parent that is
+  a category of no bag at all is still followed: it is only a display
+  path. autoAttachParent already chose its parents from the current
+  bag only.
+- Strings: SI_AC_MENU_EC_DROPDOWN_PARENT_TOOLTIP documents the
+  same-bag rule in the 6 languages. Tests: LevelMenu_test covers the
+  bag filtering of the dropdown (a category of another bag not
+  offered, the current parent of another bag visible and refused by
+  setValue), RuleLevel_test covers the display-time chain stop.
+
 ## 2026-11-08 (12): the inventory header menu folds and unfolds the sub-levels
 
 - "Lower level" and "Raise level" in the right-click menu of a category

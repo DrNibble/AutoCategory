@@ -82,6 +82,10 @@ AutoCategory_localization_strings["es"] = {
     SI_AC_MENU_IBS_DROPDOWN_IMPORT_FROM_BAG_TOOLTIP = "Seleccione una configuración de bolsa para importar.",
     SI_AC_MENU_IBS_BUTTON_IMPORT = "Importar",
     SI_AC_MENU_IBS_BUTTON_IMPORT_TOOLTIP = "La importación sobrescribirá la configuración actual de la bolsa.",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES = "Categorías a importar",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES_TOOLTIP = "Las categorías a importar de la bolsa de origen: solo las categorías seleccionadas aquí se copian con «Importar categorías seleccionadas». La lista depende de la bolsa elegida en «Importar desde bolsa» - muestra las categorías de esa bolsa.",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES = "Importar categorías seleccionadas",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES_TOOLTIP = "Importa las categorías seleccionadas arriba de la bolsa de origen a la bolsa actual, reemplazando las categorías de la bolsa actual con el mismo nombre; las demás categorías de la bolsa actual se conservan.",
 
 	SI_AC_MENU_HEADER_UNIFY_BAG_SETTINGS = "Unificar todas las configuraciones de bolsas",
     SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS = "Exportar a todas las bolsas",

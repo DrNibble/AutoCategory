@@ -88,6 +88,10 @@ AutoCategory_localization_strings["ru"] = {
     SI_AC_MENU_IBS_DROPDOWN_IMPORT_FROM_BAG_TOOLTIP = "Выберите сумку из которой будут импортированы настройки.",
     SI_AC_MENU_IBS_BUTTON_IMPORT = "Импорт",
     SI_AC_MENU_IBS_BUTTON_IMPORT_TOOLTIP = "Импорт перезапишет настройки выбранной сумки.",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES = "Категории для импорта",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES_TOOLTIP = "Категории для импорта из сумки-источника: копируются только выбранные здесь категории (кнопкой «Импортировать выбранные категории»). Список зависит от сумки, выбранной в «Импорт из сумки», — в нём показаны категории этой сумки.",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES = "Импортировать выбранные категории",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES_TOOLTIP = "Импортирует выбранные выше категории из сумки-источника в текущую сумку, заменяя категории текущей сумки с теми же именами; остальные категории текущей сумки сохраняются.",
 
     SI_AC_MENU_HEADER_UNIFY_BAG_SETTINGS = "Унифицировать все настройки сумки",
     SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS = "Экспорт во все сумки",

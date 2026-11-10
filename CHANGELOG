@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-10, 14)[/COLOR]:
+[LIST]
+[*] The Import/Export section of the bag settings has a new function next to "Import From Bag" and its Import button: a "Categories To Import" multi-select dropdown and an "Import Selected Categories" button import only the selected categories from the source bag into the current bag (a same-name category of the current bag is replaced, the rest is kept); the choices of the dropdown depend on the source bag, and the whole bag import is unchanged.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-10, 13)[/COLOR]:
 [LIST]
 [*] Categories are tied to a bag, and the levels know it: the Parent dropdown of Edit Category only offers the categories of the bag being edited (a category of another bag - a bank category for an inventory category - is never offered as a parent), a parent of another bag is refused, and the display no longer nests a category under a parent that is not a section of its bag.

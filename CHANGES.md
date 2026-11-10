@@ -1,5 +1,34 @@
 # Changes
 
+## 2026-11-10 (14): import only the selected categories from another bag
+
+- The Import/Export section of the Bag Settings submenu
+  (settings/BagSet.lua) has a new function next to "Import From Bag"
+  and its Import button: a "Categories To Import" multi-select
+  dropdown (ImpExp_ImportCats_LAM, AC_DROPDOWN_IMPORTBAG_CATS) using
+  the LibAddonMenu-2.0 dropdown control with multiSelect (the feature
+  of the former LibAddonMenu-MultiSelectDropdown widget, built into
+  LAM2 since r36 - this addon requires LibAddonMenu-2.0>=43) and an
+  "Import Selected Categories" button (ImpExp_ImportSel_LAM). The
+  dropdown lists the categories of the source bag chosen in "Import
+  From Bag" (sorted by name, the tooltip is the category
+  description), so the choices depend on the bag; the button copies
+  only the selected categories into the current bag: their bag rules
+  (run priority, show priority, hidden state) are deep-copied from
+  the source bag, a category of the current bag with the same name is
+  replaced and the other categories of the current bag are kept (the
+  rule definitions are global and shared, only the bag rules are
+  copied). The whole bag import above is unchanged. The selection is
+  dropped for the categories that are no longer offered when the
+  source bag changes, and the button is disabled with nothing
+  selected or when the source bag is the current bag.
+- Strings: SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES,
+  SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES and their tooltips in the
+  6 languages. Tests: the new test/ImportCats_test.lua (27
+  assertions) loads the delivered settings/BagSet.lua and drives the
+  real LAM control definitions (setFunc / getFunc / func / disabled)
+  through a fake LAM control.
+
 ## 2026-11-10 (13): the levels know the bag of their categories
 
 - Categories are tied to a bag (inventory, bank, guild bank, ...), and

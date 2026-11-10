@@ -73,6 +73,8 @@ local AddCat_BagAdd_LAM = AC.BaseUI:New()	-- button
 local ImpExp_ExportAll_LAM = AC.BaseUI:New()	-- button
 local ImpExp_ImportBag_LAM = AC.BaseDD:New("AC_DROPDOWN_IMPORTBAG_BAG", nil, CVT.USE_VALUES + CVT.USE_TOOLTIPS)
 local ImpExp_Import_LAM = AC.BaseUI:New()	-- button
+local ImpExp_ImportCats_LAM = AC.BaseUI:New("AC_DROPDOWN_IMPORTBAG_CATS")	-- multi-select dropdown
+local ImpExp_ImportSel_LAM = AC.BaseUI:New()	-- button
 
 
 AC_UI.BagSet = {}
@@ -883,6 +885,9 @@ end
 -- -------------------------------------------------------
 function ImpExp_ImportBag_LAM:setValue(value)
 	self:select(value)
+	-- the categories to import depend on the source bag
+	ImpExp_ImportCats_LAM:refresh()
+	ImpExp_ImportCats_LAM:updateControl()
 end
 
 function ImpExp_ImportBag_LAM:controlDef()
@@ -934,6 +939,192 @@ function ImpExp_Import_LAM:controlDef()
 			func = function() self:execute() end,
 			disabled = function()
 				return getCurrentBagId() == ImpExp_ImportBag_LAM:getValue()
+			end,
+			width = "half",
+		}
+end
+-- -------------------------------------------------------
+
+-- customization of BaseUI for ImpExp_ImportCats_LAM multi-select dropdown
+-- -------------------------------------------------------
+-- Import Categories - AC_DROPDOWN_IMPORTBAG_CATS. The categories to
+-- import from the source bag: a multi-select dropdown (the
+-- LibAddonMenu-2.0 dropdown control with multiSelect, the feature of
+-- the former LibAddonMenu-MultiSelectDropdown widget, built into LAM2
+-- since r36 - this addon requires LibAddonMenu-2.0>=43). The list
+-- depends on the bag selected in "Import From Bag" above: it shows the
+-- categories of that source bag, and the button below copies only the
+-- selected categories into the current bag (the Import button above
+-- still copies the whole bag).
+local ImpExp_ImportCats_selected = {}	-- [category name] = true
+
+-- rebuild the choices from the categories of the source bag
+function ImpExp_ImportCats_LAM:refresh()
+	local srcBagId = ImpExp_ImportBag_LAM:getValue()
+	local choices = {}
+	local values = {}
+	local tooltips = {}
+	local names = {}
+	local offered = {}
+	local savedBag = srcBagId and AutoCategory.saved.bags[srcBagId]
+	if savedBag and savedBag.rules then
+		local seen = {}
+		for i = 1, #savedBag.rules do
+			local rname = savedBag.rules[i].name
+			if rname and rname ~= "" and not seen[rname] then
+				seen[rname] = true
+				names[#names + 1] = rname
+			end
+		end
+		table.sort(names)
+		for i = 1, #names do
+			choices[#choices + 1] = names[i]
+			values[#values + 1] = names[i]
+			offered[names[i]] = true
+			-- tooltip: the description of the category (level, parent)
+			-- like the category dropdowns of the bag settings
+			local r = AutoCategory.GetRuleByName(names[i])
+			if r and r.getDesc then
+				tooltips[#tooltips + 1] = r:getDesc()
+			else
+				tooltips[#tooltips + 1] = names[i]
+			end
+		end
+	end
+	self.choices = choices
+	self.values = values
+	self.tooltips = tooltips
+	-- drop the selected categories that are no longer offered (the
+	-- source bag changed, or its categories were renamed or removed)
+	for name in pairs(ImpExp_ImportCats_selected) do
+		if not offered[name] then
+			ImpExp_ImportCats_selected[name] = nil
+		end
+	end
+end
+
+function ImpExp_ImportCats_LAM:getFunc()
+	-- LAM multiSelect: getFunc must return a table of the selected values
+	local selected = {}
+	for name in pairs(ImpExp_ImportCats_selected) do
+		selected[#selected + 1] = name
+	end
+	return selected
+end
+
+function ImpExp_ImportCats_LAM:setValue(values)
+	-- LAM multiSelect: setFunc receives a table of the selected values
+	ImpExp_ImportCats_selected = {}
+	if type(values) == "table" then
+		for i = 1, #values do
+			ImpExp_ImportCats_selected[values[i]] = true
+		end
+	end
+end
+
+function ImpExp_ImportCats_LAM:updateControl()
+	local ctrl = WINDOW_MANAGER:GetControlByName(self:getControlName())
+	if not ctrl then return end
+	ctrl:UpdateChoices(self.choices, self.values, self.tooltips)
+	-- UpdateValue() without a value only makes LAM re-read getFunc and
+	-- refresh the display (the selected entries): it does not call
+	-- setFunc, so no setValue -> updateControl -> setFunc recursion
+	ctrl:UpdateValue()
+end
+
+function ImpExp_ImportCats_LAM:controlDef()
+	-- Import Categories - AC_DROPDOWN_IMPORTBAG_CATS
+	return
+		{
+			type = "dropdown",
+			name = SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES,
+			tooltip = SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES_TOOLTIP,
+			scrollable = true,
+			multiSelect = true,
+			choices = self.choices,
+			choicesValues = self.values,
+			choicesTooltips = self.tooltips,
+
+			getFunc = function() return self:getFunc() end,
+			setFunc = function(values) self:setValue(values) end,
+			default = {},
+			width = "half",
+			reference = self:getControlName(),
+		}
+end
+-- -------------------------------------------------------
+
+-- customization of BaseUI for ImpExp_ImportSel_LAM button
+-- -------------------------------------------------------
+-- Import Selected Categories Button: copies the categories chosen in
+-- the multi-select dropdown above from the source bag into the current
+-- bag - their bag rules (priorities, hidden state), not the whole bag.
+-- A category of the current bag with the same name is replaced, the
+-- other categories of the current bag are kept. The rule definitions
+-- themselves are global and shared: only the bag rules are copied.
+function ImpExp_ImportSel_LAM:execute()
+	local bagId = getCurrentBagId()
+	local srcBagId = ImpExp_ImportBag_LAM:getValue()
+	if not srcBagId or srcBagId == bagId then return end
+
+	local srcBag = AutoCategory.saved.bags[srcBagId]
+	if not srcBag or not srcBag.rules then return end
+
+	-- the destination bag settings (created empty when missing)
+	local destBag = getBagSettings(bagId)
+	if not destBag then
+		destBag = { rules = {} }
+		AutoCategory.saved.bags[bagId] = destBag
+	end
+	destBag.rules = destBag.rules or {}
+
+	local copied = 0
+	for name in pairs(ImpExp_ImportCats_selected) do
+		-- find the category (bag rule) in the source bag
+		local srcEntry
+		for i = 1, #srcBag.rules do
+			if srcBag.rules[i].name == name then
+				srcEntry = srcBag.rules[i]
+				break
+			end
+		end
+		if srcEntry then
+			-- replace the categories of the current bag with the same
+			-- name, then append the imported one
+			for i = #destBag.rules, 1, -1 do
+				if destBag.rules[i].name == name then
+					table.remove(destBag.rules, i)
+				end
+			end
+			destBag.rules[#destBag.rules + 1] = SF.deepCopy(srcEntry)
+			copied = copied + 1
+		end
+	end
+	if copied == 0 then return end
+
+	-- the same refreshes as the whole bag import
+	BagSet_SelectRule_LAM:clearIndex()
+	AddCat_SelectRule_LAM:clearIndex()
+
+	AutoCategory.cacheInitialize()
+	AC_UI.RefreshDropdownData()
+	AC_UI.RefreshControls()
+end
+
+function ImpExp_ImportSel_LAM:controlDef()
+	-- Import Selected Categories Button
+	return
+		{
+			type = "button",
+			name = SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES,
+			tooltip = SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES_TOOLTIP,
+			func = function() self:execute() end,
+			disabled = function()
+				-- nothing selected, or the source bag is the current bag
+				if getCurrentBagId() == ImpExp_ImportBag_LAM:getValue() then
+					return true
+				end
+				return next(ImpExp_ImportCats_selected) == nil
 			end,
 			width = "half",
 		}
@@ -1021,6 +1212,12 @@ function AC_UI.BagSet.controlDef()
 
 					-- Import Button
 					ImpExp_Import_LAM:controlDef(),
+
+					-- Import Categories (multi-select) - AC_DROPDOWN_IMPORTBAG_CATS
+					ImpExp_ImportCats_LAM:controlDef(),
+
+					-- Import Selected Categories Button
+					ImpExp_ImportSel_LAM:controlDef(),
 				},
 			},
 			AC_UI.divider(),
@@ -1071,7 +1268,9 @@ function AC_UI.BagSet.refresh()
 	--refresh current dropdown rules
 	BagSet_SelectRule_LAM:refresh()
 	AC_UI.AddCat_SelectRule_LAM:refresh()
-	
+
+	--refresh the categories to import from the source bag
+	ImpExp_ImportCats_LAM:refresh()
 end
 
 function AC_UI.BagSet_RefreshOrder()
@@ -1127,6 +1326,8 @@ function AC_UI.BagSet.updateControls()
 	AddCat_SelectTag_LAM:updateControl()
 	AC_UI.AddCat_SelectRule_LAM:refresh()
 	AddCat_SelectRule_LAM:updateControl()
+
+	ImpExp_ImportCats_LAM:updateControl()
 end
 
 
@@ -1142,6 +1343,8 @@ function AC_UI.BagSet.Init()
 	AddCat_SelectRule_LAM:clear()
 
 	ImpExp_ImportBag_LAM:assign(AutoCategory.cache.bags_cvt)
+
+	ImpExp_ImportCats_LAM:refresh()
 end
 
 

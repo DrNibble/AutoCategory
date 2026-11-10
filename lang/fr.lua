@@ -78,6 +78,10 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_MENU_IBS_DROPDOWN_IMPORT_FROM_BAG_TOOLTIP = "Sélectionne les paramètres du sac à importer.",
     SI_AC_MENU_IBS_BUTTON_IMPORT = "Importer",
     SI_AC_MENU_IBS_BUTTON_IMPORT_TOOLTIP = "L'importation écrasera les paramètres actuels du sac.",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES = "Catégories à importer",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES_TOOLTIP = "Les catégories à importer du sac source : seules les catégories sélectionnées ici sont copiées par « Importer les catégories sélectionnées ». La liste dépend du sac choisi dans « Importer d'un sac » - elle affiche les catégories de ce sac.",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES = "Importer les catégories sélectionnées",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES_TOOLTIP = "Importe les catégories sélectionnées ci-dessus du sac source dans le sac actuel, en remplaçant les catégories du sac actuel de même nom ; les autres catégories du sac actuel sont conservées.",
 
     SI_AC_MENU_HEADER_UNIFY_BAG_SETTINGS = "Unifier tous les paramètres de sac",
     SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS = "Exporter les paramètres",

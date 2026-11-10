@@ -77,6 +77,10 @@ AutoCategory_localization_strings["zh"] = {
     SI_AC_MENU_IBS_DROPDOWN_IMPORT_FROM_BAG_TOOLTIP = "请选择一个背包来导入配置。",
     SI_AC_MENU_IBS_BUTTON_IMPORT = "导入",
     SI_AC_MENU_IBS_BUTTON_IMPORT_TOOLTIP = "导入会覆盖当前背包的配置。",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES = "要导入的分类",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES_TOOLTIP = "要从源背包导入的分类：只有在此处选中的分类才会被“导入所选分类”复制。列表取决于“从背包导入”中选择的背包——它显示该背包的分类。",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES = "导入所选分类",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES_TOOLTIP = "将上方选中的分类从源背包导入到当前背包，替换当前背包中同名的分类；当前背包的其他分类保持不变。",
 
     SI_AC_MENU_HEADER_UNIFY_BAG_SETTINGS = "统一使用当前背包配置",
     SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS = "导出到所有的背包",

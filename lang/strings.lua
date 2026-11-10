@@ -89,6 +89,10 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_MENU_IBS_DROPDOWN_IMPORT_FROM_BAG_TOOLTIP = "Select a bag setting to import from.",
     SI_AC_MENU_IBS_BUTTON_IMPORT = "Import",
     SI_AC_MENU_IBS_BUTTON_IMPORT_TOOLTIP = "Import will overwrite current bag setting.",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES = "Categories To Import",
+    SI_AC_MENU_IBS_DROPDOWN_IMPORT_CATEGORIES_TOOLTIP = "The categories to import from the source bag: only the categories selected here are copied by Import Selected Categories. The list depends on the bag selected in Import From Bag - it shows the categories of that bag.",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES = "Import Selected Categories",
+    SI_AC_MENU_IBS_BUTTON_IMPORT_CATEGORIES_TOOLTIP = "Imports the categories selected above from the source bag into the current bag, replacing the current bag categories with the same name; the other categories of the current bag are kept.",
 
     SI_AC_MENU_HEADER_UNIFY_BAG_SETTINGS = "Unify All Bag Settings",
     SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS = "Export to all bags",

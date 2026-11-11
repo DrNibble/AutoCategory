@@ -1,5 +1,33 @@
 # Changes
 
+## 2026-11-11 (15): add an item to a category from the inventory context menu
+
+- Right-clicking an item in the inventory (player inventory, bank,
+  guild bank, craft bag, home storage chests, furniture vault,
+  vengeance) now shows an "AutoCategory" submenu (AutoCategory.lua,
+  setupContextMenu) with the categories (levels) of the bag the item
+  is in: all of them, in display order (the order of the Display
+  Order window), indented one step per sub-menu level. Categories are
+  tied to a bag: a bank item lists the categories of the bank bag, an
+  inventory item the categories of the inventory bag.
+- Selecting a category adds the itemId of the right-clicked item to
+  the isitemid() command of that category's rule (the new rule mixin
+  method addItemIdToIsItemId, classes/RuleApi.lua): when the rule has
+  no isitemid() call yet, " or isitemid(<itemId>)" is appended to the
+  rule text (an empty rule text becomes just the command); when the
+  command already exists, <itemId> is added to the parameters of its
+  last call, unless the id is already a parameter of one of its calls
+  (then nothing changes). A longer name that only ends with
+  isitemid is not taken for the command.
+- The rule is compiled again and everything refreshes like a rule
+  edit in Edit Category (cacheInitialize, the settings dropdowns and
+  controls, the open inventories re-sorted so the item moves into the
+  category right away).
+- Categories whose rule is predefined (a plugin rule) are not
+  offered: a predefined rule is not editable, the same guard as the
+  Edit Category rule editbox.
+- Test: test/RuleItemId_test.lua (22 assertions, Lua 5.1 off-game).
+
 ## 2026-11-10 (14): import only the selected categories from another bag
 
 - The Import/Export section of the Bag Settings submenu

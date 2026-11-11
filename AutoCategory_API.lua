@@ -60,6 +60,12 @@ local function convert2BagTypeId(bagId, acprimary)
 	return BagTypeConversion[bagId]
 end
 
+-- convert ZOS bag type to AC bag type - public form of
+-- convert2BagTypeId (used by the inventory context menu)
+function AutoCategory.getBagTypeId(bagId, acprimary)
+    return convert2BagTypeId(bagId, acprimary)
+end
+
 function AutoCategory.validateBagRules(bagId, acprimary)
 	return AutoCategory.validateACBagRules(convert2BagTypeId(bagId, acprimary))
 end

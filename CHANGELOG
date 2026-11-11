@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-11, 15)[/COLOR]:
+[LIST]
+[*] Right-clicking an item in the inventory shows an "AutoCategory" submenu with the categories (levels) of the bag the item is in; selecting a category adds the itemId of the item to the isitemid() command of that category's rule - appended as " or isitemid(<itemId>)" when the command is missing, or added to its parameters when it already exists - and the item lands in the category. Predefined rules are not offered (not editable).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-10, 14)[/COLOR]:
 [LIST]
 [*] The Import/Export section of the bag settings has a new function next to "Import From Bag" and its Import button: a "Categories To Import" multi-select dropdown and an "Import Selected Categories" button import only the selected categories from the source bag into the current bag (a same-name category of the current bag is replaced, the rest is kept); the choices of the dropdown depend on the source bag, and the whole bag import is unchanged.

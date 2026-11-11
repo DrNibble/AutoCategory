@@ -719,8 +719,64 @@ local function setupContextMenu()
 		local name = GetItemName(bagId, slotIndex)
 		sysd("[AC] "..tostring(name).."   itemId = "..tostring(itemId))
 	end
+	local function AC_AddToCategoryMenu(rowControl, bagId, slotIndex)
+		-- the "AutoCategory" submenu: the categories (levels) of the
+		-- bag the item is in, in display order. Selecting a category adds
+		-- the itemId of the item to the isitemid() command of that
+		-- category's rule, so the item lands in that category.
+		local bagTypeId = AutoCategory.getBagTypeId(bagId)
+		if not bagTypeId then return end
+		local bag = AutoCat.saved.bags[bagTypeId]
+		if not bag or not bag.rules then return end
+
+		-- the categories in display order (the order of the Display
+		-- Order window): a copy of the list, the saved order stays
+		-- untouched
+		local rules = {}
+		for i = 1, #bag.rules do
+			rules[#rules + 1] = bag.rules[i]
+		end
+		AutoCat.SortBagRulesByDisplay(rules)
+
+		local itemId = GetItemId(bagId, slotIndex)
+		local entries = {}
+		for i = 1, #rules do
+			local bagrule = rules[i]
+			local rule = AutoCategory.GetRuleByName(bagrule.name)
+			-- only the categories whose rule can be edited: a predefined
+			-- rule is not editable (the same guard as Edit Category)
+			if rule and not rule:isPredefined() then
+				-- indent the category under its level (a Normal category
+				-- counts as level 1)
+				local level = 1
+				if type(rule.level) == "number" and rule.level >= 2
+					and rule.level <= 5 and rule.level == math.floor(rule.level) then
+					level = rule.level
+				end
+				local label = string.rep("    ", level - 1) .. bagrule.name
+				entries[#entries + 1] = {
+					label = label,
+					callback = function()
+						if not rule:addItemIdToIsItemId(itemId) then return end
+						rule:compile()
+						-- the same refreshes as a rule edit in Edit Category
+						AutoCat.cacheInitialize()
+						AC_UI.RefreshDropdownData()
+						AC_UI.RefreshControls()
+						-- re-sort the open inventories so the item moves now
+						AutoCat.RefreshCurrentList()
+					end,
+				}
+			end
+		end
+		if #entries > 0 then
+			AddCustomSubMenuItem("AutoCategory", entries)
+		end
+	end
+
 	local function AC_AddMenuItem(rowControl, slotActions)
 		local bagId, slotIndex = ZO_Inventory_GetBagAndIndex(rowControl)
+		AC_AddToCategoryMenu(rowControl, bagId, slotIndex)
 		AddCustomMenuItem("AC: Get itemId", function() AC_GetItem(rowControl) end, MENU_ADD_OPTION_LABEL)
         if AutoCat.displayItem then
 		    AddCustomMenuItem("AC: Debug", function() AutoCat.displayItem(bagId, slotIndex) end, MENU_ADD_OPTION_LABEL)

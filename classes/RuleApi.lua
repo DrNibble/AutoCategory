@@ -210,6 +210,61 @@ AutoCategory.RuleApiMixin = {
 			return ""
 		end,
 	
+	-- Add the itemId to the rule's isitemid() command (the inventory
+	-- context menu): when the rule has no isitemid() call, append
+	-- " or isitemid(<id>)" to the rule text (or just the command when
+	-- the rule text is empty); when the command already exists, add
+	-- <id> to the parameters of its last call, unless the id is
+	-- already a parameter of one of its calls. Returns true when the
+	-- rule text changed, false when there was nothing to do.
+	addItemIdToIsItemId = function(self, itemId)
+		local text = self.rule or ""
+		local idStr = tostring(itemId)
+
+		-- find the isitemid() calls of the rule (the pattern does not
+		-- match a longer name that only ends with isitemid)
+		local lastStart, lastEnd
+		local pos = 1
+		while true do
+			local s, e = text:find("%f[%a]isitemid%s*%b()", pos)
+			if not s then break end
+			lastStart, lastEnd = s, e
+			pos = e + 1
+		end
+
+		if not lastStart then
+			-- no isitemid() command yet: append it to the rule
+			if text:find("%S") then
+				self.rule = text .. " or isitemid(" .. idStr .. ")"
+			else
+				self.rule = "isitemid(" .. idStr .. ")"
+			end
+			return true
+		end
+
+		-- the command already exists: nothing to do when the id is
+		-- already a parameter of one of its calls
+		for call in text:gmatch("%f[%a]isitemid%s*%b()") do
+			local args = call:match("%((.*)%)")
+			for arg in args:gmatch("[^,]+") do
+				arg = arg:gsub("^%s+", ""):gsub("%s+$", "")
+				if arg == idStr then return false end
+			end
+		end
+
+		-- add the id to the parameters of the last isitemid() call
+		local call = text:sub(lastStart, lastEnd)
+		local args = call:match("%((.*)%)")
+		if args and args:find("%S") then
+			args = args .. ", " .. idStr
+		else
+			args = idStr
+		end
+		self.rule = text:sub(1, lastStart - 1) .. "isitemid(" .. args .. ")"
+			.. text:sub(lastEnd + 1)
+		return true
+	end,
+
 	-- returns nil if the rule is not compiled, non-nil if it is compiled
 	isCompiled = function(self)
 		if self.name == nil or self.name == "" then

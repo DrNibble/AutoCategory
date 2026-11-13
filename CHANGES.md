@@ -1,5 +1,31 @@
 # Changes
 
+## 2026-11-13 (4.6.16): commit scroll lists after replacing their data
+
+- Fixed a Lua error in ZO_ScrollList_UpdateScroll ("operator < is
+  not supported for nil < number") when scrolling an inventory list
+  or a shared dropdown after a guild bank rebuild
+  (Hooks_Keyboard.lua, rebuildScrollData): the function replaces
+  list.data without committing the list, and in a NON_UNIFORM scroll
+  list (mode 2) an entry only gets its top/bottom offsets from
+  ZO_ScrollList_Commit - an uncommitted entry has a nil top, which
+  crashes the first scroll update. The guild bank path is the main
+  trigger: its delayed retry (zo_callLater 100 ms) rebuilds the data
+  and returns without a commit, and every keyboard dropdown shares
+  the singleton ZO_ComboBoxDropdown_Singleton_Keyboard scroll list,
+  which stays NON_UNIFORM once any dropdown has used spacing or a
+  custom template (e.g. the currency dropdown). rebuildScrollData now
+  always calls ZO_ScrollList_Commit(list) after replacing the data,
+  so every entry - including the category headers (typeId 998) -
+  receives its scroll position.
+- updateHook no longer fails silently when started without an
+  inventory: it was started via SF.CallLater:NewSingle(updateHook, 50)
+  with no argument, so zo_inventory was nil and SF_safeCall swallowed
+  the error; it now only rebuilds when zo_inventory exists.
+- Verified offline with Lua 5.1 (test/ScrollCommit_test.lua, 14
+  assertions, model of the ZO scroll list: 5 fail without the fix,
+  14 pass with); not tested in ESO.
+
 ## 2026-11-11 (15): add an item to a category from the inventory context menu
 
 - Right-clicking an item in the inventory (player inventory, bank,

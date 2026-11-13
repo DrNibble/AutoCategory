@@ -690,6 +690,14 @@ local function rebuildScrollData(zo_inventory)
     end
 	handleRules(scrollData, true)
 	list.data = createNewScrollData(scrollData)
+	--The replaced entries (including category headers, typeId 998) only
+	--receive their top/bottom scroll positions from ZO_ScrollList_Commit.
+	--Replacing list.data without committing leaves them nil, which crashes
+	--ZO_ScrollList_UpdateScroll ("operator < is not supported for nil <
+	--number") as soon as the list - or a shared non-uniform scroll list
+	--such as the combobox dropdown - scrolls. Callers like ApplySort sort
+	--and commit again afterwards, which is harmless.
+	ZO_ScrollList_Commit(list)
 	return true
 end
 
@@ -819,7 +827,11 @@ local function updateHook(zo_inventory)
     end
     pendingUpdates = SF.safeClearTable(pendingUpdates)
 
-    rebuildScrollData(zo_inventory)
+    --The one-shot CallLater is started without arguments; a nil inventory
+    --would fail silently inside SF_safeCall. Guard instead.
+    if zo_inventory then
+        rebuildScrollData(zo_inventory)
+    end
 end
 
 

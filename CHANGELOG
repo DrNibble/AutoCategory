@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] 4.6.16 (156)[/COLOR]:
+[LIST]
+[*] Fixed a Lua error in ZO_ScrollList_UpdateScroll ("operator < is not supported for nil < number") when scrolling a list or a shared dropdown after a guild bank rebuild: replacing a scroll list's data now always commits the list so every entry (including category headers) receives its scroll position.
+[*] updateHook no longer fails silently when started without an inventory.
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-11, 15)[/COLOR]:
 [LIST]
 [*] Right-clicking an item in the inventory shows an "AutoCategory" submenu with the categories (levels) of the bag the item is in; selecting a category adds the itemId of the item to the isitemid() command of that category's rule - appended as " or isitemid(<itemId>)" when the command is missing, or added to its parameters when it already exists - and the item lands in the category. Predefined rules are not offered (not editable).

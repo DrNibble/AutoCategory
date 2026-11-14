@@ -445,12 +445,15 @@ local function refreshAfterChange()
     AutoCategory.RefreshCurrentList()
 end
 
--- The AutoCategory submenu of the category header context menu: the
+-- The AutoCategory entries of the category header context menu: the
 -- level operations on the clicked category and the categories nested
--- under it, and the copy of the whole level to another bag. Added by
--- AC_ItemRowHeader_OnShowContextMenu (AutoCategory.lua); a no-op for
--- headers with no operable backing rule. The menu is keyboard-only:
--- the gamepad inventory lists have no right click.
+-- under it as direct menu entries, and the copy of the whole level
+-- to another bag in a "Copy To" submenu. A submenu cannot hold a
+-- submenu in ESO, so the level operations cannot be nested inside
+-- the copy submenu: they sit at the top level of the menu, next to
+-- it. Added by AC_ItemRowHeader_OnShowContextMenu (AutoCategory.lua);
+-- a no-op for headers with no operable backing rule. The menu is
+-- keyboard-only: the gamepad inventory lists have no right click.
 function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
@@ -464,61 +467,55 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     local subtree = CLM.SubtreeInBag(bagTypeId, rule.name)
     if not subtree then return end
 
-    local entries = {}
-
+    -- the level operations are direct entries of the header context
+    -- menu (a submenu cannot hold a submenu in ESO, so they cannot
+    -- be nested inside the "Copy To" submenu)
     if CLM.CanIncrease(subtree) then
-        entries[#entries + 1] = {
-            label = GetString(SI_AC_MENU_CM_LEVEL_UP),
-            callback = function()
+        AddCustomMenuItem(GetString(SI_AC_MENU_CM_LEVEL_UP),
+            function()
                 if CLM.ShiftLevels(bagTypeId, subtree, 1) then
                     refreshAfterChange()
                 end
-            end,
-        }
+            end, MENU_ADD_OPTION_LABEL)
     end
     if CLM.CanDecrease(subtree) then
-        entries[#entries + 1] = {
-            label = GetString(SI_AC_MENU_CM_LEVEL_DOWN),
-            callback = function()
+        AddCustomMenuItem(GetString(SI_AC_MENU_CM_LEVEL_DOWN),
+            function()
                 if CLM.ShiftLevels(bagTypeId, subtree, -1) then
                     refreshAfterChange()
                 end
-            end,
-        }
+            end, MENU_ADD_OPTION_LABEL)
     end
 
     if CLM.EffectiveLevel(rule) < 5 then
-        entries[#entries + 1] = {
-            label = GetString(SI_AC_MENU_CM_NEW_LEVEL),
-            callback = function()
+        AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_LEVEL),
+            function()
                 if CLM.CreateSubLevel(bagTypeId, rule.name) then
                     refreshAfterChange()
                 end
-            end,
-        }
+            end, MENU_ADD_OPTION_LABEL)
     end
 
-    entries[#entries + 1] = {
-        label = GetString(SI_AC_MENU_CM_DELETE_LEVEL),
-        callback = function()
+    AddCustomMenuItem(GetString(SI_AC_MENU_CM_DELETE_LEVEL),
+        function()
             if CLM.DeleteLevelInBag(bagTypeId, rule.name) then
                 refreshAfterChange()
             end
-        end,
-    }
+        end, MENU_ADD_OPTION_LABEL)
 
     -- copy the category and the categories nested under it to another
-    -- bag: every other bag of the addon (the rules are shared; the
-    -- categories already present in the destination bag are skipped)
+    -- bag: every other bag of the addon in a "Copy To" submenu (the
+    -- rules are shared; the categories already present in the
+    -- destination bag are skipped)
+    local copyEntries = {}
     local bags_cvt = AutoCategory.cache and AutoCategory.cache.bags_cvt
     if bags_cvt and bags_cvt.choices and bags_cvt.choicesValues then
         for i = 1, #bags_cvt.choicesValues do
             local bagId = bags_cvt.choicesValues[i]
             local bagName = bags_cvt.choices[i]
             if bagId ~= bagTypeId and bagName then
-                entries[#entries + 1] = {
-                    label = string.format(
-                        GetString(SI_AC_MENU_CM_COPY_TO), bagName),
+                copyEntries[#copyEntries + 1] = {
+                    label = bagName,
                     callback = function()
                         local copied, skipped = CLM.CopySubtreeToBag(
                             bagTypeId, rule.name, bagId)
@@ -531,6 +528,8 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
             end
         end
     end
-
-    AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_SUBMENU), entries)
+    if #copyEntries > 0 then
+        AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_COPY_SUBMENU),
+            copyEntries)
+    end
 end

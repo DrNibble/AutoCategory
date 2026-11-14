@@ -205,12 +205,11 @@ AutoCategory_localization_strings["de"] = {
     SI_CONTEXT_MENU_EXPAND_ALL = "Alle aufklappen",
     SI_CONTEXT_MENU_COLLAPSE_ALL = "Alle zuklappen",
     -- Category header context menu: AutoCategory level operations
-    SI_AC_MENU_CM_SUBMENU = "AutoCategory",
     SI_AC_MENU_CM_LEVEL_UP = "Level erhöhen",
     SI_AC_MENU_CM_LEVEL_DOWN = "Level senken",
     SI_AC_MENU_CM_NEW_LEVEL = "Neue Unterebene",
     SI_AC_MENU_CM_DELETE_LEVEL = "Level löschen",
-    SI_AC_MENU_CM_COPY_TO = "Kopieren nach: %s",
+    SI_AC_MENU_CM_COPY_SUBMENU = "Kopieren nach",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d Kategorien nach %s kopiert (%d bereits vorhanden).",
 
 }

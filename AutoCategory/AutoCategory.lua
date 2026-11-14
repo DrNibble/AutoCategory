@@ -1403,9 +1403,10 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
             AutoCat.RefreshCurrentList()
         end
     )
-    -- the AutoCategory level submenu: the level operations on the
-    -- clicked category and the categories nested under it (a no-op
-    -- for headers with no operable backing rule)
+    -- the AutoCategory level entries: the level operations on the
+    -- clicked category and the categories nested under it, and the
+    -- "Copy To" submenu with the other bags (a no-op for headers
+    -- with no operable backing rule)
     if AutoCategory.AddCategoryLevelMenuEntries then
         AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     end

@@ -1,5 +1,26 @@
 # Changes
 
+## 2026-11-14 (18): Flat level operations and a Copy To submenu in the header right click
+
+- The level operations of the category header context menu are no
+  longer wrapped in an "AutoCategory" submenu: "Increase Level",
+  "Decrease Level", "New Sub-Level" and "Delete Level" are direct
+  entries of the right click menu of a category header, next to the
+  collapse entries.
+- The "Copy to: <bag>" entries are now a "Copy To" submenu holding
+  the other inventories of the addon (backpack, bank, guild bank,
+  craft bag, craft station, house bank, furniture vault, vengeance),
+  one entry per inventory, the clicked one excluded. ESO cannot nest
+  a submenu inside a submenu (a LibCustomMenu limitation), which is
+  why the level operations stay at the top level of the menu and the
+  copy submenu sits next to them.
+- The copy behavior is unchanged: the global rules are reused (the
+  categories are shared with the source bag), the categories already
+  present in the destination bag are skipped, and the missing
+  ancestors are copied along so the level keeps its place.
+- Not tested in the game client (ESO); tested offline with Lua 5.1
+  (CategoryLevelMenu_test reworked for the new menu structure, 99
+  assertions, all existing suites still pass).
 ## 2026-11-14 (17): SavedVariables file size optimization
 
 - The AutoCategory SavedVariables file of a long-time player grows

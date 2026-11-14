@@ -257,12 +257,11 @@ AutoCategory_localization_strings["ru"] = {
     SI_CONTEXT_MENU_EXPAND_ALL = "Развернуть все",
     SI_CONTEXT_MENU_COLLAPSE_ALL = "Свернуть все",
     -- Category header context menu: AutoCategory level operations
-    SI_AC_MENU_CM_SUBMENU = "AutoCategory",
     SI_AC_MENU_CM_LEVEL_UP = "Повысить уровень",
     SI_AC_MENU_CM_LEVEL_DOWN = "Понизить уровень",
     SI_AC_MENU_CM_NEW_LEVEL = "Новый подуровень",
     SI_AC_MENU_CM_DELETE_LEVEL = "Удалить уровень",
-    SI_AC_MENU_CM_COPY_TO = "Копировать в: %s",
+    SI_AC_MENU_CM_COPY_SUBMENU = "Копировать в",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: скопировано категорий в %s: %d (уже было: %d).",
 
 }

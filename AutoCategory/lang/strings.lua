@@ -260,12 +260,11 @@ AutoCategory_localization_strings["en"] = {
     SI_CONTEXT_MENU_EXPAND_ALL = "Expand All",
     SI_CONTEXT_MENU_COLLAPSE_ALL = "Collapse All",
     -- Category header context menu: AutoCategory level operations
-    SI_AC_MENU_CM_SUBMENU = "AutoCategory",
     SI_AC_MENU_CM_LEVEL_UP = "Increase Level",
     SI_AC_MENU_CM_LEVEL_DOWN = "Decrease Level",
     SI_AC_MENU_CM_NEW_LEVEL = "New Sub-Level",
     SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level",
-    SI_AC_MENU_CM_COPY_TO = "Copy to: %s",
+    SI_AC_MENU_CM_COPY_SUBMENU = "Copy To",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there).",
 
 }

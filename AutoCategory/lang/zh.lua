@@ -217,12 +217,11 @@ AutoCategory_localization_strings["zh"] = {
     SI_CONTEXT_MENU_EXPAND_ALL = "展开全部",
     SI_CONTEXT_MENU_COLLAPSE_ALL = "全部折叠",
     -- Category header context menu: AutoCategory level operations
-    SI_AC_MENU_CM_SUBMENU = "AutoCategory",
     SI_AC_MENU_CM_LEVEL_UP = "提高层级",
     SI_AC_MENU_CM_LEVEL_DOWN = "降低层级",
     SI_AC_MENU_CM_NEW_LEVEL = "新建子层级",
     SI_AC_MENU_CM_DELETE_LEVEL = "删除层级",
-    SI_AC_MENU_CM_COPY_TO = "复制到：%s",
+    SI_AC_MENU_CM_COPY_SUBMENU = "复制到",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory：已复制 %d 个分类到 %s（%d 个已存在）。",
 
 }

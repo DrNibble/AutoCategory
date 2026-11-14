@@ -16,12 +16,11 @@ end
 -- ---------------------------------------------------------------------------
 
 -- string constants (the real translations live in lang/)
-SI_AC_MENU_CM_SUBMENU = "AutoCategory"
 SI_AC_MENU_CM_LEVEL_UP = "Increase Level"
 SI_AC_MENU_CM_LEVEL_DOWN = "Decrease Level"
 SI_AC_MENU_CM_NEW_LEVEL = "New Sub-Level"
 SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level"
-SI_AC_MENU_CM_COPY_TO = "Copy to: %s"
+SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
 SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there)."
 SI_AC_DEFAULT_NAME_NEW_CATEGORY = "NewCategory"
 SI_AC_DEFAULT_NAME_EMPTY_TAG = "<Empty>"
@@ -153,8 +152,12 @@ CHAT_ROUTER = {
 
 -- context menu capture
 local capturedSubmenus = {}
+local capturedItems = {}
 function AddCustomSubMenuItem(text, entries)
     capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries }
+end
+function AddCustomMenuItem(text, callback)
+    capturedItems[#capturedItems + 1] = { label = text, callback = callback }
 end
 function AddMenuItem() end
 function ClearMenu() end
@@ -398,30 +401,36 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 -- Part 7: the context menu itself
 -- ---------------------------------------------------------------------------
 
--- a header of a category of the bag gets the AutoCategory submenu
--- (Kid is Normal here: no Decrease entry, three copy entries for the
--- three bags of the stub other than the clicked one)
+-- a header of a category of the bag gets the flat level entries and
+-- the Copy To submenu (Kid is Normal here: no Decrease entry; three
+-- copy entries for the three bags of the stub other than the
+-- clicked one)
 capturedSubmenus = {}
+capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(1, #capturedSubmenus, "one submenu is added for an operable header")
-equal("AutoCategory", capturedSubmenus[1].text, "the submenu is the AutoCategory menu")
+equal(3, #capturedItems, "increase, new level and delete entries for an operable header")
+equal("Increase Level", capturedItems[1].label, "first entry increases the level")
+equal("New Sub-Level", capturedItems[2].label)
+equal("Delete Level", capturedItems[3].label)
+equal(1, #capturedSubmenus, "one Copy To submenu is added for an operable header")
+equal("Copy To", capturedSubmenus[1].text, "the submenu is the Copy To menu")
 local menu = capturedSubmenus[1].entries
-equal(6, #menu, "increase, new level, delete and three copy entries")
-equal("Increase Level", menu[1].label, "first entry increases the level")
-equal("New Sub-Level", menu[2].label)
-equal("Delete Level", menu[3].label)
-equal("Copy to: Backpack", menu[4].label,
-    "the copy entries list the other bags")
+equal(3, #menu, "the copy entries list the other bags")
+equal("Backpack", menu[1].label)
+equal("Bank", menu[2].label)
+equal("Guild Bank", menu[3].label)
 
 -- the callbacks run the operations and refresh
 refreshCalls.cacheInitialize = 0
-menu[1].callback()
+capturedItems[1].callback()
 equal(2, rKid.level, "the increase callback deepens the level")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 
--- a header with no backing rule gets no submenu
+-- a header with no backing rule gets no entries
 capturedSubmenus = {}
+capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Others", 12)
+equal(0, #capturedItems, "no entries for a category without a rule")
 equal(0, #capturedSubmenus, "no submenu for a category without a rule")
 
 -- a predefined rule is not operable
@@ -429,34 +438,41 @@ newRule("Pred", 1)
 ruleList[ruleNames["Pred"]].pred = 1
 setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
+capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Pred", 13)
+equal(0, #capturedItems, "no entries for a predefined rule")
 equal(0, #capturedSubmenus, "no submenu for a predefined rule")
 
--- a category that is not a category of the clicked bag gets no submenu
+-- a category that is not a category of the clicked bag gets no entries
 capturedSubmenus = {}
+capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root", 13)
+equal(0, #capturedItems, "no entries outside the bag of the header")
 equal(0, #capturedSubmenus, "no submenu outside the bag of the header")
 
 -- at level 5 the increase and new level entries are left out
 newRule("Deep", 5)
 setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
+capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
+equal(2, #capturedItems, "no increase and no new level at level 5")
+equal("Decrease Level", capturedItems[1].label)
+equal("Delete Level", capturedItems[2].label)
 menu = capturedSubmenus[1].entries
-equal(5, #menu, "no increase and no new level at level 5")
-equal("Decrease Level", menu[1].label)
-equal("Delete Level", menu[2].label)
-equal("Copy to: Backpack", menu[3].label)
+equal(3, #menu, "the copy entries are still offered at level 5")
+equal("Backpack", menu[1].label)
 
 -- the copy callback copies and reports to the chat
 setBag(15, { { name = "CopyMe", runpriority = 7, showpriority = 7 } })
 newRule("CopyMe", 1)
 capturedSubmenus = {}
+capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("CopyMe", 15)
 menu = capturedSubmenus[1].entries
 local copyEntry = nil
 for i = 1, #menu do
-    if menu[i].label == "Copy to: Backpack" then
+    if menu[i].label == "Backpack" then
         copyEntry = menu[i]
     end
 end

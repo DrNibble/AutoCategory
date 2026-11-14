@@ -115,7 +115,7 @@ AutoCategory.compiledRules = {}
 AutoCategory.CategorySortNames = {}
 
 -- The real CategoryTree, loaded from the delivered file.
-assert(loadfile("CategoryTree.lua"))()
+assert(loadfile("AutoCategory_CategoryTree.lua"))()
 
 -- Rule compilation, the way classes/RuleApi.lua does it.
 local rulesByName = {}

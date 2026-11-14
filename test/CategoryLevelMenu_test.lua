@@ -39,9 +39,9 @@ local ruleMeta = { __index = ruleMixin }
 
 AutoCategory = {}
 
--- load the delivered CategoryTree.lua, then the delivered
+-- load the delivered AutoCategory_CategoryTree.lua, then the delivered
 -- CategoryLevelMenu.lua (never copies of them)
-assert(loadfile("CategoryTree.lua"))()
+assert(loadfile("AutoCategory_CategoryTree.lua"))()
 assert(loadfile("CategoryLevelMenu.lua"))()
 
 local CLM = AutoCategory.CategoryLevelMenu

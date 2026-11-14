@@ -11,7 +11,7 @@ local function equal(expected, actual, message)
 end
 
 AutoCategory = {}
-local CT = assert(loadfile("CategoryTree.lua"))()
+local CT = assert(loadfile("AutoCategory_CategoryTree.lua"))()
 if CT then AutoCategory.CategoryTree = CT end
 assert(AutoCategory.CategoryTree, "CategoryTree not registered")
 

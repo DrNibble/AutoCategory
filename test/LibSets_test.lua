@@ -357,7 +357,7 @@ AutoCategory.SetCategoryCollapsed = function() end
 AutoCategory.IsCategoryCollapsed = function() return false end
 -- The merged hooks reference the delivered CategoryTree library
 -- (ParentOf, BuildSortKey, JoinDisplayName): load it for real.
-assert(loadfile("CategoryTree.lua"))()
+assert(loadfile("AutoCategory_CategoryTree.lua"))()
 CategoryTree = AutoCategory.CategoryTree
 local rules = {
     arena = { name = "ZZZ parent", key = function() return 1 end },

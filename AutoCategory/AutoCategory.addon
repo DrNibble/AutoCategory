@@ -19,7 +19,7 @@ ZOS_Overwrites.lua
 
 AutoCategory_Global.lua
 AutoCategory_Defaults.lua
-AutoCategory_CategoryTree.lua
+AutoCategory_Tree.lua
 Plugin_API.lua
 AutoCategory.xml
 Hooks_Keyboard.lua
@@ -31,7 +31,7 @@ classes/BagRuleApi.lua
 classes/BaseUI.lua
 ;misc/MiscDebugFuncs.lua
 AutoCategory.lua
-CategoryLevelMenu.lua
+AutoCategory_LevelMenu.lua
 SavedVarsCompact.lua
 
 settings/UI_Utilities.lua

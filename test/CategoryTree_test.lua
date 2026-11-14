@@ -52,7 +52,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Part 1: the delivered CategoryTree library
 -- ---------------------------------------------------------------------------
-assert(loadfile("AutoCategory_CategoryTree.lua"))()
+assert(loadfile("AutoCategory_Tree.lua"))()
 local CategoryTree = AutoCategory.CategoryTree
 
 equal("Potions", (CategoryTree.Split("Potions")), "flat split parent")

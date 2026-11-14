@@ -41,8 +41,8 @@ AutoCategory = {}
 
 -- load the delivered AutoCategory_CategoryTree.lua, then the delivered
 -- CategoryLevelMenu.lua (never copies of them)
-assert(loadfile("AutoCategory_CategoryTree.lua"))()
-assert(loadfile("CategoryLevelMenu.lua"))()
+assert(loadfile("AutoCategory_Tree.lua"))()
+assert(loadfile("AutoCategory_LevelMenu.lua"))()
 
 local CLM = AutoCategory.CategoryLevelMenu
 local CategoryTree = AutoCategory.CategoryTree

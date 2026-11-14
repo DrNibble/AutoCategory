@@ -32,6 +32,7 @@ classes/BaseUI.lua
 ;misc/MiscDebugFuncs.lua
 AutoCategory.lua
 CategoryLevelMenu.lua
+SavedVarsCompact.lua
 
 settings/UI_Utilities.lua
 settings/GeneralMenu.lua

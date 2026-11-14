@@ -333,6 +333,15 @@ function AutoCat.UpdateCurrentSavedVars()
 	AutoCat.PruneCollapse(acctSaved)
 	-- bags/collapses might or might not be acct wide
     if not charSaved.accountWide then
+        -- when switching back from account-wide settings, make sure the
+        -- per-character tables exist (they are cleaned up while unused)
+        if charSaved.bags == nil or SF.isEmpty(charSaved.bags) then
+            charSaved.bags = SF.safeTable(charSaved.bags)
+            SF.defaultMissing(charSaved.bags, AutoCat.defaultAcctBagSettings.bags)
+        end
+        if charSaved.collapses == nil then
+            charSaved.collapses = SF.safeTable(charSaved.collapses)
+        end
         saved.bags = charSaved.bags
         saved.collapses = charSaved.collapses
     
@@ -960,12 +969,30 @@ local function loadSavedVars()
 	if isEmpty(AutoCat.acctSaved.bags) then 
 		defaultMissing(AutoCat.acctSaved.bags, AutoCat.defaultAcctBagSettings.bags)
 	end
-	if isEmpty(AutoCat.charSaved.bags) then
+	-- when the account-wide setting is on, the per-character bags are never
+	-- read (and are cleaned up by SavedVarsCompact) - do not fill them back
+	-- with the default categories
+	if isEmpty(AutoCat.charSaved.bags) and not AutoCat.charSaved.accountWide then
 		defaultMissing(AutoCat.charSaved.bags, AutoCat.defaultAcctBagSettings.bags)
 	end
 
 	-- There are no char-level variables for AutoCatRules!
     AutoCat.acctRules  = SF.getAcctSavedVars("AutoCatRules", 1.1, AutoCat.default_rules)
+
+    -- size optimization of the saved variables file (see SavedVarsCompact.lua):
+    -- fill the trimmed defaults back into the current account's bag rules, then
+    -- drop the dead per-character data and trim the other accounts' sections
+    -- in the raw table (the game writes the whole file at logout)
+    local SVC = AutoCategory.SavedVarsCompact
+    if SVC then
+        if not AutoCat.charSaved.accountWide then
+            SVC.InflateBagRules(AutoCat.charSaved.bags)
+        end
+        SVC.InflateBagRules(AutoCat.acctSaved.bags)
+        SVC.CleanupDeadCharacterData(_G["AutoCategorySavedVars"])
+        SVC.TrimOtherAccounts(_G["AutoCategorySavedVars"],
+            GetDisplayName and GetDisplayName() or nil)
+    end
 end
 
 -- setup that needs to be done when the addon is loaded into the game
@@ -995,6 +1022,13 @@ end
 -- Unload handling – make sure the hooks are cleared when the add‑on stops
 function AutoCategory:OnAddOnUnloaded(eventCode, addonName)
     if addonName ~= self.name then return end
+
+    -- trim the redundant default values from the current account's
+    -- bag rules before the game writes the saved variables file
+    local SVC = AutoCategory.SavedVarsCompact
+    if SVC and self.charSaved then
+        SVC.TrimCurrentAccount(self.acctSaved, self.charSaved)
+    end
 
     AutoCat.UnHookKeyboardMode()
 

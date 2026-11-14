@@ -1,5 +1,47 @@
 # Changes
 
+## 2026-11-14 (17): SavedVariables file size optimization
+
+- The AutoCategory SavedVariables file of a long-time player grows
+  past a megabyte, mostly with data that is never read again: every
+  character section keeps a full copy of the bag category lists and
+  collapse states even when the account-wide setting is on (the
+  account-wide section is used instead), older versions left data in
+  a format that is no longer read (rules with a "priority" key), every
+  bag rule repeats its default values (runpriority 1000, showpriority
+  equal to runpriority, isHidden false), and the sections of every
+  account ever logged in on the machine stay in the file forever
+  (the game rewrites the whole file at logout).
+- New file SavedVarsCompact.lua (pure Lua, no dependency, unit tested
+  in test/SavedVarsCompact_test.lua) with the fix, applied
+  automatically at load and logout:
+- At load, the dead per-character data of every account in the file
+  is removed (bags, collapses, rules, general and appearance of a
+  character using account-wide settings - its section keeps only
+  the accountWide flag, the version and the character name). The
+  load no longer fills the per-character bags back with the default
+  categories while the account-wide setting is on (the old default
+  refill created the bulk again on every login). Measured on the
+  1.5 MB file this was tested with: the file drops to about 0.7 MB.
+- At load and at logout, the redundant default values are trimmed
+  from the bag rules (showpriority when equal to runpriority,
+  runpriority 1000, isHidden false) and filled back at the next
+  load (InflateBagRules, which also migrates the old "priority" key),
+  so the values the addon works with are unchanged. The current
+  account is trimmed at logout only (its tables are read during the
+  session); the other accounts are trimmed at load.
+- Switching a character from account-wide back to character
+  specific settings now recreates its bags (from the default
+  categories) and collapse table when they were cleaned up, instead
+  of pointing the live settings at a missing table.
+- Why not LibSavedVars: the library manages flat settings tables and
+  its proxy cannot be iterated with pairs() or the # operator, which
+  AutoCategory relies on everywhere; its own documentation advises
+  against it for addons with custom scope logic like this one. The
+  valuable part (not persisting default values) is implemented
+  natively instead.
+- Not tested in the game client (ESO); tested offline with Lua 5.1
+  (73 new assertions, all existing suites still pass).
 ## 2026-11-14 (16): AutoCategory submenu on the category header right click
 
 - Right-clicking a category header in any keyboard inventory list

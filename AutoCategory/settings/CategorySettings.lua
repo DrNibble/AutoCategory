@@ -1,0 +1,1089 @@
+local AC = AutoCategory
+--local SF = LibSFUtils
+
+local L = GetString
+local CVT = AutoCategory.CVT
+local logDebug = AutoCategory.logDebug
+
+
+local auBagSet = AC_UI.BagSet
+local emptyValueTbl = {}        -- for CVT select() to select first
+
+local CatSet_SelectTag_LAM = AC.BaseDD:New("AC_DROPDOWN_EDITRULE_TAG") -- only uses choices
+-- Make accessible to BagSet
+AC_UI.CatSet_SelectTag_LAM = CatSet_SelectTag_LAM
+
+local CatSet_SelectRule_LAM = AC.BaseDD:New("AC_DROPDOWN_EDITRULE_RULE", nil,  CVT.USE_TOOLTIPS) -- uses choicesTooltips
+local CatSet_ParentDD_LAM = AC.BaseDD:New("AC_DROPDOWN_EDITRULE_PARENT", nil, CVT.USE_VALUES) -- uses choicesValues
+-- Make accessible to BagSet
+AC_UI.CatSet_SelectRule_LAM = CatSet_SelectRule_LAM
+-- Make accessible to the Display Order window and the tests
+AC_UI.CatSet_ParentDD_LAM = CatSet_ParentDD_LAM
+
+-- local to this screen
+local catSet_NewCat_LAM = AC.BaseUI:New() 	-- button
+local catSet_CopyCat_LAM = AC.BaseUI:New() 	-- button
+local CatSet_DeleteCat_LAM = AC.BaseUI:New()	-- button
+local CatSet_NameEdit_LAM = AC.BaseUI:New("AC_EDITBOX_EDITRULE_NAME") -- editbox
+local CatSet_TagEdit_LAM = AC.BaseUI:New("AC_EDITBOX_EDITRULE_TAG")	-- editbox
+
+local AC_EMPTY_TAG_NAME = L(SI_AC_DEFAULT_NAME_EMPTY_TAG)
+
+-- Level dropdown (Edit Category): the sub-menu level of the category.
+-- Replaces the former leveldisplay() rule function: the level is now a
+-- property of the rule instead of a call inside its rule text.
+-- AC_LEVEL_NORMAL (no level set) is the ordinary flat category: it
+-- counts as level 1 (a top-level section), exactly like an explicit 1 -
+-- only the displayed level text differs; 2-5 are nested sub-sections
+-- (see MatchCategoryRules).
+local AC_LEVEL_NORMAL = 0
+local CatSet_Level_choices = {
+	L(SI_AC_MENU_EC_DROPDOWN_LEVEL_NORMAL),
+	"1", "2", "3", "4", "5",
+}
+local CatSet_Level_values = { AC_LEVEL_NORMAL, 1, 2, 3, 4, 5 }
+
+-- Returns the level of the rule for the dropdown, or AC_LEVEL_NORMAL when
+-- the rule has no (or an out-of-range) level.
+local function CatSet_Level_getRuleLevel(rule)
+	if rule and type(rule.level) == "number"
+		and rule.level >= 1 and rule.level <= 5
+		and rule.level == math.floor(rule.level) then
+		return rule.level
+	end
+	return AC_LEVEL_NORMAL
+end
+
+AC_UI.CatSet = {}
+
+-- Returns the level of the rule for the UI (1-5), or AC_LEVEL_NORMAL
+-- (a Normal category) when the rule has no (or an out-of-range) level.
+function AC_UI.CatSet.GetRuleLevel(rule)
+	return CatSet_Level_getRuleLevel(rule)
+end
+
+local currentRule = AutoCategory.CreateRule("","")
+
+-- Refresh the displayed value of the Level and Parent dropdowns (and the
+-- Parent enabled state) after the current rule, its level or its parent
+-- changed.
+local function CatSet_SyncEditRuleControls()
+	-- UpdateValue() WITHOUT a value only makes LAM re-read getFunc and
+	-- refresh the displayed text: it does not call setFunc. Passing a value
+	-- would call our setFunc, which calls CatSet_SyncEditRuleControls again
+	-- and recurses forever (Maximum call depth exceeded).
+	local lvlCtrl = WINDOW_MANAGER:GetControlByName("AC_DROPDOWN_EDITRULE_LEVEL")
+	if lvlCtrl then
+		lvlCtrl:UpdateValue()
+	end
+	CatSet_ParentDD_LAM.cvt.indexValue = (currentRule and currentRule.parent) or ""
+	CatSet_ParentDD_LAM:updateControl()
+	local pctrl = WINDOW_MANAGER:GetControlByName("AC_DROPDOWN_EDITRULE_PARENT")
+	if pctrl then
+		-- same display-only refresh for the parent dropdown
+		pctrl:UpdateValue()
+	end
+	if pctrl and pctrl.UpdateDisabled then
+		pctrl:UpdateDisabled()
+	end
+end
+
+-- Attach to a level 2-5 category the parent of the level just below,
+-- automatically: the nearest level N-1 category above it in the display
+-- order of the current bag (the section it visually follows there), or
+-- the first one when it sits above them all. Only categories with an
+-- explicit level are candidates (Normal categories are not offered as
+-- parents). A parent already set is never touched.
+local function autoAttachParent(rule)
+	local level = rule.level
+	if type(level) ~= "number" or level < 2 or level > 5 then
+		return
+	end
+	if type(rule.parent) == "string" and rule.parent ~= "" then
+		return -- the parent is left as the user set it
+	end
+	local bagId = AutoCategory.getCurrentBagId()
+	local savedBag = AutoCategory.saved and AutoCategory.saved.bags[bagId]
+	if not savedBag or not savedBag.rules then return end
+
+	-- the display order of the Category Display Order window:
+	-- show priority high to low, then name
+	local ordered = {}
+	for _, brule in ipairs(savedBag.rules) do
+		if brule and type(brule.name) == "string" and brule.name ~= "" then
+			ordered[#ordered + 1] = brule
+		end
+	end
+	table.sort(ordered, function(a, b)
+		local ap = a.showpriority or a.runpriority or 0
+		local bp = b.showpriority or b.runpriority or 0
+		if ap ~= bp then
+			return ap > bp
+		end
+		return a.name < b.name
+	end)
+
+	local nearest, first, passedSelf
+	for _, brule in ipairs(ordered) do
+		if brule.name == rule.name then
+			passedSelf = true
+		else
+			local r = AutoCategory.GetRuleByName(brule.name)
+			if r and CatSet_Level_getRuleLevel(r) == level - 1 then
+				first = first or brule.name
+				if not passedSelf then
+					nearest = brule.name
+				end
+			end
+		end
+	end
+	rule.parent = nearest or first
+end
+
+-- Apply a level change (AC_LEVEL_NORMAL or 1-5) to a rule and refresh
+-- everything that depends on it. Shared by the Edit Category level
+-- dropdown and the Display Order window context menu, so both change
+-- the level exactly the same way.
+function AC_UI.CatSet.SetRuleLevel(rule, level)
+	if not rule then return end
+	-- LAM calls setFunc on every UpdateValue(false, value), including
+	-- programmatic refreshes: stop when the level did not change, or
+	-- setFunc -> SetRuleLevel -> sync -> UpdateValue -> setFunc recurses
+	-- forever.
+	if (rule.level or AC_LEVEL_NORMAL) == (level or AC_LEVEL_NORMAL) then
+		return
+	end
+	if level == nil or level == AC_LEVEL_NORMAL then
+		rule.level = nil
+	else
+		rule.level = level
+		-- a level category is a display section: default its rule text
+		-- to true when it is empty
+		if rule.rule == nil or rule.rule == "" then
+			rule.rule = "true"
+			rule:compile()
+		end
+		-- a level 2-5 category nests under a parent of the level just
+		-- below: attach the nearest one automatically when no parent is
+		-- set yet, so choosing the level right away nests the category.
+		-- The Parent dropdown can still change it.
+		autoAttachParent(rule)
+	end
+	-- keep the Edit Category rule editbox in step when it shows this rule
+	if currentRule == rule then
+		local rctrl = WINDOW_MANAGER:GetControlByName("AC_EDITBOX_EDITRULE_RULE")
+		if rctrl and rctrl.editbox then
+			rctrl.editbox:SetText(rule.rule or "")
+		end
+	end
+	CatSet_ParentDD_LAM:refresh()
+	CatSet_SyncEditRuleControls()
+	-- the level of the rule shows in the category tooltips
+	AutoCategory.cacheInitialize()
+	AC_UI.RefreshDropdownData()
+	AC_UI.RefreshControls()
+	AC_UI.BagSet_RefreshOrder()
+end
+
+-- customization of BaseDD for CatSet_ParentDD_LAM (Edit Category)
+-- -------------------------------------------------------
+-- The parent of a level 2-5 category: the category under which it is
+-- nested (its sub-menu path is the parent chain). Choices are the
+-- categories of the level just below (the parent of a level 2 category is
+-- a level 1 category, and so on); Normal categories are not listed -
+-- only categories with an explicit level can be chosen as a parent. The
+-- current parent stays visible even when its level no longer matches, so
+-- it can still be changed. "(none)" leaves the category without a
+-- parent, which makes it a top-level section.
+-- Categories are tied to a bag (inventory, bank, guild bank, ...): a
+-- parent must be a category of the SAME bag as the category it nests.
+-- The candidates come from the categories of the current bag (its bag
+-- rules), not from the global rule list - a category of another bag (a
+-- bank category for an inventory category) is never offered, so a higher
+-- level category of one bag cannot be nested under a lower level
+-- category of another bag.
+local AC_PARENT_NONE = ""
+
+-- rebuild the parent choices from the categories of the current bag (the
+-- current category is excluded: it cannot be its own parent)
+function CatSet_ParentDD_LAM:refresh()
+	local choices = { L(SI_AC_MENU_EC_DROPDOWN_PARENT_NONE) }
+	local values = { AC_PARENT_NONE }
+	local curName = currentRule and currentRule.name
+	-- the parent of a level N category is a level N-1 category (the
+	-- dropdown is disabled below level 2, so this only feeds levels 2-5)
+	local curLevel = CatSet_Level_getRuleLevel(currentRule)
+	-- categories are tied to a bag: the candidates are the categories of
+	-- the current bag (its bag rules), never the categories of the other
+	-- bags that share the global rule list
+	local bagId = AutoCategory.getCurrentBagId()
+	local savedBag = AutoCategory.saved and AutoCategory.saved.bags[bagId]
+	local names = {}
+	local seen = {}
+	local numRules = (savedBag and savedBag.rules) and #savedBag.rules or 0
+	for i = 1, numRules do
+		local rname = savedBag.rules[i].name
+		if rname and rname ~= "" and rname ~= curName and not seen[rname] then
+			-- keep the current parent visible even when its level no longer
+			-- matches (set before the level changed), so it can be changed.
+			-- Normal categories are not offered: only categories with an
+			-- explicit level of exactly one below are valid choices
+			local r = AutoCategory.GetRuleByName(rname)
+			local rlevel = CatSet_Level_getRuleLevel(r)
+			if rlevel == curLevel - 1
+				or (currentRule and currentRule.parent == rname) then
+				seen[rname] = true
+				names[#names + 1] = rname
+			end
+		end
+	end
+	-- keep the current parent visible even when it is not a category
+	-- of the current bag (set before categories were restricted to
+	-- their bag), so it can still be changed - choosing it again is
+	-- refused by setValue, which keeps no parent instead
+	local curParent = currentRule and currentRule.parent
+	if type(curParent) == "string" and curParent ~= ""
+		and curParent ~= curName and not seen[curParent] then
+		names[#names + 1] = curParent
+	end
+	table.sort(names)
+	for i = 1, #names do
+		choices[#choices + 1] = names[i]
+		values[#values + 1] = names[i]
+	end
+	-- assign() silently ignores a plain table (it checks GetUses): build a
+	-- real CVT or the choices never reach the dropdown
+	local cvtTbl = CVT:New(nil, nil, CVT.USE_VALUES)
+	cvtTbl.choices = choices
+	cvtTbl.choicesValues = values
+	self:assign(cvtTbl)
+	self.cvt.indexValue = (currentRule and currentRule.parent) or AC_PARENT_NONE
+end
+
+function CatSet_ParentDD_LAM:setValue(value)
+	if not currentRule then return end
+
+	if value == nil or value == AC_PARENT_NONE then
+		value = nil
+	else
+		-- refuse a parent that would create a cycle (this rule itself
+		-- or one of its ancestors): keep no parent instead
+		local visited = { [currentRule.name] = true }
+		local prule = AutoCategory.GetRuleByName(value)
+		while prule do
+			if visited[prule.name] then
+				value = nil
+				break
+			end
+			visited[prule.name] = true
+			if type(prule.parent) == "string" and prule.parent ~= "" then
+				prule = AutoCategory.GetRuleByName(prule.parent)
+			else
+				break
+			end
+		end
+		-- categories are tied to a bag: refuse a parent that is not a
+		-- category of the current bag (a category of another bag) and
+		-- keep no parent instead - the dropdown only offers the
+		-- categories of the current bag, this guards the rest
+		if value ~= nil then
+			local bagId = AutoCategory.getCurrentBagId()
+			local savedBag = AutoCategory.saved and AutoCategory.saved.bags[bagId]
+			local inCurrentBag = false
+			local numRules = (savedBag and savedBag.rules) and #savedBag.rules or 0
+			for i = 1, numRules do
+				if savedBag.rules[i].name == value then
+					inCurrentBag = true
+					break
+				end
+			end
+			if not inCurrentBag then
+				value = nil
+			end
+		end
+	end
+
+	-- BaseDD:updateControl calls UpdateValue(false, value), which calls the
+	-- setFunc -> setValue again: stop when the parent did not change, or
+	-- setValue -> updateControl -> setFunc -> setValue recurses forever.
+	local oldvalue = self:getValue() or AC_PARENT_NONE
+	if oldvalue == (value or AC_PARENT_NONE) then
+		return
+	end
+
+	currentRule.parent = value
+	self.cvt.indexValue = value or AC_PARENT_NONE
+	self:updateControl()
+	-- the level/parent of the rule shows in the category tooltips
+	AutoCategory.cacheInitialize()
+	AC_UI.RefreshDropdownData()
+	AC_UI.RefreshControls()
+end
+
+function CatSet_ParentDD_LAM:controlDef()
+	-- Parent - AC_DROPDOWN_EDITRULE_PARENT
+	return
+		{
+			type = "dropdown",
+			name = SI_AC_MENU_EC_DROPDOWN_PARENT,
+			tooltip = SI_AC_MENU_EC_DROPDOWN_PARENT_TOOLTIP,
+			choices = self.cvt.choices,
+			choicesValues = self.cvt.choicesValues,
+			getFunc = function()
+				if currentRule and currentRule.parent then
+					return currentRule.parent
+				end
+				return AC_PARENT_NONE
+			end,
+			setFunc = function(value) self:setValue(value) end,
+			disabled = function()
+				if currentRule == nil or currentRule:isPredefined() then return true end
+				return CatSet_Level_getRuleLevel(currentRule) < 2
+			end,
+			width = "half",
+			reference = self:getControlName(),
+		}
+end
+-- -------------------------------------------------------
+
+--warning message
+local warningDuplicatedName = {
+	warningMessage = nil,
+}
+AC_UI.warningDuplicatedName = warningDuplicatedName
+
+-- aliases
+local getCurrentBagId = AutoCategory.getCurrentBagId
+
+function AC_UI.CatSet.clearRuleCheckStatus()
+	ruleCheckStatus.err = nil
+	ruleCheckStatus.good = nil
+end
+-- -------------------------------------------------------
+
+local ruleCheckStatus = {}
+
+function ruleCheckStatus.getTitle()
+    if ruleCheckStatus.err == nil then
+        if ruleCheckStatus.good == nil then
+            return ""
+
+        else
+            return L(SI_AC_MENU_EC_BUTTON_CHECK_RESULT_GOOD)
+        end
+
+    else
+        if not currentRule.damaged then
+            return L(SI_AC_MENU_EC_BUTTON_CHECK_RESULT_WARNING)
+        end
+        return L(SI_AC_MENU_EC_BUTTON_CHECK_RESULT_ERROR)
+    end
+end
+
+function ruleCheckStatus.getText()
+    if ruleCheckStatus.err == nil then
+        return ""
+
+    else
+        return ruleCheckStatus.err
+    end
+end
+
+local function checkKeywords(str)
+    local result = {}
+     for w in string.gmatch(str, "[a-zA-Z0-9_/]+") do
+         local found = false
+         if AutoCategory.Environment[w] then
+             found = true
+ 
+         else
+             for i=1, #AutoCategory.dictionary do
+                 if AutoCategory.dictionary[i][w] then
+                     found = true
+                     break;
+                 end
+             end
+         end
+         if found == false then
+             result[#result+1] = w
+         end
+     end
+    return result
+ end
+ 
+function AC_UI.checkCurrentRule()
+    ruleCheckStatus.err = nil
+    ruleCheckStatus.good = nil
+    if currentRule == nil then
+        return
+    end
+
+    if currentRule.rule == nil or currentRule.rule == "" then
+		currentRule:setError(true,"Rule definition cannot be empty")
+		ruleCheckStatus.err = currentRule.err
+        return
+    end
+
+    local _, err = zo_loadstring("return("..currentRule.rule..")")
+    if err then
+		ruleCheckStatus.err = err
+        currentRule.damaged = true
+		currentRule.err = err
+
+    else
+        local errt = checkKeywords(currentRule.rule)
+        if #errt == 0 then
+            ruleCheckStatus.good = true
+            currentRule.damaged = nil
+
+        else
+            ruleCheckStatus.err = table.concat(errt,", ")
+            currentRule.damaged = nil
+        end
+    end
+end
+
+-- customization of BaseDD for CatSet_SelectTag_LAM
+-- -------------------------------------------------------
+function CatSet_SelectTag_LAM:setValue(value)
+	if not value then return end
+	local oldvalue = self:getValue()
+	if oldvalue == value then return end
+
+	self:select(value)
+
+	CatSet_SelectRule_LAM:assign(AutoCategory.RulesW.tagGroups[value])
+	if currentRule and currentRule.tag == value then
+		CatSet_SelectRule_LAM:select(currentRule.name)
+	end
+	CatSet_SelectRule_LAM:refresh()
+	CatSet_SelectRule_LAM:updateControl()
+
+	AC_UI.AddCat_SelectTag_LAM:assign({choices=AutoCategory.RulesW.tags})
+	AC_UI.AddCat_SelectTag_LAM:updateControl()
+
+	AC_UI.AddCat_SelectRule_LAM:updateControl()
+end
+
+-- refresh the value of the cvt lists for CatSet_SelectTag_LAM from the 
+-- current contents of the AutoCategory.RulesW.tags list.
+function CatSet_SelectTag_LAM:refresh()
+	if self:getValue() == nil then
+		self:select(AutoCategory.RulesW.tags)
+	end
+end
+
+function CatSet_SelectTag_LAM:controlDef()
+	return
+		-- Tags - AC_DROPDOWN_EDITRULE_TAG
+		{
+			type = "dropdown",
+			name = SI_AC_MENU_CS_DROPDOWN_TAG,
+			tooltip = SI_AC_MENU_CS_DROPDOWN_TAG_TOOLTIP,
+			scrollable = true,
+			choices = self.cvt.choices,
+			sort = "name-up",
+
+			getFunc = function()
+				return self:getValue()
+			end,
+
+			setFunc = function(value) self:setValue(value) end,
+			width = "half",
+			disabled = function() return CatSet_SelectTag_LAM:size() == 0 end,
+			reference = self:getControlName(),
+		}
+end
+-- -------------------------------------------------------
+
+
+-- customization of BaseDD for CatSet_SelectRule_LAM
+-- -------------------------------------------------------
+function CatSet_SelectRule_LAM:getValue()
+	logDebug("CatSet_SelectRule_LAM:getValue returns ", self.cvt.indexValue)
+  	return self.cvt.indexValue
+end
+
+-- refresh the contents and value of the cvt lists for CatSet_SelectRule_LAM from the 
+-- current contents of the AutoCategory.RulesW.tagGroups[tag] list.
+function CatSet_SelectRule_LAM:refresh()
+	local ltag = CatSet_SelectTag_LAM:getValue()
+	if not ltag then return end
+
+	-- dropdown lists for Edit Rule (Category) selection (AC_DROPDOWN_EDITRULE_RULE)
+	local dataCurrentRules_EditRule = CVT:New(nil,nil,CVT.USE_TOOLTIPS)
+	local oldndx = self:getValue()
+	if AutoCategory.RulesW.tagGroups[ltag] then
+		dataCurrentRules_EditRule:assign(AutoCategory.RulesW.tagGroups[ltag])
+	end
+	self:assign(dataCurrentRules_EditRule)
+	if oldndx then
+		self:select(oldndx)
+	end
+	if self:getValue() == nil then
+		self:select(emptyValueTbl)	-- select first
+	end
+end
+
+function CatSet_SelectRule_LAM:setValue(value)
+	self:select(value)
+	currentRule = AutoCategory.GetRuleByName(value)
+	CatSet_ParentDD_LAM:refresh()
+	CatSet_SyncEditRuleControls()
+	AC_UI.checkCurrentRule()
+end
+
+function CatSet_SelectRule_LAM:controlDef()
+	-- Categories - AC_DROPDOWN_EDITRULE_RULE
+	return
+		{
+			type = "dropdown",
+			name = SI_AC_MENU_CS_DROPDOWN_CATEGORY,
+			scrollable = true,
+			choices = self.cvt.choices,
+			choicesTooltips =  self.cvt.choicesTooltips,
+			sort = "name-up",
+
+			getFunc = function()
+				currentRule = AutoCategory.GetRuleByName(self:getValue())
+				return self:getValue()
+			end,
+			setFunc = function(value) self:setValue(value) end,
+			disabled = function() return self:size() == 0 end,
+			width = "half",
+			reference = self:getControlName(),
+		}
+end
+-- -------------------------------------------------------
+
+-- customization of BaseUI for catSet_NewCat_LAM button
+-- -------------------------------------------------------
+function catSet_NewCat_LAM:execute()
+	local newName = AutoCategory.GetUsableRuleName(L(SI_AC_DEFAULT_NAME_NEW_CATEGORY))
+	local tag = CatSet_SelectTag_LAM:getValue()
+	if tag == "" then
+		tag = AC_EMPTY_TAG_NAME
+	end
+	local newRule = AutoCategory.CreateRule(newName, tag)
+	AutoCategory.ARW:AddRule(newRule)
+	AutoCategory.cache.AddRule(newRule)
+
+	currentRule = newRule
+
+	CatSet_SelectRule_LAM:refresh()
+	CatSet_SelectRule_LAM:setValue(currentRule.name)
+	CatSet_SelectRule_LAM:updateControl()
+
+	CatSet_SelectTag_LAM:setValue(currentRule.tag)
+	CatSet_SelectTag_LAM:refresh()
+	CatSet_SelectTag_LAM:updateControl()
+
+	AC_UI.AddCat_SelectTag_LAM:setValue(currentRule.tag)
+	AC_UI.AddCat_SelectRule_LAM:assign(AC_UI.AddCat_SelectRule_LAM.filterRules(getCurrentBagId(),currentRule.tag))
+	AC_UI.AddCat_SelectTag_LAM:refresh()
+	AC_UI.BagSet.updateControls()
+
+	AC_UI.RefreshDropdownData()
+	if currentRule and currentRule:isCompiled() == nil then
+    	AutoCategory.RulesW:CompileAll()
+	end
+end
+
+function catSet_NewCat_LAM:controlDef()
+	-- New Category Button
+	return
+		{
+			type = "button",
+			name = SI_AC_MENU_EC_BUTTON_NEW_CATEGORY,
+			tooltip = SI_AC_MENU_EC_BUTTON_NEW_CATEGORY_TOOLTIP,
+			func = function() self:execute() end,
+			width = "half",
+		}
+end
+-- -------------------------------------------------------
+
+-- customization of BaseUI for catSet_CopyCat_LAM button
+-- -------------------------------------------------------
+function catSet_CopyCat_LAM:execute()
+	local ruleName = CatSet_SelectRule_LAM:getValue()	-- source
+	local tag = CatSet_SelectTag_LAM:getValue()
+	if tag == "" then
+		tag = AC_EMPTY_TAG_NAME
+	end
+
+	local srcRule = AutoCategory.GetRuleByName(ruleName)
+	if not srcRule then return end
+
+	local newRule = AutoCategory.CopyFrom(srcRule)
+	AutoCategory.ARW:AddRule(newRule)
+	AutoCategory.cache.AddRule(newRule)
+
+	currentRule = newRule
+
+	CatSet_SelectTag_LAM:setValue(currentRule.tag)
+	CatSet_SelectTag_LAM:refresh()
+
+	CatSet_SelectRule_LAM:refresh()
+	CatSet_SelectRule_LAM:setValue(currentRule.name)
+	CatSet_SelectRule_LAM:updateControl()
+	AC_UI.checkCurrentRule()
+
+	local SelectRule_LAM = AC_UI.AddCat_SelectRule_LAM
+    AutoCategory.RulesW:CompileAll()
+	-- Add the rule to the bagSet Add Category dropdown and perform appropriate updates
+	SelectRule_LAM:assign(SelectRule_LAM.filterRules(getCurrentBagId(), currentRule.tag))
+	AC_UI.BagSet.updateControls()
+end
+
+function catSet_CopyCat_LAM:controlDef()
+	-- Copy Category/Rule Button
+	return
+		{
+			type = "button",
+			name = SI_AC_MENU_EC_BUTTON_COPY_CATEGORY,
+			tooltip = SI_AC_MENU_EC_BUTTON_COPY_CATEGORY_TOOLTIP,
+			func = function() self:execute() end,
+			disabled = function() return currentRule == nil end,
+			width = "half",
+		}
+
+end
+-- -------------------------------------------------------
+
+-- customization of BaseUI for CatSet_NameEdit_LAM editbox
+-- -------------------------------------------------------
+function CatSet_NameEdit_LAM:getValue()
+	if currentRule then
+		return currentRule.name
+	end
+	return ""
+end
+
+function CatSet_NameEdit_LAM:setValue(value)
+	local oldName = CatSet_SelectRule_LAM:getValue()
+	if oldName == value then
+		return
+	end
+	if value == "" then
+		warningDuplicatedName.warningMessage = L(
+			SI_AC_WARNING_CATEGORY_NAME_EMPTY)
+		--value = oldName
+		return
+	end
+
+	local isDuplicated = AutoCategory.RulesW.ruleNames[value] ~= nil
+	if isDuplicated then
+		warningDuplicatedName.warningMessage = string.format(
+			L(SI_AC_WARNING_CATEGORY_NAME_DUPLICATED),
+			value, AutoCategory.GetUsableRuleName(value))
+		value = oldName
+		--change editbox's value
+		local control = WINDOW_MANAGER:GetControlByName("AC_EDITBOX_EDITRULE_NAME")
+		control.editbox:SetText(value)
+		return
+	end
+
+	currentRule.name = AutoCategory.renameRule(currentRule.name, value)
+
+	--Update drop downs
+	AutoCategory.cacheInitialize()
+	AC_UI.RefreshDropdownData()
+
+	if currentRule == nil then
+		currentRule = AutoCategory.GetRuleByName(value)
+	end
+	AC_UI.AddCat_SelectRule_LAM:assign(AC_UI.AddCat_SelectRule_LAM.filterRules(getCurrentBagId(),currentRule.tag))
+	AC_UI.AddCat_SelectRule_LAM:updateControl()
+	-- apparently one the AddCat_SelectRule_LAM calls is reseting the currentRule!
+	currentRule = AutoCategory.GetRuleByName(value)
+
+	logDebug("new name1 - ", value)
+	logDebug("new name2 - ", currentRule)
+	logDebug("new name3 - ", currentRule.name)
+	CatSet_SelectRule_LAM:refresh()
+	CatSet_SelectRule_LAM:setValue(currentRule.name)
+	CatSet_SelectRule_LAM:updateControl()
+
+	auBagSet.SelectRule(currentRule.name)
+end
+
+function CatSet_NameEdit_LAM:controlDef()
+	return
+		-- Name EditBox - AC_EDITBOX_EDITRULE_NAME
+		{
+			type = "editbox",
+			name = SI_AC_MENU_EC_EDITBOX_NAME,
+			tooltip = SI_AC_MENU_EC_EDITBOX_NAME_TOOLTIP,
+			getFunc = function() return self:getValue() end,
+			warning = function()
+				return warningDuplicatedName.warningMessage
+			end,
+			setFunc = function(value) self:setValue(value) end,
+			isMultiline = false,
+			disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+			width = "half",
+			reference = self:getControlName(),
+		}
+
+end
+-- -------------------------------------------------------
+
+-- customization of BaseUI for CatSet_TagEdit_LAM editbox
+-- -------------------------------------------------------
+-- when a rule changes the tag name, we need to update the various lists tracking tags vs rules
+-- returns the rule name, and a list of rules that belong to newtag.
+-- When parameters are bad, return nil,nil
+function CatSet_TagEdit_LAM.changeTag(rule, oldtag, newtag)
+	-- bad parameters
+	if not rule or not rule.name or not newtag then return nil,nil end
+
+	-- nothing needs changing?
+	if oldtag == newtag then return rule.name, AutoCategory.RulesW.tagGroups[rule.tag] end
+
+	-- if tag is new, then update tags lists
+	AutoCategory.RulesW.AddTag(newtag)
+
+	-- add the rule to the new tag list
+	AutoCategory.RulesW.tagGroups[newtag]:append(rule.name, nil, rule:getDesc())
+	-- remove the current rule from the oldtag list
+	if oldtag and AutoCategory.RulesW.tagGroups[oldtag] then
+		AutoCategory.RulesW.tagGroups[oldtag]:removeItemChoiceValue(rule.name)
+		if AutoCategory.RulesW.tagGroups[oldtag]:size() == 0 then
+			local ndx = ZO_IndexOfElementInNumericallyIndexedTable(AutoCategory.RulesW.tags, oldtag)
+			if ndx then
+				table.remove(AutoCategory.RulesW.tags, ndx)
+			end
+		end
+	end
+	rule.tag = newtag
+	return rule.name, AutoCategory.RulesW.tagGroups[newtag]
+end
+
+
+function CatSet_TagEdit_LAM:getValue()
+	if not currentRule then return "" end
+
+	return currentRule.tag
+end
+
+function CatSet_TagEdit_LAM:setValue(value)
+	if not currentRule then return end
+
+	local oldtag = currentRule.tag
+
+	if value == "" then
+		value = L(AC_EMPTY_TAG_NAME)
+		local control = WINDOW_MANAGER:GetControlByName("AC_EDITBOX_EDITRULE_TAG")
+		control.editbox:SetText(value)
+	end
+	local _, rbyt = CatSet_TagEdit_LAM.changeTag(currentRule, oldtag, value)
+	CatSet_SelectTag_LAM:select(currentRule.tag)
+	CatSet_SelectRule_LAM:assign(rbyt)
+	CatSet_SelectRule_LAM:select(currentRule.name)
+	AddCat_SelectTag_LAM:select(currentRule.tag)
+	AddCat_SelectRule_LAM:assign(AddCat_SelectRule_LAM.filterRules(getCurrentBagId(), value))
+	AddCat_SelectRule_LAM:select(currentRule.name)
+	AC_UI.RefreshControls()
+end
+
+function CatSet_TagEdit_LAM:controlDef()
+	-- Tag EditBox - AC_EDITBOX_EDITRULE_TAG
+	return
+	{
+		type = "editbox",
+		name = SI_AC_MENU_EC_EDITBOX_TAG,
+		tooltip = SI_AC_MENU_EC_EDITBOX_TAG_TOOLTIP,
+		getFunc = function() return self:getValue() end,
+		setFunc = function(value) self:setValue(value) end,
+		isMultiline = false,
+		disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+		width = "half",
+		reference = self:getControlName(),
+	}
+end
+-- -------------------------------------------------------
+
+-- customization of BaseUI for CatSet_DeleteCat_LAM button
+-- -------------------------------------------------------
+function CatSet_DeleteCat_LAM:execute()
+	local oldRuleName = CatSet_SelectRule_LAM:getValue()
+	local ndx = AutoCategory.RulesW.ruleNames[oldRuleName]
+	if ndx then
+		table.remove(AutoCategory.RulesW.ruleList,ndx)
+		-- remove from the rule list that gets saved
+		AutoCategory.ARW:removeRuleByName(oldRuleName)
+		AutoCategory.cacheRuleInitialize()
+	end
+
+	if oldRuleName == AC_UI.AddCat_SelectRule_LAM:getValue() then
+		--rule removed, clean selection in add rule menu if selected
+		AC_UI.AddCat_SelectRule_LAM:clearIndex()
+	end
+
+	-- removing the rule from any bags
+	--local bagId
+	AutoCategory.foreachBag( function(bagId)
+		local savedbag = AutoCategory.saved.bags[bagId]
+		for i = 1, #savedbag.rules do
+			local bagEntry = savedbag.rules[i]
+			if bagEntry.name == oldRuleName then
+				table.remove(savedbag.rules, i)
+				break
+			end
+		end
+	end)
+	AC_UI.BagSet_SelectRule_LAM.cvt:removeItemChoiceValue(oldRuleName)
+	if AC_UI.BagSet_SelectRule_LAM:getValue() == nil and AC_UI.BagSet_SelectRule_LAM:size() > 0 then
+		AC_UI.BagSet_SelectRule_LAM:select(emptyValueTbl) 	-- select first
+	end
+	AC_UI.BagSet_SelectRule_LAM:refresh()
+
+
+	currentRule = nil
+	CatSet_SelectRule_LAM:clearIndex()
+	if CatSet_SelectRule_LAM:size() > 0 then
+		CatSet_SelectRule_LAM:select(emptyValueTbl)
+	end
+
+	AutoCategory.cacheBagInitialize()
+	CatSet_SelectRule_LAM:refresh()
+	CatSet_SelectRule_LAM:updateControl()
+
+	AC_UI.AddCat_SelectRule_LAM:refresh()
+	AC_UI.AddCat_SelectRule_LAM:updateControl()
+
+	CatSet_SelectRule_LAM:refresh()
+	--CatSet_SelectRule_LAM:setValue(currentRule.name)
+	CatSet_SelectRule_LAM:updateControl()
+
+	AC_UI.BagSet_SelectRule_LAM:refresh()
+	AC_UI.BagSet_SelectRule_LAM:updateControl()
+	AC_UI.BagSet_ShowRule_LAM:refresh(bag)
+
+	AC_UI.AddCat_SelectRule_LAM:refresh()
+	AC_UI.RefreshControls()
+	AC_UI.BagSet_RefreshOrder()
+end
+
+function CatSet_DeleteCat_LAM:controlDef()
+	-- Delete Category/Rule Button
+	return
+		{
+			type = "button",
+			name = SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY,
+			tooltip = SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_TOOLTIP,
+			isDangerous = true,
+			func = function()  self:execute() end,
+			width = "half",
+			disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+		}
+end
+-- -------------------------------------------------------
+
+local function editCat_getPredef()
+    if currentRule and currentRule:isPredefined() then
+        return L(SI_AC_MENU_EC_BUTTON_PREDEFINED)
+
+    else
+        return ""
+    end
+end
+
+local description = AC_UI.description
+local header = AC_UI.header
+
+function AC_UI.CatSet.controlDef()
+    -- Category Settings
+    return {
+        type = "submenu",
+        name = SI_AC_MENU_SUBMENU_CATEGORY_SETTING,
+        reference = "AC_SUBMENU_CATEGORY_SETTING",
+        controls = {
+            -- Select Existing Description
+            description(SI_AC_MENU_CS_CATEGORY_DESC),
+
+            -- Tags - AC_DROPDOWN_EDITRULE_TAG
+            CatSet_SelectTag_LAM:controlDef(),
+
+            -- Categories - AC_DROPDOWN_EDITRULE_RULE
+            CatSet_SelectRule_LAM:controlDef(),
+
+            -- Create/Copy a New Category Description
+            description(SI_AC_MENU_CS_CREATENEW_DESC),
+
+            -- New Category Button
+            catSet_NewCat_LAM:controlDef(),
+
+            -- Copy Category/Rule Button
+            catSet_CopyCat_LAM:controlDef(),
+
+            -- Learn Rules button
+            {
+                type = "button",
+                name = SI_AC_MENU_EC_BUTTON_LEARN_RULES,
+                func = function() RequestOpenUnsafeURL("https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories") end,
+                width = "half",
+            },
+
+            -- Delete Category/Rule Button
+            CatSet_DeleteCat_LAM:controlDef(),
+
+            -- ------------------------------------------------------
+            -- Edit Category Title
+            header(SI_AC_MENU_HEADER_EDIT_CATEGORY),
+
+            -- Predefined Text Description
+            description(editCat_getPredef),
+            
+            -- Name EditBox - AC_EDITBOX_EDITRULE_NAME
+            CatSet_NameEdit_LAM:controlDef(),
+
+            -- Tag EditBox - AC_EDITBOX_EDITRULE_TAG
+            CatSet_TagEdit_LAM:controlDef(),
+
+            -- Level Dropdown - AC_DROPDOWN_EDITRULE_LEVEL
+            {
+                type = "dropdown",
+                name = SI_AC_MENU_EC_DROPDOWN_LEVEL,
+                tooltip = SI_AC_MENU_EC_DROPDOWN_LEVEL_TOOLTIP,
+                choices = CatSet_Level_choices,
+                choicesValues = CatSet_Level_values,
+                getFunc = function()
+                    return CatSet_Level_getRuleLevel(currentRule)
+                end,
+                setFunc = function(value)
+                    if not currentRule then return end
+                    AC_UI.CatSet.SetRuleLevel(currentRule, value)
+                end,
+                disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+                width = "half",
+                reference = "AC_DROPDOWN_EDITRULE_LEVEL",
+            },
+
+            -- Parent Dropdown - AC_DROPDOWN_EDITRULE_PARENT
+            CatSet_ParentDD_LAM:controlDef(),
+
+            --Description EditBox
+            {
+                type = "editbox",
+                name = SI_AC_MENU_EC_EDITBOX_DESCRIPTION,
+                tooltip = SI_AC_MENU_EC_EDITBOX_DESCRIPTION_TOOLTIP,
+                getFunc = function()
+                    if currentRule then
+                        return currentRule.description
+                    end
+                    return ""
+                end,
+                setFunc = function(value)
+                    if not currentRule then return end
+                    local oldval = currentRule.description
+                    currentRule.description = value
+                    if oldval ~= value then
+                        AutoCategory.cacheInitialize() -- reset tooltips to new value
+                        AC_UI.RefreshDropdownData()
+                        AC_UI.RefreshControls()
+                    end
+                end,
+                isMultiline = false,
+                isExtraWide = true,
+                disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+                width = "full",
+                reference = "AC_EDITBOX_EDITRULE_DESC",
+            },
+
+            -- Rule EditBox
+            {
+                type = "editbox",
+                name = SI_AC_MENU_EC_EDITBOX_RULE,
+                tooltip = SI_AC_MENU_EC_EDITBOX_RULE_TOOLTIP,
+                getFunc = function()
+                    if currentRule then
+                        return currentRule.rule
+                    end
+                    ruleCheckStatus.err = nil
+                    ruleCheckStatus.good = nil
+                    return ""
+                end,
+                setFunc = function(value)
+                    currentRule.rule = value
+                    ruleCheckStatus.err = currentRule:compile()
+                    if ruleCheckStatus.err == "" then
+                        ruleCheckStatus.err = nil
+                        ruleCheckStatus.good = true
+
+                    else
+                        ruleCheckStatus.good = nil
+                    end
+                    end,
+                isMultiline = true,
+                isExtraWide = true,
+                disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+                width = "full",
+                reference = "AC_EDITBOX_EDITRULE_RULE",
+            },
+
+            -- RuleCheck Text - AutoCategoryCheckText
+            {
+                type = "description",
+                text = ruleCheckStatus.getText, -- or string id or function returning a string
+                title = ruleCheckStatus.getTitle, -- or string id or function returning a string (optional)
+                width = "half", --or "half" (optional)
+            },
+
+            -- RuleCheck Button
+            {
+                type = "button",
+                name = SI_AC_MENU_EC_BUTTON_CHECK_RULE,
+                tooltip = SI_AC_MENU_EC_BUTTON_CHECK_RULE_TOOLTIP,
+                func = function()
+                    AC_UI.checkCurrentRule()
+                end,
+                disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+                width = "half",
+            },
+        },
+
+    }
+
+end
+
+function AC_UI.CatSet.clear()
+	CatSet_SelectTag_LAM:clearIndex()
+	CatSet_SelectRule_LAM:clearIndex()
+	AC_UI.CatSet.clearRuleCheckStatus()
+end
+
+function AC_UI.CatSet.refresh()
+	-- refresh selections
+	CatSet_SelectTag_LAM:refresh()
+
+	--refresh current dropdown rules
+	CatSet_SelectRule_LAM:refresh()
+
+	--refresh the parent choices of Edit Category
+	CatSet_ParentDD_LAM:refresh()
+end
+
+function AC_UI.CatSet.updateControls()
+	CatSet_SelectTag_LAM:updateControl()
+	CatSet_SelectRule_LAM:updateControl()
+	CatSet_ParentDD_LAM:updateControl()
+end
+
+function AC_UI.CatSet.setRule(rule)
+	CatSet_SelectTag_LAM:refresh()
+	CatSet_SelectTag_LAM:setValue(rule.tag)
+
+	CatSet_SelectRule_LAM:refresh()
+	CatSet_SelectRule_LAM:setValue(rule.name)
+	CatSet_SelectRule_LAM:updateControl()
+	CatSet_ParentDD_LAM:refresh()
+	CatSet_SyncEditRuleControls()
+end
+-- -------------------------------------------------------
+
+function AC_UI.CatSet_Init()
+	
+    CatSet_SelectTag_LAM:assign( { choices=AutoCategory.RulesW.tags} )
+end
+

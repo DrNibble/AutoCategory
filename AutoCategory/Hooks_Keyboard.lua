@@ -853,25 +853,53 @@ local function onStackItems(evtid, bagId)
 end
 
 -- event handler
--- Another guild bank was selected: the stock rebuild of the guild
--- bank list (the old guild's items emptied, then the new guild's
--- items added) can leave the list without its category headers -
--- the sort hook runs while the list is empty and its single retry
--- gives up before the new guild's items arrive. Rebuild the list
--- with its headers once the new guild's items are ready.
+-- Another guild bank was selected: the category headers can be
+-- missing from the rebuilt list. The stock rebuild of the list (the
+-- old guild's items emptied, then the new guild's items added) can
+-- run the sort hook while the list is empty - its single retry
+-- gives up before the new guild's items arrive - and the addons
+-- that filter the inventory lists (Advanced Filters) rebuild the
+-- list again afterwards without going through the sort hook. Poll
+-- the list for a short while after the new guild's items are ready
+-- and refresh it through the full path of a list update whenever
+-- items show up without headers: UpdateList, which sorts and
+-- commits through the addon's sort hook - the same refresh the
+-- filter reset of Advanced Filters performs, which is known to
+-- restore the headers.
 local function onGuildBankItemsReady()
 	if not AutoCategory.Enabled then return end
 
 	local zo_inventory = PLAYER_INVENTORY.inventories[INVENTORY_GUILD_BANK]
 	if not zo_inventory then return end
+	local list = zo_inventory.listView
+	if not list then return end
 
-	-- let the stock rebuild of the list finish first, then add the
-	-- category headers
-	zo_callLater(function()
-		if AutoCategory.Enabled then
-			rebuildScrollData(zo_inventory)
+	local attempts = 0
+	local function check()
+		if not AutoCategory.Enabled then return end
+
+		local scrollData = ZO_ScrollList_GetDataList(list)
+		if scrollData and #scrollData > 0 then
+			local hasHeaders = false
+			for _, entry in ipairs(scrollData) do
+				if entry.typeId == CATEGORY_HEADER then
+					hasHeaders = true
+					break
+				end
+			end
+			-- items without headers: run the full list update, the
+			-- sort hook of which adds the headers again
+			if not hasHeaders then
+				PLAYER_INVENTORY:UpdateList(INVENTORY_GUILD_BANK, true)
+			end
 		end
-	end, 100)
+
+		attempts = attempts + 1
+		if attempts < 20 then
+			zo_callLater(check, 200)
+		end
+	end
+	zo_callLater(check, 100)
 end
 
 

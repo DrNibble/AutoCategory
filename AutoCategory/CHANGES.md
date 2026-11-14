@@ -1,5 +1,24 @@
 # Changes
 
+## 2026-11-14 (21): Guild bank headers: poll and run the full list update
+
+- Entry (20) rebuilt the headers directly after
+  EVENT_GUILD_BANK_ITEMS_READY; in the game the headers were still
+  missing: the addons that filter the inventory lists (Advanced
+  Filters) rebuild the list again after the switch without going
+  through the sort hook, so the directly rebuilt headers never
+  reached the final list.
+- The handler now polls the guild bank list for about four seconds
+  after the new guild's items are ready (every 200 ms, twenty
+  attempts) and, whenever items are displayed without category
+  headers, runs the full path of a list update -
+  PLAYER_INVENTORY:UpdateList(INVENTORY_GUILD_BANK), which sorts
+  and commits through the addon's sort hook. That is the same
+  refresh the filter reset of Advanced Filters performs, which is
+  known to restore the headers after a guild bank switch.
+- Not covered by the offline test harness (the file needs the ESO
+  client globals); compile checked only. Not tested in the game
+  client (ESO).
 ## 2026-11-14 (20): Category headers restored when another guild bank is selected
 
 - Switching to another guild bank could leave the guild bank list

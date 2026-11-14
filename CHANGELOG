@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 20)[/COLOR]:
+[LIST]
+[*] Switching to another guild bank no longer leaves the guild bank list without its category headers: the list is rebuilt with its headers when the new guild's items arrive (EVENT_GUILD_BANK_ITEMS_READY, 100 ms after the event so the stock rebuild of the list finishes first).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 19)[/COLOR]:
 [LIST]
 [*] New "Move To" submenu in the right click of a category header: it moves the category and the categories nested under it under another category of the same bag (the candidates in the display order of the bag, never the category itself, its nested categories, its current parent or a category the section does not fit under), the category becomes a child of the chosen target and its whole section shifts with it, parents kept. The first entry moves the section back to the top level (a Normal category without a parent).

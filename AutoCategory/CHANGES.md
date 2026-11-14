@@ -1,5 +1,20 @@
 # Changes
 
+## 2026-11-14 (20): Category headers restored when another guild bank is selected
+
+- Switching to another guild bank could leave the guild bank list
+  without its category headers: the stock rebuild of the list (the
+  old guild's items emptied, then the new guild's items added) runs
+  the sort hook while the list is empty, and its single 100 ms
+  retry gives up before the new guild's items arrive.
+- The keyboard mode now rebuilds the guild bank list with its
+  headers when EVENT_GUILD_BANK_ITEMS_READY fires (the new guild's
+  items are in), 100 ms after the event so the stock rebuild of the
+  list finishes first. The rebuild is the same one the sort hook
+  performs, so running it again when the headers are already there
+  is harmless. Not covered by the offline test harness (the file
+  needs the ESO client globals); compile checked only.
+- Not tested in the game client (ESO).
 ## 2026-11-14 (19): Move To submenu in the header right click
 
 - New "Move To" submenu in the category header context menu: it

@@ -852,6 +852,28 @@ local function onStackItems(evtid, bagId)
 	AutoCategory.RefreshList(invType)
 end
 
+-- event handler
+-- Another guild bank was selected: the stock rebuild of the guild
+-- bank list (the old guild's items emptied, then the new guild's
+-- items added) can leave the list without its category headers -
+-- the sort hook runs while the list is empty and its single retry
+-- gives up before the new guild's items arrive. Rebuild the list
+-- with its headers once the new guild's items are ready.
+local function onGuildBankItemsReady()
+	if not AutoCategory.Enabled then return end
+
+	local zo_inventory = PLAYER_INVENTORY.inventories[INVENTORY_GUILD_BANK]
+	if not zo_inventory then return end
+
+	-- let the stock rebuild of the list finish first, then add the
+	-- category headers
+	zo_callLater(function()
+		if AutoCategory.Enabled then
+			rebuildScrollData(zo_inventory)
+		end
+	end, 100)
+end
+
 
 function AutoCategory.HookKeyboardMode()
 	--Add a new header row data type
@@ -883,6 +905,9 @@ function AutoCategory.HookKeyboardMode()
 	-- Other events that cause a full refresh
 	-- user can force a refresh with stack key
 	AutoCategory.evtmgr:registerEvt(EVENT_STACKED_ALL_ITEMS_IN_BAG, onStackItems)
+	-- another guild bank was selected: rebuild its list with the
+	-- category headers (see onGuildBankItemsReady)
+	AutoCategory.evtmgr:registerEvt(EVENT_GUILD_BANK_ITEMS_READY, onGuildBankItemsReady)
 
     pendingUpdates = SF.safeClearTable(pendingUpdates)
     callLater = SF.CallLater:NewSingle(updateHook, 50):Start()
@@ -893,6 +918,7 @@ function AutoCategory.UnHookKeyboardMode()
  	-- Other events that cause a full refresh
 	-- user can force a refresh with stack key
 	AutoCategory.evtmgr:unregEvt(EVENT_STACKED_ALL_ITEMS_IN_BAG, onStackItems)
+	AutoCategory.evtmgr:unregEvt(EVENT_GUILD_BANK_ITEMS_READY, onGuildBankItemsReady)
 	AutoCategory.hookmgr:disableAll()
 
     -- Clear pending updates

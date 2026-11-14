@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 16)[/COLOR]:
+[LIST]
+[*] Right-clicking a category header in an inventory list shows an "AutoCategory" submenu operating on the clicked category and every category nested under it: "Increase Level" and "Decrease Level" move the whole family one level deeper or shallower (not offered past level 5; level 1 becomes a plain Normal category, with the automatic parent on the way up), "New Sub-Level" creates a new category under it with the rule false, "Delete Level" removes the category from the clicked bag only and moves its nested categories up one level under its own parent, and "Copy to: <bag>" entries copy the category and its nested categories to another bag (the global rules are reused, the categories already present there are skipped, and the missing ancestors are copied along so the level keeps its place).
+[/LIST]
 [COLOR="DeepSkyBlue"] 4.6.16 (156)[/COLOR]:
 [LIST]
 [*] Fixed a Lua error in ZO_ScrollList_UpdateScroll ("operator < is not supported for nil < number") when scrolling a list or a shared dropdown after a guild bank rebuild: replacing a scroll list's data now always commits the list so every entry (including category headers) receives its scroll position.

@@ -1,5 +1,53 @@
 # Changes
 
+## 2026-11-14 (16): AutoCategory submenu on the category header right click
+
+- Right-clicking a category header in any keyboard inventory list
+  (player inventory, bank, guild bank, craft bag, home storage chests,
+  furniture vault, vengeance, craft stations) now shows an
+  "AutoCategory" submenu (new file CategoryLevelMenu.lua, added by
+  AC_ItemRowHeader_OnShowContextMenu next to the collapse entries)
+  operating on the clicked category and every category nested under it
+  in the same bag (its bag rules whose parent chain contains it):
+- "Increase Level" / "Decrease Level": every category of that level
+  family moves one level deeper or shallower. Increasing is refused
+  (the entry is not shown) when any of them is already at level 5;
+  decreasing past level 1 turns the category into a Normal (flat)
+  category and clears its parent. A top-level category that moves
+  deeper is attached to the nearest category of the level above it in
+  the display order of the bag (the same automatic parent as the Edit
+  Category Level dropdown); a parent already set is never touched.
+- "New Sub-Level": creates a new category one level under the clicked
+  one, with the rule text "false" (it never matches an item, so the
+  level stays a pure display section until categories are nested under
+  it), parented to it, added to the bag of the header with the same
+  priorities. Not offered under a level 5 category.
+- "Delete Level": removes the category from the clicked bag only (the
+  global rule stays, exactly like the Remove Category button of Bag
+  Settings); every category nested under it moves up one level and the
+  direct children nest under the deleted category's own parent, so the
+  section keeps its place without the deleted level.
+- "Copy to: <bag>": copies the category and the categories nested
+  under it to another bag, one entry per other bag of the addon. The
+  rules are global and shared, so the copy reuses them (like the
+  "Export all" button): editing the category in one bag changes it
+  everywhere. Categories already present in the destination bag are
+  skipped, and the ancestors of the copied category are copied along
+  when they are missing there, so it keeps its place in the level
+  hierarchy (without them a level 2-5 category displays flat).
+- Levels and parents are properties of the global rules, shared by
+  every bag: the level operations apply everywhere the categories
+  show, not only in the clicked bag. The menu is keyboard-only (the
+  gamepad lists have no right click) and is not offered for headers
+  without an operable backing rule (the "Others" category, dynamic
+  set names, predefined rules) or for a category that is not a
+  category of the clicked bag.
+- New strings SI_AC_MENU_CM_* / SI_AC_MESSAGE_CM_COPY_DONE, translated
+  in en/de/fr/es/ru/zh.
+- Verified offline with Lua 5.1 (test/CategoryLevelMenu_test.lua, 92
+  assertions, run from the AutoCategory folder like the other suites);
+  the existing suites still pass (RuleLevel 78, CategoryTree 125,
+  LibSets 2242). Not tested in ESO.
 ## 2026-11-13 (4.6.16): commit scroll lists after replacing their data
 
 - Fixed a Lua error in ZO_ScrollList_UpdateScroll ("operator < is

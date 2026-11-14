@@ -22,6 +22,9 @@
 [LIST]
 [*] Right-clicking a category header in an inventory list shows an "AutoCategory" submenu operating on the clicked category and every category nested under it: "Increase Level" and "Decrease Level" move the whole family one level deeper or shallower (not offered past level 5; level 1 becomes a plain Normal category, with the automatic parent on the way up), "New Sub-Level" creates a new category under it with the rule false, "Delete Level" removes the category from the clicked bag only and moves its nested categories up one level under its own parent, and "Copy to: <bag>" entries copy the category and its nested categories to another bag (the global rules are reused, the categories already present there are skipped, and the missing ancestors are copied along so the level keeps its place).
 [/LIST]
+[COLOR="DeepSkyBlue"] 4.6.18 (158)[/COLOR]:
+[B]-[/B] New /acdebug command (on/off) to toggle the debug logging of AutoCategory at runtime, for diagnosing the guild bank display issues (LibDebugLogger must have its minimum log level set to "Debug" to record the entries)
+
 [COLOR="DeepSkyBlue"] 4.6.17 (157)[/COLOR]:
 [B]-[/B] Guild bank: the list is polled for about 10 seconds after a guild bank switch and sorted again with ApplySort whenever items are displayed without category headers or without their rule results (safer than the previous full list update, which could empty the list)
 [B]-[/B] Debug logs (LibDebugLogger, prefix [AC]) added around the guild bank refresh for diagnosing remaining display issues

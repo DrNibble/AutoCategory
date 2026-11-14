@@ -14,7 +14,7 @@ local SF = LibSFUtils
  
 AutoCategory = {
     name = "AutoCategory",
-    version = SF.colors.gold("4.6.17"),
+    version = SF.colors.gold("4.6.18"),
     settingName = "AutoCategory",
     settingDisplayName = SF.colors.gold("AutoCategory - Revised"),
     author = SF.colors.purple("Shadowfen, crafty35, RockingDice, Friday_the13_rus"),
@@ -37,8 +37,30 @@ AutoCat_Logger, AutoCategory.logDebug, AutoCategory.logWouldDebug =
 --[[ The following SetDebug() call is commented out because it severely slows down 
     addon operation. Turning it on does however provide lots and lots of debug logging.
     Never leave this uncommented when releasing!!
+    Use the /acdebug command below to turn the debug logging on and off at runtime
+    instead (it does not persist across sessions).
 --]]
 --AutoCat_Logger():SetDebug(true)
+
+-- /acdebug [on|off] - toggle the debug logging of AutoCategory at runtime.
+-- The entries are written through LibDebugLogger (if installed): its minimum
+-- log level must be set to "Debug" in its settings for them to be recorded.
+SLASH_COMMANDS["/acdebug"] = function(cmd)
+    cmd = (cmd or ""):lower():match("^%s*(.-)%s*$")
+    local logger = AutoCat_Logger()
+    local enable
+    if cmd == "on" or cmd == "1" then
+        enable = true
+    elseif cmd == "off" or cmd == "0" then
+        enable = false
+    else
+        enable = not logger.SFenableDebug
+    end
+    logger:SetDebug(enable)
+    local msg = enable and "debug logging ON" or "debug logging OFF"
+    logger:Info("AutoCategory ", msg)
+    d("[AutoCategory] ", msg)
+end
 
 -- Namespace for the AutoCategory user interface elements
 AC_UI = {}

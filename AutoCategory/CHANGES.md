@@ -1,5 +1,17 @@
 # Changes
 
+## 2026-11-14 (23): /acdebug command to toggle the debug logging
+
+- The debug logs added in (22) never reach LibDebugLogger: the debug
+  logging of AutoCategory is disabled by default (the SetDebug call
+  is commented out) and the minimum log level of LibDebugLogger
+  must be lowered to "Debug" as well.
+- New /acdebug command (with optional on/off argument, toggles when
+  omitted) turns the debug logging of AutoCategory on and off at
+  runtime; the state is confirmed in the chat and logged. It does
+  not persist across sessions.
+- Version bumped to 4.6.18.
+
 ## 2026-11-14 (22): Guild bank headers: safer poll and debug logs
 
 - Entry (21) polled the list and ran the full list update

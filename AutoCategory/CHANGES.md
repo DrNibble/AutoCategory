@@ -1,5 +1,28 @@
 # Changes
 
+## 2026-11-14 (19): Move To submenu in the header right click
+
+- New "Move To" submenu in the category header context menu: it
+  moves the clicked category and the categories nested under it
+  under another category of the same bag. The category becomes a
+  child of the chosen target (one level below it, a Normal target
+  included), and every category of the section shifts by the same
+  difference so the whole section moves together, parents kept.
+- The first entry of the submenu moves the section back to the top
+  level: the category becomes a Normal category without a parent,
+  and its section shifts up with it.
+- The candidates are the categories of the same bag in its display
+  order, never the category itself, the categories nested under it
+  (a cycle), its current parent (nothing to move) or a category the
+  section does not fit under (level 5 is the deepest level the
+  addon offers). An entry that cannot apply is not shown, the same
+  rule as the other entries of the menu.
+- The levels and the parent are properties of the global rules, so
+  the move shows in every bag that has the categories, like the
+  other level operations of the menu.
+- Not tested in the game client (ESO); tested offline with Lua 5.1
+  (38 new assertions in CategoryLevelMenu_test, 137 total, all
+  existing suites still pass).
 ## 2026-11-14 (18): Flat level operations and a Copy To submenu in the header right click
 
 - The level operations of the category header context menu are no

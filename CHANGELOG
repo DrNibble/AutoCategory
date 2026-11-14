@@ -1,3 +1,7 @@
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 19)[/COLOR]:
+[LIST]
+[*] New "Move To" submenu in the right click of a category header: it moves the category and the categories nested under it under another category of the same bag (the candidates in the display order of the bag, never the category itself, its nested categories, its current parent or a category the section does not fit under), the category becomes a child of the chosen target and its whole section shifts with it, parents kept. The first entry moves the section back to the top level (a Normal category without a parent).
+[/LIST]
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 18)[/COLOR]:
 [LIST]
 [*] The level operations of the category header right click ("Increase Level", "Decrease Level", "New Sub-Level", "Delete Level") are now direct entries of the menu instead of an "AutoCategory" submenu, and the copy entries moved into a "Copy To" submenu listing the other inventories, one entry per inventory (a submenu cannot hold a submenu in ESO, which is why the two groups sit side by side). The copy behavior is unchanged: the global rules are reused, the categories already present in the destination bag are skipped, and the missing ancestors are copied along.

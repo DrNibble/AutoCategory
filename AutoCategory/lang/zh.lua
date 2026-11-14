@@ -222,6 +222,8 @@ AutoCategory_localization_strings["zh"] = {
     SI_AC_MENU_CM_NEW_LEVEL = "新建子层级",
     SI_AC_MENU_CM_DELETE_LEVEL = "删除层级",
     SI_AC_MENU_CM_COPY_SUBMENU = "复制到",
+    SI_AC_MENU_CM_MOVE_SUBMENU = "移动到",
+    SI_AC_MENU_CM_MOVE_TOP = "顶层",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory：已复制 %d 个分类到 %s（%d 个已存在）。",
 
 }

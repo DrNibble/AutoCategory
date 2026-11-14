@@ -234,6 +234,8 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_MENU_CM_NEW_LEVEL = "Nouveau sous-niveau",
     SI_AC_MENU_CM_DELETE_LEVEL = "Supprimer le niveau",
     SI_AC_MENU_CM_COPY_SUBMENU = "Copier vers",
+    SI_AC_MENU_CM_MOVE_SUBMENU = "Déplacer vers",
+    SI_AC_MENU_CM_MOVE_TOP = "Premier niveau",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory : %d catégories copiées vers %s (%d déjà présentes).",
 
 }

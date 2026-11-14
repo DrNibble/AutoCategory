@@ -428,6 +428,103 @@ function CLM.DeleteLevelInBag(bagTypeId, ruleName)
     return true
 end
 
+-- The level shift of a move of the subtree under the category
+-- newParentName, or nil when the section does not fit under it
+-- (level 5 is the deepest level the addon offers).
+local function moveDelta(subtree, newParentName)
+    local parentRule = AutoCategory.GetRuleByName(newParentName)
+    if not parentRule then return nil end
+
+    local newRootLevel = CLM.EffectiveLevel(parentRule) + 1
+    if newRootLevel > 5 then return nil end
+
+    local delta = newRootLevel - CLM.EffectiveLevel(subtree[1].rule)
+    for i = 1, #subtree do
+        if CLM.EffectiveLevel(subtree[i].rule) + delta > 5 then
+            return nil
+        end
+    end
+    return delta
+end
+
+-- Move the category under another category of the bag: the new parent
+-- of the category, its level one below the new parent's, and every
+-- category nested under it shifted by the same difference so the
+-- whole section moves together. A nil target moves the category back
+-- to the top level: a Normal category without a parent. The levels
+-- and the parent are properties of the global rules, so the move
+-- shows in every bag that has the categories. Returns true when the
+-- category moved, false when the move was refused: the target is not
+-- a category of the bag, is the category itself, one of the
+-- categories nested under it (a cycle) or its current parent
+-- (nothing to move), or the section does not fit under the target.
+function CLM.MoveSubtreeToParent(bagTypeId, ruleName, newParentName)
+    local root = AutoCategory.GetRuleByName(ruleName)
+    if not root then return false end
+
+    local newRootLevel
+    if newParentName == nil then
+        -- move to the top level: nothing to do when the category is
+        -- already a Normal category without a parent
+        if root.parent == nil and CLM.EffectiveLevel(root) == 1 then
+            return false
+        end
+        newRootLevel = 1
+    else
+        if type(newParentName) ~= "string" or newParentName == ""
+                or newParentName == ruleName then
+            return false
+        end
+        if root.parent == newParentName then return false end
+        if not findBagrule(bagTypeId, newParentName) then return false end
+
+        local parentRule = AutoCategory.GetRuleByName(newParentName)
+        if not parentRule then return false end
+        newRootLevel = CLM.EffectiveLevel(parentRule) + 1
+    end
+
+    local subtree = CLM.SubtreeInBag(bagTypeId, ruleName)
+    if not subtree then return false end
+
+    -- the category cannot move under itself or one of the categories
+    -- nested under it
+    for i = 2, #subtree do
+        if subtree[i].rule.name == newParentName then
+            return false
+        end
+    end
+
+    if newRootLevel > 5 then return false end
+    local delta = newRootLevel - CLM.EffectiveLevel(root)
+
+    -- the whole section must fit under the target
+    for i = 2, #subtree do
+        if CLM.EffectiveLevel(subtree[i].rule) + delta > 5 then
+            return false
+        end
+    end
+
+    -- the nested categories keep their parent and move with the
+    -- category, one level deeper or shallower with it
+    for i = 2, #subtree do
+        local rule = subtree[i].rule
+        local newLevel = CLM.EffectiveLevel(rule) + delta
+        if newLevel >= 2 then
+            rule.level = newLevel
+        else
+            rule.level = nil
+        end
+    end
+    if newRootLevel >= 2 then
+        root.level = newRootLevel
+        root.parent = newParentName
+    else
+        root.level = nil
+        root.parent = nil
+    end
+    return true
+end
+
 -- ------------------------------------------------------------------
 -- context menu
 -- ------------------------------------------------------------------
@@ -447,13 +544,15 @@ end
 
 -- The AutoCategory entries of the category header context menu: the
 -- level operations on the clicked category and the categories nested
--- under it as direct menu entries, and the copy of the whole level
--- to another bag in a "Copy To" submenu. A submenu cannot hold a
--- submenu in ESO, so the level operations cannot be nested inside
--- the copy submenu: they sit at the top level of the menu, next to
--- it. Added by AC_ItemRowHeader_OnShowContextMenu (AutoCategory.lua);
--- a no-op for headers with no operable backing rule. The menu is
--- keyboard-only: the gamepad inventory lists have no right click.
+-- under it as direct menu entries, the move of the whole section
+-- under another category of the bag in a "Move To" submenu, and the
+-- copy of the whole level to another bag in a "Copy To" submenu. A
+-- submenu cannot hold a submenu in ESO, so the level operations
+-- cannot be nested inside those submenus: they sit at the top level
+-- of the menu, next to them. Added by
+-- AC_ItemRowHeader_OnShowContextMenu (AutoCategory.lua); a no-op for
+-- headers with no operable backing rule. The menu is keyboard-only:
+-- the gamepad inventory lists have no right click.
 function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
@@ -502,6 +601,70 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
                 refreshAfterChange()
             end
         end, MENU_ADD_OPTION_LABEL)
+
+    -- move the category under another category of the bag: the
+    -- candidates in the display order of the bag, never the category
+    -- itself, the categories nested under it, its current parent or
+    -- a category the section does not fit under; the first entry
+    -- moves the section back to the top level (a Normal category)
+    local moveEntries = {}
+    if CLM.EffectiveLevel(rule) > 1 or (type(rule.parent) == "string"
+            and rule.parent ~= "") then
+        moveEntries[#moveEntries + 1] = {
+            label = GetString(SI_AC_MENU_CM_MOVE_TOP),
+            callback = function()
+                if CLM.MoveSubtreeToParent(bagTypeId, rule.name, nil) then
+                    refreshAfterChange()
+                end
+            end,
+        }
+    end
+    local savedBag = AutoCategory.saved.bags[bagTypeId]
+    if savedBag and savedBag.rules then
+        local excluded = {}
+        for i = 1, #subtree do
+            excluded[subtree[i].rule.name] = true
+        end
+        if type(rule.parent) == "string" and rule.parent ~= "" then
+            excluded[rule.parent] = true
+        end
+
+        local ordered = {}
+        for i = 1, #savedBag.rules do
+            local brule = savedBag.rules[i]
+            if brule and type(brule.name) == "string"
+                    and brule.name ~= "" then
+                ordered[#ordered + 1] = brule
+            end
+        end
+        table.sort(ordered, function(a, b)
+            local ap = a.showpriority or a.runpriority or 0
+            local bp = b.showpriority or b.runpriority or 0
+            if ap ~= bp then
+                return ap > bp
+            end
+            return a.name < b.name
+        end)
+
+        for i = 1, #ordered do
+            local name = ordered[i].name
+            if not excluded[name] and moveDelta(subtree, name) ~= nil then
+                moveEntries[#moveEntries + 1] = {
+                    label = name,
+                    callback = function()
+                        if CLM.MoveSubtreeToParent(bagTypeId,
+                                rule.name, name) then
+                            refreshAfterChange()
+                        end
+                    end,
+                }
+            end
+        end
+    end
+    if #moveEntries > 0 then
+        AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_MOVE_SUBMENU),
+            moveEntries)
+    end
 
     -- copy the category and the categories nested under it to another
     -- bag: every other bag of the addon in a "Copy To" submenu (the

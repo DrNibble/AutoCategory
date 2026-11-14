@@ -21,6 +21,8 @@ SI_AC_MENU_CM_LEVEL_DOWN = "Decrease Level"
 SI_AC_MENU_CM_NEW_LEVEL = "New Sub-Level"
 SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level"
 SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
+SI_AC_MENU_CM_MOVE_SUBMENU = "Move To"
+SI_AC_MENU_CM_MOVE_TOP = "Top Level"
 SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there)."
 SI_AC_DEFAULT_NAME_NEW_CATEGORY = "NewCategory"
 SI_AC_DEFAULT_NAME_EMPTY_TAG = "<Empty>"
@@ -459,7 +461,12 @@ AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
 equal(2, #capturedItems, "no increase and no new level at level 5")
 equal("Decrease Level", capturedItems[1].label)
 equal("Delete Level", capturedItems[2].label)
-menu = capturedSubmenus[1].entries
+equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
+equal("Move To", capturedSubmenus[1].text)
+equal(1, #capturedSubmenus[1].entries,
+    "only the top level entry: no other category in the bag")
+equal("Top Level", capturedSubmenus[1].entries[1].label)
+menu = capturedSubmenus[2].entries
 equal(3, #menu, "the copy entries are still offered at level 5")
 equal("Backpack", menu[1].label)
 
@@ -483,5 +490,100 @@ equal("CopyMe", bagNames(1)[#bagNames(1)],
     "the copy target bag received the category")
 equal("AutoCategory: 1 categories copied to Backpack (0 already there).",
     chatMessages[1], "the copy reports to the chat")
+
+-- ---------------------------------------------------------------------------
+-- Part 8: MoveSubtreeToParent and the Move To submenu
+-- ---------------------------------------------------------------------------
+
+-- bag 20: TopA(Normal), TopB(1), Mid(2, TopA), Leaf(3, Mid), Other(1)
+setBag(20, {
+    { name = "TopA", runpriority = 50, showpriority = 50 },
+    { name = "TopB", runpriority = 40, showpriority = 40 },
+    { name = "Mid", runpriority = 30, showpriority = 30 },
+    { name = "Leaf", runpriority = 20, showpriority = 20 },
+    { name = "Other", runpriority = 10, showpriority = 10 },
+})
+local rTopA, rTopB = newRule("TopA", nil), newRule("TopB", 1)
+local rMid, rLeaf = newRule("Mid", 2, "TopA"), newRule("Leaf", 3, "Mid")
+local rOther = newRule("Other", 1)
+
+-- move Mid under TopB: same depth, Leaf keeps its place under Mid
+equal(true, CLM.MoveSubtreeToParent(20, "Mid", "TopB"),
+    "the category moves under another category")
+equal("TopB", rMid.parent, "the moved category is parented to the target")
+equal(2, rMid.level, "the moved category sits one level below the target")
+equal(3, rLeaf.level, "the children keep their depth under the category")
+equal("Mid", rLeaf.parent, "the children keep their parent")
+
+-- move Leaf under TopA (a Normal category): level 2
+equal(true, CLM.MoveSubtreeToParent(20, "Leaf", "TopA"))
+equal(2, rLeaf.level, "a move under a Normal category nests at level 2")
+equal("TopA", rLeaf.parent)
+
+-- move Leaf back to the top level: Normal, no parent
+equal(true, CLM.MoveSubtreeToParent(20, "Leaf", nil))
+equal(nil, rLeaf.level, "a move to the top level makes the category Normal")
+equal(nil, rLeaf.parent, "a move to the top level clears the parent")
+
+-- refused moves
+equal(false, CLM.MoveSubtreeToParent(20, "Mid", "Mid"),
+    "cannot move under itself")
+equal(false, CLM.MoveSubtreeToParent(20, "Mid", "TopB"),
+    "cannot move under the current parent")
+equal(false, CLM.MoveSubtreeToParent(20, "TopB", "Mid"),
+    "cannot move under a category nested under it (cycle)")
+equal(false, CLM.MoveSubtreeToParent(20, "Leaf", nil),
+    "nothing to move when already top level")
+equal(false, CLM.MoveSubtreeToParent(20, "Mid", "NoSuchRule"),
+    "the target must be an existing rule")
+newRule("Elsewhere", 1)
+setBag(22, { { name = "Elsewhere", runpriority = 1, showpriority = 1 } })
+equal(false, CLM.MoveSubtreeToParent(20, "Mid", "Elsewhere"),
+    "the target must be a category of the same bag")
+
+-- the section must fit under the target: bag 21 has X(1), A(1) with
+-- B(2) > C(3) > D(4) > E(5) under A
+setBag(21, {
+    { name = "X", runpriority = 60, showpriority = 60 },
+    { name = "A", runpriority = 50, showpriority = 50 },
+    { name = "B", runpriority = 40, showpriority = 40 },
+    { name = "C", runpriority = 30, showpriority = 30 },
+    { name = "D", runpriority = 20, showpriority = 20 },
+    { name = "E", runpriority = 10, showpriority = 10 },
+})
+newRule("X", 1)
+local rA, rB = newRule("A", 1), newRule("B", 2, "A")
+local rC, rD = newRule("C", 3, "B"), newRule("D", 4, "C")
+local rE = newRule("E", 5, "D")
+equal(false, CLM.MoveSubtreeToParent(21, "A", "X"),
+    "a section too deep for the target is refused")
+equal(true, CLM.MoveSubtreeToParent(21, "D", "X"),
+    "a section that fits moves with its children")
+equal(2, rD.level, "the moved category sits one level below the target")
+equal("X", rD.parent)
+equal(3, rE.level, "the children shift with the category")
+equal("D", rE.parent, "the children keep their parent")
+
+-- the Move To submenu: the candidates of the bag in display order,
+-- never the category itself, its children or its current parent
+capturedSubmenus = {}
+capturedItems = {}
+AutoCategory.AddCategoryLevelMenuEntries("Mid", 20)
+equal(4, #capturedItems, "increase, decrease, new level and delete entries")
+equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
+equal("Move To", capturedSubmenus[1].text)
+equal("Copy To", capturedSubmenus[2].text)
+local moveMenu = capturedSubmenus[1].entries
+equal(4, #moveMenu, "top level, then the candidates in display order")
+equal("Top Level", moveMenu[1].label)
+equal("TopA", moveMenu[2].label)
+equal("Leaf", moveMenu[3].label)
+equal("Other", moveMenu[4].label)
+
+-- the move callback moves and refreshes
+refreshCalls.cacheInitialize = 0
+moveMenu[2].callback()
+equal("TopA", rMid.parent, "the move callback parents to the target")
+equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 
 print("CategoryLevelMenu_test: " .. assertions .. " assertions passed")

@@ -1,5 +1,30 @@
 # Changes
 
+## 2026-11-14 (22): Guild bank headers: safer poll and debug logs
+
+- Entry (21) polled the list and ran the full list update
+  (UpdateList) whenever items showed up without headers; in the
+  game the display stayed broken. Two risks identified: UpdateList
+  repopulates the list from the inventory slots and can empty it
+  while the text search results of the new guild are not ready
+  yet, and the poll only detected missing headers, not items
+  displayed without their rule results (the "jumbled" case).
+- The poll now sorts the list again with ApplySort instead: it
+  only re-sorts what is already displayed, and its sort hook
+  re-runs the rules, adds the headers and sorts everything under
+  them. The poll also treats entries without rule results
+  (AC_sortPriorityName) as needing a sort, not only missing
+  headers.
+- The poll now starts on both EVENT_GUILD_BANK_SELECTED and
+  EVENT_GUILD_BANK_ITEMS_READY (a newer event cancels the older
+  poll) and watches the list for about 10 seconds.
+- Debug logs (LibDebugLogger, prefix [AC]) added to the sort
+  prehook (skipped: no ready scene / bulk mode), to the guild bank
+  empty-list retry and to the list rebuild (entry counts), to
+  diagnose the remaining cases in the game.
+- Version bumped to 4.6.17 so the loaded build can be verified
+  in the addon list.
+
 ## 2026-11-14 (21): Guild bank headers: poll and run the full list update
 
 - Entry (20) rebuilt the headers directly after

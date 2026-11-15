@@ -1,3 +1,10 @@
+[COLOR="DeepSkyBlue"] 4.6.24 (164), tag dropdown fix and self-heal (2026-11-15)[/COLOR]:
+[LIST]
+[*] Fix the always-empty disabled tag dropdowns: the delivered CVT class silently ignored the plain tables every tag-dropdown call site assigned, so the tag lists were never populated. A shared helper now builds a real CVT source from the live tag list for all four call sites.
+[*] Tag dropdowns resynchronize their choices on every refresh and when the settings panel opens: tags created or removed during a session appear without a reload, and a bad startup no longer keeps the dropdown dead.
+[*] 463 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.23 (163), tag edit crash fix (2026-11-15)[/COLOR]:
 [LIST]
 [*] Fix "attempt to index a nil value" when the Edit Category tag editbox lost focus: the tag-change handler referenced dropdowns local to another file instead of their AC_UI handles. Setting or leaving the tag of a category created with the empty tag no longer errors out; the Add Category dropdowns now stay in sync.

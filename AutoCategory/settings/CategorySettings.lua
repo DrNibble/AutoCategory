@@ -459,15 +459,25 @@ function CatSet_SelectTag_LAM:setValue(value)
 	CatSet_SelectRule_LAM:refresh()
 	CatSet_SelectRule_LAM:updateControl()
 
-	AC_UI.AddCat_SelectTag_LAM:assign({choices=AutoCategory.RulesW.tags})
+	AC_UI.AddCat_SelectTag_LAM:assign(AC_UI.tagListCVT())
 	AC_UI.AddCat_SelectTag_LAM:updateControl()
 
 	AC_UI.AddCat_SelectRule_LAM:updateControl()
 end
 
--- refresh the value of the cvt lists for CatSet_SelectTag_LAM from the 
--- current contents of the AutoCategory.RulesW.tags list.
+-- refresh the choices and the value of the cvt lists for CatSet_SelectTag_LAM
+-- from the current contents of the AutoCategory.RulesW.tags list.
+-- The choices are resynchronized on every refresh: they used to be a
+-- snapshot taken once at startup by CatSet_Init, which (a) passed a
+-- plain table that CVT:assign silently ignores, so the dropdown could
+-- stay empty and disabled for a whole session, and (b) never saw tags
+-- created or removed during the session. CVT:assign keeps the current
+-- selection when it is still in the new list and falls back to the
+-- first entry otherwise.
 function CatSet_SelectTag_LAM:refresh()
+	if AutoCategory.RulesW.tags then
+		self:assign(AC_UI.tagListCVT())
+	end
 	if self:getValue() == nil then
 		self:select(AutoCategory.RulesW.tags)
 	end
@@ -1083,7 +1093,9 @@ end
 -- -------------------------------------------------------
 
 function AC_UI.CatSet_Init()
-	
-    CatSet_SelectTag_LAM:assign( { choices=AutoCategory.RulesW.tags} )
+
+    -- a plain { choices = ... } table is silently ignored by CVT:assign:
+    -- use a real CVT source so the tag dropdown actually gets its list
+    CatSet_SelectTag_LAM:assign(AC_UI.tagListCVT())
 end
 

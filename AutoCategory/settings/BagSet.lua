@@ -645,6 +645,11 @@ end
 -- refresh the selection value of the cvt lists for AddCat_SelectTag_LAM from the 
 -- current contents of the RulesW.tags list.
 function AC_UI.AddCat_SelectTag_LAM:refresh()
+	-- resynchronize the choices from the live tag list on every refresh
+	-- (see AC_UI.tagListCVT: plain-table assigns are silent no-ops)
+	if AutoCategory.RulesW.tags then
+		self:assign(AC_UI.tagListCVT())
+	end
 	if self:getValue() == nil or self:getValue() == "" then
 		self:select(AutoCategory.RulesW.tags)
 	end
@@ -1335,7 +1340,7 @@ function AC_UI.BagSet.Init()
 
     -- initialize tables
 	BagSet_SelectBag_LAM:assign(AutoCategory.cache.bags_cvt)
-	AC_UI.AddCat_SelectTag_LAM:assign( { choices=AutoCategory.RulesW.tags } )
+	AC_UI.AddCat_SelectTag_LAM:assign(AC_UI.tagListCVT())
 
 	BagSet_SelectBag_LAM:select(emptyValueTbl)
 

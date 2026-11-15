@@ -1,5 +1,44 @@
 # Changes
 
+## 2026-11-15: Tag dropdowns repopulated and self-healing (4.6.24)
+
+- Root cause of the always-empty, disabled Étiquette dropdowns: the
+  delivered CVT class (classes/CVT.lua) silently ignores assign() calls
+  that pass a plain table ({ choices = ... } has no GetUses), while every
+  tag-dropdown call site (CatSet_Init, BagSet.Init, the tag-dropdown
+  setValue refreshes) passed exactly that. The tag lists were therefore
+  never populated in any session, leaving the dropdowns empty and grayed
+  (disabled = size() == 0) and the tag selection impossible from the UI.
+- New shared helper AC_UI.tagListCVT() (settings/UI_Utilities.lua)
+  builds a real CVT source (USE_NONE, matching the tag dropdowns) from
+  the live RulesW.tags list; all four plain-table assign call sites now
+  use it (CategorySettings CatSet_Init and tag setValue, BagSet Init and
+  AddCat tag refresh).
+- Self-healing refresh: CatSet_SelectTag_LAM:refresh() and
+  AC_UI.AddCat_SelectTag_LAM:refresh() now resynchronize their choices
+  from RulesW.tags on every refresh instead of relying on the startup
+  snapshot, so tags created or removed during a session appear without
+  a reload and a bad startup no longer keeps the dropdown dead all
+  session. CVT:assign keeps the current selection when it is still in
+  the list and falls back to the first entry otherwise.
+- Panel-open resync: the LAM-RefreshPanel callback (fired by LAM2 when
+  the panel opens and whenever a control value changes) now calls
+  RefreshDropdownData + RefreshControls, so the dropdowns recover as
+  soon as the settings panel is opened.
+- Lua 5.1 harness on the delivered blocks (classes/CVT.lua,
+  classes/BaseUI.lua, UI_Utilities.lua, CategorySettings.lua): proves
+  the old plain-table assign is a no-op (size stays 0) and that the new
+  helper populates the list (3 tags), refresh self-heals a cleared
+  dropdown, preserves a still-valid selection, falls back to the first
+  entry when the selected tag disappears, is safe with a nil tag list
+  and idempotent across repeated refreshes. Regression suites re-run:
+  78 rule-level, 140 category-tree, 138 category-menu, 55 level-menu,
+  37 scroll-commit and 15 ParentDD assertions pass (463 total).
+- Non testé dans ESO. Verify in game that the Étiquette dropdown of
+  Select Existing Category (and of Add Category in Bag Settings) is
+  populated and enabled, and that creating a new tag shows up without
+  a /reloadui.
+
 ## 2026-11-15: Tag edit no longer errors out in Edit Category (4.6.23)
 
 - CatSet_TagEdit_LAM:setValue (settings/CategorySettings.lua) crashed with

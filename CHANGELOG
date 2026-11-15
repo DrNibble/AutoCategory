@@ -1,3 +1,10 @@
+[COLOR="DeepSkyBlue"] 4.6.22 (162), named category creation (2026-11-15)[/COLOR]:
+[LIST]
+[*] Replace "New Sub-Level" in the header right-click menu with "New Category" and a name-entry dialog. Blank and duplicate names are refused without closing the dialog; cancellation creates nothing.
+[*] Create the category in the clicked bag at Normal level, without a parent, with rule false and the highest display priority. Do not open the category order window. If priority 1000 is occupied, compact existing display priorities while preserving their relative order and ties; execution priorities and other bags are unchanged.
+[*] Creation is also available on ungrouped/predefined headers and at level 5. 2705 Lua 5.1 assertions pass. Non testé dans ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.21 (161), guild bank cleanup (2026-11-15)[/COLOR]:
 [LIST]
 [*] Remove temporary guild-bank traces, /acgbtrace, /acdebug, diagnostic logs, empty-list retries and polling timers.

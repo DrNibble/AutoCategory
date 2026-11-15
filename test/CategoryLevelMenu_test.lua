@@ -1,8 +1,7 @@
 -- Run from the addon root with Lua 5.1:
 -- lua5.1 test/CategoryLevelMenu_test.lua  (run from the AutoCategory/ addon folder)
--- Tests the category header context menu level operations (the
--- AutoCategory submenu of the inventory category header right click
--- menu), loading the delivered files (never copies of them).
+-- Tests the flat category-header context menu operations, loading the
+-- delivered files (never copies of them).
 
 local assertions = 0
 local function equal(expected, actual, message)
@@ -18,7 +17,10 @@ end
 -- string constants (the real translations live in lang/)
 SI_AC_MENU_CM_LEVEL_UP = "Increase Level"
 SI_AC_MENU_CM_LEVEL_DOWN = "Decrease Level"
-SI_AC_MENU_CM_NEW_LEVEL = "New Sub-Level"
+SI_AC_MENU_CM_NEW_CATEGORY = "New Category"
+SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Empty name"
+SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Duplicate name"
+SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Invalid bag"
 SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level"
 SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
 SI_AC_MENU_CM_MOVE_SUBMENU = "Move To"
@@ -52,6 +54,7 @@ local CategoryTree = AutoCategory.CategoryTree
 -- same shape AutoCategory.RulesW provides
 local ruleList = {}
 local ruleNames = {}
+AutoCategory.RulesW = { ruleList = ruleList, ruleNames = ruleNames }
 
 local function addRule(rule)
     setmetatable(rule, ruleMeta)
@@ -340,26 +343,26 @@ equal(0, select(1, CLM.CopySubtreeToBag(5, "Armes", 6)),
     "copying a category of another bag copies nothing")
 
 -- ---------------------------------------------------------------------------
--- Part 5: CreateSubLevel
+-- Part 5: CreateCategory
 -- ---------------------------------------------------------------------------
 
 setBag(9, { { name = "Niv1", runpriority = 10, showpriority = 10 } })
 newRule("Niv1", 1)
 
-local newRuleResult = CLM.CreateSubLevel(9, "Niv1")
-equal(true, newRuleResult ~= nil, "a new sub-level is created")
-equal("false", newRuleResult.rule, "the new level has the rule false")
-equal(2, newRuleResult.level, "the new level is one deeper")
-equal("Niv1", newRuleResult.parent, "the new level nests under the category")
+local newRuleResult = CLM.CreateCategory(9, "NewCategory")
+equal(true, newRuleResult ~= nil, "a new named category is created")
+equal("false", newRuleResult.rule, "the new category has the rule false")
+equal(nil, newRuleResult.level, "the new category is Normal")
+equal(nil, newRuleResult.parent, "the new category has no parent")
 equal("Niv1,NewCategory", table.concat(bagNames(9), ","),
-    "the new level is added to the bag")
-equal(10, bags[9].rules[2].runpriority, "the new level keeps the category's priorities")
+    "the new category is added to the bag")
+equal(1000, bags[9].rules[2].runpriority, "the new category uses default priorities")
 
--- no new level under a level 5 category
+-- Creation is independent of the clicked category's level.
 newRule("Niv5", 5)
 setBag(10, { { name = "Niv5", runpriority = 1, showpriority = 1 } })
-equal(nil, CLM.CreateSubLevel(10, "Niv5"),
-    "no new level under a level 5 category")
+equal(nil, CLM.CreateCategory(10, "NewCategory"),
+    "duplicate names are refused instead of suffixed")
 
 -- ---------------------------------------------------------------------------
 -- Part 6: DeleteLevelInBag
@@ -410,9 +413,9 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(3, #capturedItems, "increase, new level and delete entries for an operable header")
-equal("Increase Level", capturedItems[1].label, "first entry increases the level")
-equal("New Sub-Level", capturedItems[2].label)
+equal(3, #capturedItems, "new category, increase and delete entries for an operable header")
+equal("New Category", capturedItems[1].label, "first entry creates a category")
+equal("Increase Level", capturedItems[2].label)
 equal("Delete Level", capturedItems[3].label)
 equal(1, #capturedSubmenus, "one Copy To submenu is added for an operable header")
 equal("Copy To", capturedSubmenus[1].text, "the submenu is the Copy To menu")
@@ -424,15 +427,15 @@ equal("Guild Bank", menu[3].label)
 
 -- the callbacks run the operations and refresh
 refreshCalls.cacheInitialize = 0
-capturedItems[1].callback()
+capturedItems[2].callback()
 equal(2, rKid.level, "the increase callback deepens the level")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 
--- a header with no backing rule gets no entries
+-- A header with no backing rule only gets category creation.
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Others", 12)
-equal(0, #capturedItems, "no entries for a category without a rule")
+equal(1, #capturedItems, "creation is offered on ungrouped headers")
 equal(0, #capturedSubmenus, "no submenu for a category without a rule")
 
 -- a predefined rule is not operable
@@ -442,25 +445,26 @@ setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Pred", 13)
-equal(0, #capturedItems, "no entries for a predefined rule")
+equal(1, #capturedItems, "creation is offered without editing a predefined rule")
 equal(0, #capturedSubmenus, "no submenu for a predefined rule")
 
--- a category that is not a category of the clicked bag gets no entries
+-- A category outside the clicked bag has no level operations.
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root", 13)
-equal(0, #capturedItems, "no entries outside the bag of the header")
+equal(1, #capturedItems, "creation only needs the captured bag")
 equal(0, #capturedSubmenus, "no submenu outside the bag of the header")
 
--- at level 5 the increase and new level entries are left out
+-- At level 5 only increase is left out; creation is independent.
 newRule("Deep", 5)
 setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
-equal(2, #capturedItems, "no increase and no new level at level 5")
-equal("Decrease Level", capturedItems[1].label)
-equal("Delete Level", capturedItems[2].label)
+equal(3, #capturedItems, "creation remains available at level 5")
+equal("New Category", capturedItems[1].label)
+equal("Decrease Level", capturedItems[2].label)
+equal("Delete Level", capturedItems[3].label)
 equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
 equal("Move To", capturedSubmenus[1].text)
 equal(1, #capturedSubmenus[1].entries,

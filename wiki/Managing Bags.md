@@ -41,6 +41,23 @@ Looks like:
 
    Bags can be customized separately.
 
+   In version 4.6.22, you can also right-click an inventory category header
+   and select **New Category**. Enter a unique name in the popup; blank names
+   and names already used by another category are refused, including names
+   differing only in letter case. Cancel leaves the categories unchanged.
+
+   The new category is added only to the clicked bag, at Normal level with
+   no parent and the rule `false`. It automatically receives the highest
+   display priority, without opening the category display order window.
+   If priority 1000 is already occupied, existing display-priority groups
+   are compacted below it without changing their relative order or ties.
+   Execution priorities and other bags are unchanged. If all 999 distinct
+   priorities from 2 through 1000 are occupied, creation is refused without
+   changing existing categories. A `false` rule
+   initially matches no items, so it does not create an empty header in the
+   inventory item list. Assign items or nest matching categories under it
+   when you want it to contain inventory entries.
+
 4. Customize a category
 
    You can change a category's name, description, tag or even its rule to make better use of them. You can find examples of custom rules on the [Creating Custom Categories](https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories) page.

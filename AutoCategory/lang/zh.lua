@@ -219,7 +219,11 @@ AutoCategory_localization_strings["zh"] = {
     -- Category header context menu: AutoCategory level operations
     SI_AC_MENU_CM_LEVEL_UP = "提高层级",
     SI_AC_MENU_CM_LEVEL_DOWN = "降低层级",
-    SI_AC_MENU_CM_NEW_LEVEL = "新建子层级",
+    SI_AC_MENU_CM_NEW_CATEGORY = "新建分类",
+    SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "请输入唯一名称。新分类将在当前背包中创建，层级为普通，规则为 false，并具有最高显示优先级。",
+    SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "请输入非空的分类名称。",
+    SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "已存在同名分类，请选择其他名称。",
+    SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "无法在当前背包中创建分类。",
     SI_AC_MENU_CM_DELETE_LEVEL = "删除层级",
     SI_AC_MENU_CM_COPY_SUBMENU = "复制到",
     SI_AC_MENU_CM_MOVE_SUBMENU = "移动到",

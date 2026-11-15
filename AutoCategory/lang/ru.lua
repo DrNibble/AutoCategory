@@ -259,7 +259,11 @@ AutoCategory_localization_strings["ru"] = {
     -- Category header context menu: AutoCategory level operations
     SI_AC_MENU_CM_LEVEL_UP = "Повысить уровень",
     SI_AC_MENU_CM_LEVEL_DOWN = "Понизить уровень",
-    SI_AC_MENU_CM_NEW_LEVEL = "Новый подуровень",
+    SI_AC_MENU_CM_NEW_CATEGORY = "Новая категория",
+    SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Введите уникальное имя. Категория будет создана в этой сумке на обычном уровне с правилом false и наивысшим приоритетом отображения.",
+    SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Введите непустое имя категории.",
+    SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Категория с таким именем уже существует. Выберите другое имя.",
+    SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Невозможно создать категорию в этой сумке.",
     SI_AC_MENU_CM_DELETE_LEVEL = "Удалить уровень",
     SI_AC_MENU_CM_COPY_SUBMENU = "Копировать в",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Переместить в",

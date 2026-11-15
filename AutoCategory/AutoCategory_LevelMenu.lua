@@ -334,43 +334,82 @@ function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId)
     return copied, skipped
 end
 
--- Create a new category nested under the clicked one: a new rule with
--- the rule text "false" - it never matches an item, so the new level
--- stays a pure display section until categories are nested under it -
--- one level deeper than the clicked category and parented to it, added
--- to the bag of the clicked header. Returns the new rule, or nil when
--- the clicked category is already at level 5.
-function CLM.CreateSubLevel(bagTypeId, ruleName)
-    local root = AutoCategory.GetRuleByName(ruleName)
-    if not root then return nil end
-    local level = CLM.EffectiveLevel(root)
-    if level >= 5 then return nil end
-
-    local newName = AutoCategory.GetUsableRuleName(
-        GetString(SI_AC_DEFAULT_NAME_NEW_CATEGORY))
-    local tag = root.tag
-    if tag == nil or tag == "" then
-        tag = GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG)
+-- Names are global, even though the new bag entry belongs only to the
+-- clicked bag. Never silently suffix a duplicate typed by the user.
+function CLM.ValidateNewCategoryName(name)
+    name = type(name) == "string" and name:match("^%s*(.-)%s*$") or ""
+    if name == "" then return nil, SI_AC_DIALOG_CATEGORY_NAME_EMPTY end
+    local lower = LocaleAwareToLower or string.lower
+    local key = lower(name)
+    local rules = AutoCategory.RulesW and AutoCategory.RulesW.ruleList or {}
+    if AutoCategory.GetRuleByName(name) then
+        return nil, SI_AC_DIALOG_CATEGORY_NAME_EXISTS
     end
+    for _, rule in ipairs(rules) do
+        if type(rule.name) == "string" and lower(rule.name) == key then
+            return nil, SI_AC_DIALOG_CATEGORY_NAME_EXISTS
+        end
+    end
+    local bags = AutoCategory.saved and AutoCategory.saved.bags or {}
+    for _, bag in pairs(bags) do
+        for _, entry in ipairs(bag.rules or {}) do
+            if type(entry.name) == "string" and lower(entry.name) == key then
+                return nil, SI_AC_DIALOG_CATEGORY_NAME_EXISTS
+            end
+        end
+    end
+    return name
+end
 
-    local newRule = AutoCategory.CreateRule(newName, tag)
-    newRule.rule = "false"
-    newRule.level = level + 1
-    newRule.parent = ruleName
-    newRule:compile()
-
-    AutoCategory.ARW:AddRule(newRule)
-    AutoCategory.cache.AddRule(newRule)
-
+-- Create an ordinary category (Normal, no parent) in the captured bag.
+-- Prepare both objects before inserting anything into saved state.
+function CLM.CreateCategory(bagTypeId, name)
     local saved = AutoCategory.saved
     local savedBag = saved and saved.bags and saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules then return nil end
+    if not savedBag or not savedBag.rules then
+        return nil, SI_AC_DIALOG_CATEGORY_CREATE_FAILED
+    end
+    local newName, err = CLM.ValidateNewCategoryName(name)
+    if not newName then return nil, err end
+    local newRule = AutoCategory.CreateRule(newName,
+        GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG))
+    newRule.rule = "false"
+    newRule.level = nil
+    newRule.parent = nil
 
-    local srcBagrule = findBagrule(bagTypeId, ruleName)
-    local entry = AutoCategory.CreateBagRule(newName,
-        srcBagrule and srcBagrule.runpriority,
-        srcBagrule and srcBagrule.showpriority)
-    if not entry then return nil end
+    -- Stay inside the display slider's 2..1000 range. If it is already
+    -- full at the top, compact existing priority groups without changing
+    -- their order or ties. Do not alter rule execution priorities.
+    local highest = 1
+    local groups, seen = {}, {}
+    for _, bagrule in ipairs(savedBag.rules) do
+        local priority = bagrule.showpriority or bagrule.runpriority or 1000
+        highest = math.max(highest, priority)
+        if not seen[priority] then
+            groups[#groups + 1] = priority
+            seen[priority] = true
+        end
+    end
+    local newPriority = #savedBag.rules == 0 and 1000 or highest + 1
+    local replacements
+    if newPriority > 1000 then
+        if #groups > 998 then return nil, SI_AC_DIALOG_CATEGORY_CREATE_FAILED end
+        table.sort(groups, function(a, b) return a > b end)
+        replacements = {}
+        for i, priority in ipairs(groups) do replacements[priority] = 1000 - i end
+        newPriority = 1000
+    end
+    local entry = AutoCategory.CreateBagRule(newRule, nil, newPriority)
+    if not entry then return nil, SI_AC_DIALOG_CATEGORY_CREATE_FAILED end
+    newRule:compile()
+    AutoCategory.ARW:AddRule(newRule)
+    AutoCategory.cache.AddRule(newRule)
+    if replacements then
+        for _, bagrule in ipairs(savedBag.rules) do
+            local priority = bagrule.showpriority or bagrule.runpriority or 1000
+            bagrule.showpriority = replacements[priority]
+        end
+    end
     savedBag.rules[#savedBag.rules + 1] = entry
     return newRule
 end
@@ -542,6 +581,42 @@ local function refreshAfterChange()
     AutoCategory.RefreshCurrentList()
 end
 
+local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
+local newCategoryDialogRegistered = false
+
+function CLM.OpenNewCategoryDialog(bagTypeId)
+    local bags = AutoCategory.saved and AutoCategory.saved.bags
+    if not bags or not bags[bagTypeId] then return end
+    if not newCategoryDialogRegistered then
+        ZO_Dialogs_RegisterCustomDialog(NEW_CATEGORY_DIALOG, {
+            title = { text = SI_AC_MENU_CM_NEW_CATEGORY },
+            mainText = { text = SI_AC_DIALOG_CATEGORY_NAME_PROMPT },
+            editBox = { defaultText = "", maxInputCharacters = 128 },
+            buttons = {
+                {
+                    text = SI_OK,
+                    noReleaseOnClick = true,
+                    callback = function(dialog)
+                        local bagTypeId = dialog.data.bagTypeId
+                        local rule, err = CLM.CreateCategory(bagTypeId,
+                            ZO_Dialogs_GetEditBoxText(dialog))
+                        if not rule then
+                            ZO_Dialogs_UpdateDialogMainText(dialog,
+                                { text = GetString(err) })
+                            return
+                        end
+                        ZO_Dialogs_ReleaseDialog(NEW_CATEGORY_DIALOG)
+                        refreshAfterChange()
+                    end,
+                },
+                { text = SI_DIALOG_CANCEL },
+            },
+        })
+        newCategoryDialogRegistered = true
+    end
+    ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, { bagTypeId = bagTypeId })
+end
+
 -- The AutoCategory entries of the category header context menu: the
 -- level operations on the clicked category and the categories nested
 -- under it as direct menu entries, the move of the whole section
@@ -551,11 +626,19 @@ end
 -- cannot be nested inside those submenus: they sit at the top level
 -- of the menu, next to them. Added by
 -- AC_ItemRowHeader_OnShowContextMenu (AutoCategory.lua); a no-op for
--- headers with no operable backing rule. The menu is keyboard-only:
+-- headers with no operable backing rule, except for New Category.
+-- The menu is keyboard-only:
 -- the gamepad inventory lists have no right click.
 function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
+    if not AutoCategory.saved.bags[bagTypeId] then return end
+
+    -- Creation does not modify the clicked rule or inherit its level.
+    -- Offer it on ungrouped/predefined headers and at level 5 as well.
+    AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
+        function() CLM.OpenNewCategoryDialog(bagTypeId) end,
+        MENU_ADD_OPTION_LABEL)
 
     local rule = CLM.HeaderRule(cateName)
     -- no backing rule (the "Others" category, dynamic plugin
@@ -581,15 +664,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
         AddCustomMenuItem(GetString(SI_AC_MENU_CM_LEVEL_DOWN),
             function()
                 if CLM.ShiftLevels(bagTypeId, subtree, -1) then
-                    refreshAfterChange()
-                end
-            end, MENU_ADD_OPTION_LABEL)
-    end
-
-    if CLM.EffectiveLevel(rule) < 5 then
-        AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_LEVEL),
-            function()
-                if CLM.CreateSubLevel(bagTypeId, rule.name) then
                     refreshAfterChange()
                 end
             end, MENU_ADD_OPTION_LABEL)

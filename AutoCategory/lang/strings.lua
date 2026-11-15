@@ -262,7 +262,11 @@ AutoCategory_localization_strings["en"] = {
     -- Category header context menu: AutoCategory level operations
     SI_AC_MENU_CM_LEVEL_UP = "Increase Level",
     SI_AC_MENU_CM_LEVEL_DOWN = "Decrease Level",
-    SI_AC_MENU_CM_NEW_LEVEL = "New Sub-Level",
+    SI_AC_MENU_CM_NEW_CATEGORY = "New Category",
+    SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Enter a unique name. The category will be created in this bag at Normal level with the rule false and the highest display priority.",
+    SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Enter a non-empty category name.",
+    SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "A category with this name already exists. Choose another name.",
+    SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Unable to create the category in this bag.",
     SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level",
     SI_AC_MENU_CM_COPY_SUBMENU = "Copy To",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Move To",

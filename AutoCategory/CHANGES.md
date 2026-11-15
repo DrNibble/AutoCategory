@@ -1,5 +1,33 @@
 # Changes
 
+## 2026-11-15: Named Normal category from the header context menu (4.6.22)
+
+- Replace "New Sub-Level" with "New Category". Open an ESO text-entry dialog
+  instead of silently creating an automatically named child category.
+- Trim the entered name; reject blank or duplicate names, including
+  case-insensitive global matches and existing saved bag entries. Show the
+  error in the same dialog without closing it or changing the saved rules.
+- Create the category only in the clicked bag, with rule text "false",
+  Normal level (no level value) and no parent. Capture the bag when opening
+  the dialog so a subsequent selection change cannot redirect creation.
+- Assign the highest display priority in the clicked bag automatically,
+  then refresh caches and inventory lists without opening the ordering window.
+  If priority 1000 is occupied, compact existing display-priority groups
+  below it, preserving their order and ties. Leave execution priorities and
+  other bags unchanged. Refuse creation without mutation if all 999 supported
+  distinct priority values are occupied.
+  A false rule initially matches no items; do not manufacture item matches
+  or change the inventory's empty-header behavior to imply otherwise.
+- Offer creation on ungrouped/predefined headers and at level 5, independently
+  of level operations. Cancel and failed validation create nothing.
+- Translate the new menu/dialog strings in en/de/fr/es/ru/zh; retain the
+  guild-bank ordering fixes and the removal of trace/retry workarounds.
+- Lua 5.1: 70 creation/dialog, 138 category-menu, 37 scroll-commit,
+  140 category-tree, 78 rule-level and 2242 LibSets-fixture assertions pass
+  (2705 total); 48 delivered/test Lua files compile.
+- Non testé dans ESO. Verify naming, rejection of a duplicate, cancellation
+  and automatic first position without opening the ordering window in game.
+
 ## 2026-11-15: Remove guild-bank diagnostics and workaround timers (4.6.21)
 
 - Remove GuildBankTrace.lua and its manifest entry, /acgbtrace, /acdebug,

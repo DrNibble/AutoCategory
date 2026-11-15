@@ -1,5 +1,30 @@
 # Changes
 
+## 2026-11-15: Sort every rebuilt keyboard list before committing (4.6.20)
+
+- The new capture shows a correctly sorted guild bank being overwritten by
+  the empty-list retry: createNewScrollData appends headers after surviving
+  items, but the standalone rebuild commits without an enclosing ApplySort.
+  Headers remain present, so the old poll does not detect the broken order.
+- Sort rebuilt data with the category-aware comparator before every commit,
+  covering normal sorting, delayed retries and standalone updateHook calls.
+  Preserve the commit needed to calculate header scroll positions.
+- Cancel delayed empty-list retries after a guild selection/items-ready
+  generation change, selected guild change, list replacement, addon disable,
+  bulk mode or keyboard unhook.
+- Preserve intermediate parent header sort keys when rebuilding already
+  collapsed output. With no child items to feed their priority, those keys
+  were otherwise lost (nil), making parent ordering unreliable.
+- Trace REBUILD_SORTED/REBUILD_COMMITTED and headerMissingKeys. Allow a bounded
+  manual marker/snapshot after the automatic trace line cap, without resuming
+  continuous logging; the real capture's marker came after that cap.
+- Lua 5.1: 56 diagnostic, 24 scroll/retry integration, 140 category-tree,
+  78 rule-level, 137 category-menu and 2242 LibSets-fixture assertions pass
+  (2677 total). A new two-collapsed-parent regression fails on the old code.
+- No claim of a Swiss Knife conflict: it is present in the capture but the
+  demonstrated bad rewrite is AutoCategory's own delayed rebuild.
+  Not tested in ESO; the new build still needs visual confirmation.
+
 ## 2026-11-15: Opt-in guild bank trace through sorting and rendering
 
 - Version 4.6.19 (159). Add `/acgbtrace on|off|mark <symptom>|dump`,

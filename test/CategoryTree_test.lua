@@ -475,6 +475,34 @@ for _, e in ipairs(built) do
 end
 AutoCategory.SetCategoryCollapsed(1, "Weapons", false)
 
+-- Two fully collapsed parents have no surviving child items to regenerate
+-- their sort keys. Rebuilding their headers must preserve the original
+-- priority, not silently change both keys to nil (observed in the guild log).
+local collapsedParents = {
+    H.createHeaderEntry({AC_categoryName = "Zone", AC_bagTypeId = 1,
+        AC_isParent = true, AC_catCount = 18, AC_sortPriorityName = "0100Zone"}),
+    H.createHeaderEntry({AC_categoryName = "Cyrodiil", AC_bagTypeId = 1,
+        AC_isParent = true, AC_catCount = 2, AC_sortPriorityName = "0200Cyrodiil"}),
+}
+AutoCategory.SetCategoryCollapsed(1, "Zone", true)
+AutoCategory.SetCategoryCollapsed(1, "Cyrodiil", true)
+for pass = 1, 3 do
+    collapsedParents = H.createNewScrollData(collapsedParents)
+    sortEntries(collapsedParents)
+    equalList({"(1)Zone", "(1)Cyrodiil"}, collapsedParents,
+        "collapsed parent priority preserved on rebuild " .. pass)
+    equal("0100Zone", collapsedParents[1].data.AC_sortPriorityName,
+        "Zone sort key survives rebuild " .. pass)
+    equal("0200Cyrodiil", collapsedParents[2].data.AC_sortPriorityName,
+        "Cyrodiil sort key survives rebuild " .. pass)
+    equal(18, collapsedParents[1].data.AC_catCount,
+        "Zone collapsed count survives rebuild " .. pass)
+    equal(2, collapsedParents[2].data.AC_catCount,
+        "Cyrodiil collapsed count survives rebuild " .. pass)
+end
+AutoCategory.SetCategoryCollapsed(1, "Zone", false)
+AutoCategory.SetCategoryCollapsed(1, "Cyrodiil", false)
+
 -- ---------------------------------------------------------------------------
 -- createHeaderEntry carries the two-level fields
 -- ---------------------------------------------------------------------------

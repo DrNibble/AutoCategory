@@ -104,6 +104,8 @@ BAG_BACKPACK = 1
 ZO_SORT_ORDER_UP = true
 EVENT_STACKED_ALL_ITEMS, EVENT_STACKED_ALL_ITEMS_IN_BAG = "stacked", "stacked-bag"
 EVENT_GUILD_BANK_SELECTED, EVENT_GUILD_BANK_ITEMS_READY = "bank-selected", "bank-ready"
+local SelectedGuildId = 10
+GetSelectedGuildBankId = function() return SelectedGuildId end
 
 LibMediaProvider = {Fetch = function() return "font" end}
 
@@ -263,8 +265,8 @@ check("ApplySort prehook captured", applySortHook ~= nil)
 applySortHook(PLAYER_INVENTORY, INVENTORY_BACKPACK)
 
 local invState = state(Inventory)
-check("inventory data replaced with headers appended",
-  #invState.data == 3 and invState.data[3].typeId == 998)
+check("inventory data replaced and sorted with header before its items",
+  #invState.data == 3 and invState.data[1].typeId == 998)
 
 --the fix: a commit happened after the replacement, before ApplySort's own
 --sort + commit. Check the event order.
@@ -278,13 +280,13 @@ end
 check("list committed after data replacement (the fix)", CommitAfter)
 
 --simulated ApplySort: sort then commit, like the original function
-table.sort(invState.data, function() return false end)
+table.sort(invState.data, PLAYER_INVENTORY.inventories[INVENTORY_BACKPACK].sortFn)
 ZO_ScrollList_Commit(Inventory)
 
 check("every entry has a scroll position (top) after the commits",
   updateScrollSafe(Inventory))
 check("header entry received top/bottom from the commit",
-  invState.data[3].top ~= nil and invState.data[3].bottom ~= nil)
+  invState.data[1].top ~= nil and invState.data[1].bottom ~= nil)
 
 --------------------------------------------------------------------
 -- Guild-bank retry path: empty list queues a 100ms retry that must
@@ -326,8 +328,8 @@ for i, Event in ipairs(Log) do
 end
 check("delayed guild bank rebuild commits after replacing data", GBCommitAfter)
 check("guild bank header has a scroll position",
-  gbState.data[3] ~= nil and gbState.data[3].typeId == 998
-    and gbState.data[3].top ~= nil)
+  gbState.data[1] ~= nil and gbState.data[1].typeId == 998
+    and gbState.data[1].top ~= nil)
 check("guild bank list survives a simulated UpdateScroll",
   updateScrollSafe(GuildBank))
 
@@ -345,14 +347,13 @@ check("diagnostics stay disabled throughout normal keyboard rebuilds",
 --------------------------------------------------------------------
 -- Enable the real observer around the real delayed rebuild, without
 -- changing the behavior of the hook/scroll-list model. The observer must
--- expose the appended (not yet sorted) header, not silently repair it.
+-- expose both the intermediate appended header and the corrected commit.
 --------------------------------------------------------------------
 local TraceMessages = {}
 AutoCat_Logger = function() return {Info = function(_, message)
   TraceMessages[#TraceMessages + 1] = message
 end} end
 GetGameTimeMilliseconds = function() return 100 end
-GetSelectedGuildBankId = function() return 10 end
 d = function() end
 ZO_ScrollList_GetDataTypeTable = function(list, typeId)
   return state(list).dataTypes[typeId]
@@ -365,18 +366,52 @@ CallLaterQueue = {}
 applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
 gbState.data = {itemEntry(1), itemEntry(2)}
 CallLaterQueue[1]()
-local sawRetry, sawInversion, sawFilter = false, false, false
+local sawRetry, sawSorted, sawFilter = false, false, false
 for _, message in ipairs(TraceMessages) do
   if message:find("RETRY_REBUILD list=", 1, true) then sawRetry = true end
-  if message:find("REBUILD_COMMITTED_BEFORE_CALLER_SORT list=", 1, true)
-      and message:find("inversions=1", 1, true) then sawInversion = true end
+  if message:find("REBUILD_COMMITTED list=", 1, true)
+      and message:find("inversions=0", 1, true) then sawSorted = true end
   if message:find("FILTER inputItems=2 kept=2", 1, true) then sawFilter = true end
 end
 check("real delayed rebuild is observable", sawRetry)
-check("real delayed rebuild exposes the unsorted appended header", sawInversion)
+check("real delayed rebuild commits a sorted list", sawSorted)
 check("real filter decisions counted before rebuilding", sawFilter)
-check("observer does not repair the unsorted list",
-  gbState.data[1].typeId == 1 and gbState.data[3].typeId == 998)
+check("rebuild puts header before items even without an enclosing ApplySort",
+  gbState.data[1].typeId == 998 and gbState.data[2].typeId == 1)
+
+local function pendingRetry()
+  gbState.data = {}
+  CallLaterQueue = {}
+  applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
+  local callback = CallLaterQueue[1]
+  gbState.data = {itemEntry(1), itemEntry(2)}
+  return callback, gbState.data
+end
+local callback, before = pendingRetry()
+SelectedGuildId = 20
+callback()
+check("retry for another selected guild is ignored", gbState.data == before)
+SelectedGuildId = 10
+callback, before = pendingRetry()
+RegisteredEvents[EVENT_GUILD_BANK_ITEMS_READY](EVENT_GUILD_BANK_ITEMS_READY)
+callback()
+check("items-ready event invalidates old empty-list retries", gbState.data == before)
+callback, before = pendingRetry()
+AutoCategory.Enabled = false
+callback()
+check("disabled addon ignores pending retry", gbState.data == before)
+AutoCategory.Enabled = true
+callback, before = pendingRetry()
+AutoCategory.BulkMode = true
+callback()
+check("bulk mode ignores pending retry", gbState.data == before)
+AutoCategory.BulkMode = false
+callback, before = pendingRetry()
+local inventory = PLAYER_INVENTORY.inventories[INVENTORY_GUILD_BANK]
+inventory.listView = makeList("Replacement")
+callback()
+check("replaced list ignores pending retry", gbState.data == before)
+inventory.listView = GuildBank
 
 print(string.format("scroll commit passed=%d failed=%d", Passed, Failed))
 if Failed > 0 then os.exit(1) end

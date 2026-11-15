@@ -13,6 +13,7 @@ local CategoryTree = AutoCategory.CategoryTree
 -- based on PLAYER_INVENTORY:OnInventorySlotUpdated hook
 local forceRuleReloadByUniqueIDs = {}
 local pendingUpdates = {}     -- list of waiting to go to forceRuleReloadByUniqueIDs, UID -> timestamp
+local gbRebuildGeneration = 0 -- invalidate delayed rebuilds across bank/mode changes
 
 
 AutoCategory.dataCount = {}
@@ -563,6 +564,14 @@ local function createNewScrollData(scrollData)
         if isHeader and data.AC_isParent then
             local headerInfo = ensureHeaderInfo(data.AC_categoryName,
                 data.AC_headerLevel or 1, data.AC_bagTypeId)
+            -- A collapsed parent may be the only remaining row in its
+            -- subtree. Without child items no feedAncestors call restores
+            -- its priority, so retain the key carried by the existing header.
+            local storedKey = data.AC_sortPriorityName
+            if storedKey and (headerInfo.AC_sortPriorityName == nil
+                or storedKey < headerInfo.AC_sortPriorityName) then
+                headerInfo.AC_sortPriorityName = storedKey
+            end
 
             if AutoCategory.IsCategoryCollapsed(data.AC_bagTypeId,
                 data.AC_categoryName) then
@@ -683,8 +692,13 @@ local function rebuildScrollData(zo_inventory)
 
     if not scrollData or #scrollData == 0 then 
         if zo_inventory.altFreeSlotType == INVENTORY_GUILD_BANK then
+            local generation = gbRebuildGeneration
+            local guildId = GetSelectedGuildBankId()
             logDebug("[AC] guild bank list empty at sort time - retry in 100 ms")
             zo_callLater(function()
+                if generation ~= gbRebuildGeneration or not AutoCategory.Enabled
+                    or AutoCategory.BulkMode or GetSelectedGuildBankId() ~= guildId
+                    or zo_inventory.listView ~= list then return end
                 local freshData = ZO_ScrollList_GetDataList(list)
                 if freshData and #freshData > 0 then
                     if AutoCategory.GuildBankTrace then
@@ -704,6 +718,16 @@ local function rebuildScrollData(zo_inventory)
 	if AutoCategory.GuildBankTrace then
 		AutoCategory.GuildBankTrace:Snapshot("REBUILD_REPLACED_UNSORTED", list)
 	end
+	-- createNewScrollData appends headers after the surviving items.
+	-- Deferred retries/updateHook have no enclosing ApplySort to fix that
+	-- order. Always sort before the commit, including those standalone paths.
+	table.sort(list.data, function(left, right)
+		return sortInventoryFn(zo_inventory, left, right,
+			zo_inventory.currentSortKey, zo_inventory.currentSortOrder)
+	end)
+	if AutoCategory.GuildBankTrace then
+		AutoCategory.GuildBankTrace:Snapshot("REBUILD_SORTED", list)
+	end
 	logDebug("[AC] rebuildScrollData: ", #scrollData, " entries -> ",
 		#list.data, " entries with headers")
 	--The replaced entries (including category headers, typeId 998) only
@@ -715,7 +739,7 @@ local function rebuildScrollData(zo_inventory)
 	--and commit again afterwards, which is harmless.
 	ZO_ScrollList_Commit(list)
 	if AutoCategory.GuildBankTrace then
-		AutoCategory.GuildBankTrace:Snapshot("REBUILD_COMMITTED_BEFORE_CALLER_SORT", list)
+		AutoCategory.GuildBankTrace:Snapshot("REBUILD_COMMITTED", list)
 	end
 	return true
 end
@@ -892,6 +916,7 @@ end
 -- the text search results of the new guild are not ready yet.
 local gbPollGeneration = 0
 local function onGuildBankChanged(eventId)
+	gbRebuildGeneration = gbRebuildGeneration + 1
 	if not AutoCategory.Enabled then return end
 	if AutoCategory.GuildBankTrace then
 		AutoCategory.GuildBankTrace:BankChanged(eventId)
@@ -991,6 +1016,7 @@ function AutoCategory.HookKeyboardMode()
 end
 
 function AutoCategory.UnHookKeyboardMode()
+	gbRebuildGeneration = gbRebuildGeneration + 1
 	if AutoCategory.GuildBankTrace then AutoCategory.GuildBankTrace.keyboard = false end
  	-- Other events that cause a full refresh
 	-- user can force a refresh with stack key
@@ -1005,4 +1031,3 @@ function AutoCategory.UnHookKeyboardMode()
         callLater = callLater:Destroy()
     end
 end
-

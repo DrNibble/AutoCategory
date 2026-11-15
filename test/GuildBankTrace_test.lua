@@ -245,8 +245,16 @@ local input = {row(false, nil, 2)}
 bank.data = input
 trace:Snapshot("MISSING_RULES")
 check("missing rules diagnosed", lastSummary("MISSING_RULES"):find("missingRules=1", 1, true))
+bank.data = {row(true, nil, 0)}
+trace:Snapshot("HEADER_KEY_MISSING")
+check("missing parent header keys diagnosed",
+    lastSummary("HEADER_KEY_MISSING"):find("headerMissingKeys=1", 1, true))
 trace.lines = 2500
 trace:Write("limit")
 check("capture stops at line limit", not trace.enabled and has("STOP line limit"))
+SLASH_COMMANDS["/acgbtrace"]("mark apres limite")
+check("manual marker accepted after the cap",
+    has("MANUAL_AFTER_LIMIT") and has("MARK apres limite"))
+check("manual marker does not restart continuous capture", not trace.enabled)
 check("observation never caused an extra sort", sorts == 1)
 print("GuildBankTrace passed=" .. passed .. " failed=0")

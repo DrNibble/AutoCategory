@@ -25,6 +25,7 @@ function Trace:Write(message)
     self.lines = self.lines + 1
     if self.lines > LIMIT then
         self.enabled = false
+        self.limitReached = true
         self.session = self.session + 1
         AutoCat_Logger():Info("[ACGB] STOP line limit reached")
         d("[AutoCategory] /acgbtrace stopped: line limit reached.")
@@ -60,6 +61,7 @@ function Trace:Snapshot(stage, list, extra, stack)
     local _, inventory = guildList()
     local data = ZO_ScrollList_GetDataList(list) or {}
     local headers, items, missing, positions, inversions = 0, 0, 0, 0, 0
+    local headerMissingKeys = 0
     local firstBad, previousKey, previousHeader
     local headerGroups, itemGroups = {}, {}
     local hash = 5381
@@ -72,6 +74,7 @@ function Trace:Snapshot(stage, list, extra, stack)
         end
         if entry.top == nil or entry.bottom == nil then positions = positions + 1 end
         local key = slot.AC_sortPriorityName
+        if header and key == nil then headerMissingKeys = headerMissingKeys + 1 end
         local group = tostring(key) .. "\001" .. tostring(slot.AC_categoryName)
         if header then headerGroups[group] = true
         else itemGroups[group] = (itemGroups[group] or 0) + 1 end
@@ -119,9 +122,9 @@ function Trace:Snapshot(stage, list, extra, stack)
     end
     local info = ZO_ScrollList_GetDataTypeTable(list, HEADER)
     self:Write(string.format(
-        "%s list=%s data=%s n=%d items=%d H=%d missingRules=%d orphanItems=%d missingY=%d inversions=%d firstBad=%s hash=%.0f visibleH=%d activeH=%d hiddenH=%d hidden=%s sortFn=%s headerSetup=%s %s",
+        "%s list=%s data=%s n=%d items=%d H=%d missingRules=%d headerMissingKeys=%d orphanItems=%d missingY=%d inversions=%d firstBad=%s hash=%.0f visibleH=%d activeH=%d hiddenH=%d hidden=%s sortFn=%s headerSetup=%s %s",
         stage, tostring(list), tostring(data), #data, items, headers, missing,
-        orphanItems, positions, inversions, tostring(firstBad), hash, visibleHeaders,
+        headerMissingKeys, orphanItems, positions, inversions, tostring(firstBad), hash, visibleHeaders,
         activeHeaders, hiddenHeaders, tostring(list:IsControlHidden()),
         tostring(inventory.sortFn), tostring(info and info.setupCallback),
         extra or ""))
@@ -230,8 +233,9 @@ function Trace:Start()
     self:Install()
     self.session = self.session + 1
     self.generation, self.lines, self.stacks = 0, 0, 0
+    self.limitReached = false
     self.enabled = true
-    self:Write("START build=4.6.19 keyboard=" .. tostring(self.keyboard)
+    self:Write("START build=4.6.20 keyboard=" .. tostring(self.keyboard)
         .. " stackBudget=32 lineLimit=" .. LIMIT)
     -- Record the actual enabled addon configuration, not just the presence
     -- of a global. This is the configuration to compare in the A/B capture.
@@ -260,14 +264,27 @@ SLASH_COMMANDS["/acgbtrace"] = function(command)
     elseif action == "off" then
         Trace:Write("STOP requested")
         Trace.enabled = false
+        Trace.limitReached = false
         Trace.session = Trace.session + 1
         d("[AutoCategory] Guild bank trace OFF.")
     elseif action == "mark" or action == "dump" then
+        -- The first real capture hit the cap before the visual marker.
+        -- Permit one bounded manual snapshot after a capped session, without
+        -- restarting continuous capture or reinstalling/replaying any hooks.
+        local limited = Trace.limitReached
+        if limited then
+            Trace.enabled, Trace.lines = true, 0
+            Trace:Write("MANUAL_AFTER_LIMIT")
+        end
         if Trace.enabled then
             Trace:Write("MARK " .. text(note))
             Trace:Snapshot("MANUAL", nil, nil, true)
         else
             d("[AutoCategory] Start with /acgbtrace on.")
+        end
+        if limited then
+            Trace.enabled = false
+            Trace.session = Trace.session + 1
         end
     else
         d("[AutoCategory] /acgbtrace on | off | mark <visual symptom> | dump")

@@ -1,3 +1,10 @@
+[COLOR="DeepSkyBlue"] 4.6.20 (160), guild bank ordering fix (2026-11-15)[/COLOR]:
+[LIST]
+[*] Rebuilt keyboard inventory lists are now sorted before being committed, including delayed empty-list retries that could otherwise move all headers below the items after a successful sort.
+[*] Obsolete guild bank retries are ignored, and fully collapsed parent headers keep their sort priorities across rebuilds.
+[*] Diagnostic traces flag missing header sort keys; manual visual markers still work after the automatic log limit. 2677 Lua 5.1 assertions pass. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.19 (159), diagnostic build (2026-11-15)[/COLOR]:
 [LIST]
 [*] New opt-in /acgbtrace on|off|mark <symptom>|dump: observe the keyboard guild bank from list rebuild/clear through sorting, commit and header rendering, with ordering checks, filter reasons, enabled addon versions and bounded caller stacks (LibDebugLogger Info, prefix [ACGB]).

@@ -1,8 +1,9 @@
 # Diagnostic de la banque de guilde
 
-Version de diagnostic : **4.6.19**, interface clavier uniquement. Le défaut
-visuel n'est pas déclaré résolu. Ce mode observe le comportement existant ;
-il ne relance aucun tri ni aucune reconstruction supplémentaire.
+Version : **4.6.20**, interface clavier uniquement. Le correctif trie désormais
+chaque reconstruction avant sa validation et préserve les priorités des parents
+repliés ; sa validation visuelle en jeu reste à faire. Le mode de trace lui-même
+reste purement observateur : il ne lance aucun tri ni reconstruction.
 
 ## Capturer le défaut
 
@@ -23,6 +24,9 @@ Elle s'arrête automatiquement après 2 500 messages. Les 32 premières piles
 d'appels sont conservées ; après ce budget, les instantanés continuent sans
 nouvelles piles. Les hooks installés au premier démarrage restent en place
 mais sont inactifs après `off`. Leur surcoût peut modifier le timing du défaut.
+Si la limite automatique est atteinte, `mark` et `dump` acceptent encore un
+instantané manuel borné, sans reprendre la capture continue. Un `off` explicite
+désactive aussi cette possibilité jusqu'au prochain `on`.
 
 Le journal contient les addons activés et leurs versions, les identifiants de
 guilde sélectionnée, ainsi que des noms d'objets et de catégories. Le relire
@@ -53,20 +57,24 @@ d'appel, pas automatiquement sa responsabilité dans le défaut.
 - `ApplySort_ENTER`, `APPLYSORT_EXIT`, `UpdateList_ENTER/EXIT`,
   `ZO_ScrollList_Clear_ENTER/EXIT` et `ZO_ScrollList_Commit_ENTER/EXIT` encadrent
   les opérations réellement appelées. `CALLER` conserve les chemins et lignes.
-- `REBUILD_REPLACED_UNSORTED` et `REBUILD_COMMITTED_BEFORE_CALLER_SORT` sont des
-  étapes intermédiaires : des inversions y sont possibles avant le tri normal.
+- `REBUILD_REPLACED_UNSORTED` est un état intermédiaire : des inversions y sont
+  possibles. À partir de 4.6.20, `REBUILD_SORTED` puis `REBUILD_COMMITTED` doivent
+  montrer l'ordre corrigé, même sans appelant `ApplySort` autour de la relance.
+  `REBUILD_COMMITTED_BEFORE_CALLER_SORT` appartient aux anciennes traces 4.6.19.
 - `RETRY_REBUILD` signale le chemin différé de reconstruction. Vérifier si un
   `APPLYSORT_EXIT` suit réellement, puis examiner `POLL` et le marqueur manuel :
   des en-têtes présents ne suffisent pas à valider l'ordre.
 - `AFTER_SORT_0/100/300` observe l'état après le tri sans le modifier. Ces
   observations sont annulées par une nouvelle génération, une autre guilde,
   un nouveau tri observé, un remplacement de liste ou l'arrêt de la capture.
-- `H`, `missingRules`, `orphanItems`, `inversions`, `firstBad` et `hash` décrivent le contenu
+- `H`, `missingRules`, `headerMissingKeys`, `orphanItems`, `inversions`, `firstBad` et `hash` décrivent le contenu
   et l'ordre. `hash` couvre toute la séquence mais reste un checksum avec
   collisions possibles, pas une preuve cryptographique. `ROW` montre le début
   de la liste ; `BAD` montre le voisinage de la première inversion plus loin.
   `orphanItems` compte les objets sans en-tête de même catégorie et clé :
   avoir au moins un en-tête dans la liste ne suffit pas.
+  `headerMissingKeys` révèle un en-tête ayant perdu sa priorité, y compris
+  quand tous les objets sont masqués par une catégorie repliée.
 - `inversions` vérifie les clés de catégorie et la position en-tête/objet
   à clé égale, pas le tri secondaire complet des objets dans une catégorie.
   Une inversion après le tri peut aussi provenir des clés produites par
@@ -92,10 +100,11 @@ qui remplacent entièrement une fonction après l'installation des hooks peuvent
 
 Les tests hors jeu chargent le module livré et simulent les contrats ESO :
 activation, hooks non bloquants, ordre, changements de contexte, rendu et bornes.
-Les 53 assertions du diagnostic et les 19 contrôles de scroll/interaction
-passent, dont la reproduction simulée du chemin différé avec un en-tête ajouté
-après les objets sans tri ultérieur. Les suites de régression portent le total
-à 2 654 assertions réussies (LibSets testé avec les fixtures intégrées).
+Les 56 assertions du diagnostic et les 24 contrôles de scroll/interaction
+passent, dont le tri du chemin différé et l'annulation des relances obsolètes.
+La conservation des clés des parents entièrement repliés est aussi testée.
+Les suites de régression portent le total à 2 677 assertions réussies
+(LibSets testé avec les fixtures intégrées).
 **Non testé dans ESO.** Il faut une nouvelle capture en jeu pour conclure.
 
 API et chemin d'affichage vérifiés dans les sources ESOUI `live` :

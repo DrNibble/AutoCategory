@@ -1,3 +1,10 @@
+[COLOR="DeepSkyBlue"] 4.6.21 (161), guild bank cleanup (2026-11-15)[/COLOR]:
+[LIST]
+[*] Remove temporary guild-bank traces, /acgbtrace, /acdebug, diagnostic logs, empty-list retries and polling timers.
+[*] Keep category-aware sorting before each rebuilt list commit, collapsed-parent sort keys and valid scroll positions. Existing item-update handling and the original logger are unchanged.
+[*] 2634 Lua 5.1 assertions pass. The user confirmed 4.6.20 working in ESO; this cleaned 4.6.21 build has not yet been tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.20 (160), guild bank ordering fix (2026-11-15)[/COLOR]:
 [LIST]
 [*] Rebuilt keyboard inventory lists are now sorted before being committed, including delayed empty-list retries that could otherwise move all headers below the items after a successful sort.

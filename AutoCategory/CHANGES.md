@@ -1,5 +1,24 @@
 # Changes
 
+## 2026-11-15: Remove guild-bank diagnostics and workaround timers (4.6.21)
+
+- Remove GuildBankTrace.lua and its manifest entry, /acgbtrace, /acdebug,
+  bank diagnostic logs, the empty-list retry and the guild-bank polling
+  handlers/timers. An empty list now returns immediately; normal ESO list
+  refreshes use the existing ApplySort hook once items are available.
+- Keep the actual 4.6.20 fixes: category-aware sorting before every rebuilt
+  list commit, preservation of fully collapsed parent sort keys, and the
+  scroll-list commit needed to calculate entry positions.
+- Keep the original logger, its dependency and unrelated existing item-update
+  timer. Do not remove pre-existing addon infrastructure as diagnostic code.
+- Replace trace/retry tests with checks for normal guild-bank sorting,
+  repeated clear/refill cycles, standalone rebuilding, valid scroll positions,
+  no queued bank callback, and hook/timer cleanup.
+- Lua 5.1: 37 scroll-commit, 140 category-tree, 78 rule-level, 137 category-menu
+  and 2242 LibSets-fixture assertions pass (2634 total); 47 Lua files compile.
+- The user confirmed 4.6.20 functional in ESO. This stripped 4.6.21 build is
+  not yet tested in ESO; removal of polling needs in-game confirmation.
+
 ## 2026-11-15: Sort every rebuilt keyboard list before committing (4.6.20)
 
 - The new capture shows a correctly sorted guild bank being overwritten by

@@ -2,8 +2,8 @@
 ## APIVersion: 101050 101051
 ## Author: Shadowfen, crafty35a, RockingDice, Friday_the13_rus
 ## Description: Inventory categorization. Type "/ac" for settings
-## Version: 4.6.20
-## AddOnVersion: 160
+## Version: 4.6.21
+## AddOnVersion: 161
 ## IsLibrary: false
 ## SavedVariables: AutoCategorySavedVars AutoCatRules
 ## DependsOn: LibAddonMenu-2.0>=43 LibCustomMenu>=730 LibSFUtils>=77 LibMediaProvider>=36 
@@ -22,7 +22,6 @@ AutoCategory_Defaults.lua
 AutoCategory_Tree.lua
 Plugin_API.lua
 AutoCategory.xml
-GuildBankTrace.lua
 Hooks_Keyboard.lua
 Hooks_Gamepad.lua
 classes/CVT.lua

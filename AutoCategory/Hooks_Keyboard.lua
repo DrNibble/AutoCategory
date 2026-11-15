@@ -2,8 +2,6 @@
 local LMP = LibMediaProvider
 local SF = LibSFUtils
 
-local logDebug = AutoCategory.logDebug
-
 -- Two-level collapsible categories: a category name containing "----" is
 -- displayed as a parent header with collapsible child headers.
 local CategoryTree = AutoCategory.CategoryTree
@@ -13,7 +11,6 @@ local CategoryTree = AutoCategory.CategoryTree
 -- based on PLAYER_INVENTORY:OnInventorySlotUpdated hook
 local forceRuleReloadByUniqueIDs = {}
 local pendingUpdates = {}     -- list of waiting to go to forceRuleReloadByUniqueIDs, UID -> timestamp
-local gbRebuildGeneration = 0 -- invalidate delayed rebuilds across bank/mode changes
 
 
 AutoCategory.dataCount = {}
@@ -204,9 +201,6 @@ local function setup_InventoryItemRowHeader(rowControl, slot, overrideOptions)
 
 	rowControl:SetHeight(appearance["CATEGORY_HEADER_HEIGHT"])
 	rowControl.slot = slot
-	if AutoCategory.GuildBankTrace then
-		AutoCategory.GuildBankTrace:Rendered(rowControl, data, overrideOptions)
-	end
 end
 
 -- create the row header type and add to the inventory scroll list
@@ -690,46 +684,17 @@ local function rebuildScrollData(zo_inventory)
 	local list = zo_inventory.listView 
 	local scrollData = ZO_ScrollList_GetDataList(list)
 
-    if not scrollData or #scrollData == 0 then 
-        if zo_inventory.altFreeSlotType == INVENTORY_GUILD_BANK then
-            local generation = gbRebuildGeneration
-            local guildId = GetSelectedGuildBankId()
-            logDebug("[AC] guild bank list empty at sort time - retry in 100 ms")
-            zo_callLater(function()
-                if generation ~= gbRebuildGeneration or not AutoCategory.Enabled
-                    or AutoCategory.BulkMode or GetSelectedGuildBankId() ~= guildId
-                    or zo_inventory.listView ~= list then return end
-                local freshData = ZO_ScrollList_GetDataList(list)
-                if freshData and #freshData > 0 then
-                    if AutoCategory.GuildBankTrace then
-                        AutoCategory.GuildBankTrace:Snapshot("RETRY_REBUILD", list, nil, true)
-                    end
-                    rebuildScrollData(zo_inventory)
-                end
-            end, 100)
-        end
-        return false 
+    if not scrollData or #scrollData == 0 then
+        return false
     end
 	handleRules(scrollData, true)
-	if AutoCategory.GuildBankTrace then
-		AutoCategory.GuildBankTrace:Filtered(list, scrollData, isHiddenEntry)
-	end
 	list.data = createNewScrollData(scrollData)
-	if AutoCategory.GuildBankTrace then
-		AutoCategory.GuildBankTrace:Snapshot("REBUILD_REPLACED_UNSORTED", list)
-	end
 	-- createNewScrollData appends headers after the surviving items.
-	-- Deferred retries/updateHook have no enclosing ApplySort to fix that
-	-- order. Always sort before the commit, including those standalone paths.
+	-- Sort before committing, even when called outside ApplySort.
 	table.sort(list.data, function(left, right)
 		return sortInventoryFn(zo_inventory, left, right,
 			zo_inventory.currentSortKey, zo_inventory.currentSortOrder)
 	end)
-	if AutoCategory.GuildBankTrace then
-		AutoCategory.GuildBankTrace:Snapshot("REBUILD_SORTED", list)
-	end
-	logDebug("[AC] rebuildScrollData: ", #scrollData, " entries -> ",
-		#list.data, " entries with headers")
 	--The replaced entries (including category headers, typeId 998) only
 	--receive their top/bottom scroll positions from ZO_ScrollList_Commit.
 	--Replacing list.data without committing leaves them nil, which crashes
@@ -738,9 +703,6 @@ local function rebuildScrollData(zo_inventory)
 	--such as the combobox dropdown - scrolls. Callers like ApplySort sort
 	--and commit again afterwards, which is harmless.
 	ZO_ScrollList_Commit(list)
-	if AutoCategory.GuildBankTrace then
-		AutoCategory.GuildBankTrace:Snapshot("REBUILD_COMMITTED", list)
-	end
 	return true
 end
 
@@ -781,7 +743,6 @@ local function prehookSort(self, inventoryType)
 
     local isReady, sceneName = readyToUpdate()
     if not isReady then
-        logDebug("[AC] ApplySort prehook skipped: no ready scene")
         return false
     end
 
@@ -791,7 +752,6 @@ local function prehookSort(self, inventoryType)
 	if AutoCategory.BulkMode then
 		if sceneName == "guildBank"
 			or (XLGearBanker and sceneName == "bank") then
-			logDebug("[AC] ApplySort prehook skipped: bulk mode")
 			return false
 		end
 	end
@@ -899,83 +859,7 @@ local function onStackItems(evtid, bagId)
 	AutoCategory.RefreshList(invType)
 end
 
--- event handler
--- Another guild bank was selected (or its items became ready): the
--- category headers can be missing from the rebuilt list, or the
--- items can sit in it without their rule results. The stock rebuild
--- of the list (the old guild's items emptied, then the new guild's
--- items added) can run the sort hook while the list is empty - its
--- single retry gives up before the new guild's items arrive - and
--- the addons that filter the inventory lists (Advanced Filters)
--- rebuild the list again afterwards without going through the sort
--- hook. Poll the list for a while and sort it again whenever items
--- are displayed without headers or without their rule results: the
--- sort hook of ApplySort re-runs the rules, adds the headers and
--- sorts the list. ApplySort only sorts what is already in the list,
--- unlike UpdateList, which repopulates it and can empty it while
--- the text search results of the new guild are not ready yet.
-local gbPollGeneration = 0
-local function onGuildBankChanged(eventId)
-	gbRebuildGeneration = gbRebuildGeneration + 1
-	if not AutoCategory.Enabled then return end
-	if AutoCategory.GuildBankTrace then
-		AutoCategory.GuildBankTrace:BankChanged(eventId)
-	end
-
-	local zo_inventory = PLAYER_INVENTORY.inventories[INVENTORY_GUILD_BANK]
-	if not zo_inventory then return end
-	local list = zo_inventory.listView
-	if not list then return end
-
-	-- a newer event starts a newer poll: the older one stops
-	gbPollGeneration = gbPollGeneration + 1
-	local generation = gbPollGeneration
-	logDebug("[AC] guild bank poll started (generation ", generation, ")")
-
-	local attempts = 0
-	local function check()
-		if generation ~= gbPollGeneration then return end
-		if not AutoCategory.Enabled then return end
-
-		local scrollData = ZO_ScrollList_GetDataList(list)
-		if AutoCategory.GuildBankTrace then
-			AutoCategory.GuildBankTrace:Snapshot("POLL", list, "attempt=" .. attempts)
-		end
-		if scrollData and #scrollData > 0 then
-			local hasHeaders = false
-			local itemsWithoutRules = 0
-			for _, entry in ipairs(scrollData) do
-				if entry.typeId == CATEGORY_HEADER then
-					hasHeaders = true
-				elseif entry.data
-						and entry.data.AC_sortPriorityName == nil then
-					itemsWithoutRules = itemsWithoutRules + 1
-				end
-			end
-			-- items displayed without headers, or without their
-			-- rule results: sort the list again. The sort hook
-			-- re-runs the rules on the entries, adds the headers
-			-- and sorts everything under them.
-			if not hasHeaders or itemsWithoutRules > 0 then
-				logDebug("[AC] guild bank poll attempt ", attempts,
-					": ", #scrollData, " entries, headers: ",
-					tostring(hasHeaders), ", items without rules: ",
-					itemsWithoutRules, " - sorting")
-				PLAYER_INVENTORY:ApplySort(INVENTORY_GUILD_BANK)
-			end
-		end
-
-		attempts = attempts + 1
-		if attempts < 50 then
-			zo_callLater(check, 200)
-		end
-	end
-	zo_callLater(check, 100)
-end
-
-
 function AutoCategory.HookKeyboardMode()
-	if AutoCategory.GuildBankTrace then AutoCategory.GuildBankTrace.keyboard = true end
 	--Add a new header row data type
 	local rowHeight = AutoCategory.acctSaved.appearance["CATEGORY_HEADER_HEIGHT"]
     local hookmgr = AutoCategory.hookmgr
@@ -1005,10 +889,6 @@ function AutoCategory.HookKeyboardMode()
 	-- Other events that cause a full refresh
 	-- user can force a refresh with stack key
 	AutoCategory.evtmgr:registerEvt(EVENT_STACKED_ALL_ITEMS_IN_BAG, onStackItems)
-	-- another guild bank was selected: poll its list and restore
-	-- the category headers (see onGuildBankChanged)
-	AutoCategory.evtmgr:registerEvt(EVENT_GUILD_BANK_SELECTED, onGuildBankChanged)
-	AutoCategory.evtmgr:registerEvt(EVENT_GUILD_BANK_ITEMS_READY, onGuildBankChanged)
 
     pendingUpdates = SF.safeClearTable(pendingUpdates)
     callLater = SF.CallLater:NewSingle(updateHook, 50):Start()
@@ -1016,13 +896,9 @@ function AutoCategory.HookKeyboardMode()
 end
 
 function AutoCategory.UnHookKeyboardMode()
-	gbRebuildGeneration = gbRebuildGeneration + 1
-	if AutoCategory.GuildBankTrace then AutoCategory.GuildBankTrace.keyboard = false end
  	-- Other events that cause a full refresh
 	-- user can force a refresh with stack key
 	AutoCategory.evtmgr:unregEvt(EVENT_STACKED_ALL_ITEMS_IN_BAG, onStackItems)
-	AutoCategory.evtmgr:unregEvt(EVENT_GUILD_BANK_SELECTED, onGuildBankChanged)
-	AutoCategory.evtmgr:unregEvt(EVENT_GUILD_BANK_ITEMS_READY, onGuildBankChanged)
 	AutoCategory.hookmgr:disableAll()
 
     -- Clear pending updates

@@ -4,7 +4,7 @@
 -- uncommitted non-uniform list crashes ZO_ScrollList_UpdateScroll with
 -- "operator < is not supported for nil < number" (reported on the shared
 -- ZO_ComboBoxDropdown_Singleton_Keyboard list).
--- Run from the repo root: lua5.1 test/ScrollCommit_test.lua
+-- Run from the AutoCategory/ addon folder: lua5.1 ../test/ScrollCommit_test.lua
 
 local Passed, Failed = 0, 0
 local function check(Name, Condition)
@@ -19,6 +19,7 @@ end
 -- commit follows every replacement.
 --------------------------------------------------------------------
 local Log = {} -- ordered events: "replace:<list>", "commit:<list>"
+local UnsortedCommits = 0
 
 local function newList(Name)
   local real = {name = Name, data = {}, dataTypes = {}, mode = 1,
@@ -69,6 +70,15 @@ end
 ZO_ScrollList_Commit = function(list)
   local real = state(list)
   Log[#Log + 1] = "commit:" .. real.name
+  -- Observe the data at commit time, not after the caller's later sort.
+  for i = 2, #real.data do
+    local left, right = real.data[i - 1].data, real.data[i].data
+    local lk, rk = left.AC_sortPriorityName, right.AC_sortPriorityName
+    if lk and rk and (lk > rk
+        or (lk == rk and not left.AC_isHeader and right.AC_isHeader)) then
+      UnsortedCommits = UnsortedCommits + 1
+    end
+  end
   --NON_UNIFORM commit: assign top/bottom to every entry (UNIFORM lists do
   --this lazily in UpdateScroll instead).
   if real.mode == 2 then
@@ -104,12 +114,11 @@ BAG_BACKPACK = 1
 ZO_SORT_ORDER_UP = true
 EVENT_STACKED_ALL_ITEMS, EVENT_STACKED_ALL_ITEMS_IN_BAG = "stacked", "stacked-bag"
 EVENT_GUILD_BANK_SELECTED, EVENT_GUILD_BANK_ITEMS_READY = "bank-selected", "bank-ready"
-local SelectedGuildId = 10
-GetSelectedGuildBankId = function() return SelectedGuildId end
 
 LibMediaProvider = {Fetch = function() return "font" end}
 
 CapturedUpdateHook = nil
+local UpdateTimerDestroyed = false
 LibSFUtils = {
   safeTable = function(t) return t or {} end,
   safeClearTable = function(t)
@@ -122,7 +131,8 @@ LibSFUtils = {
   CallLater = {
     NewSingle = function(_, callback)
       CapturedUpdateHook = callback
-      return {Start = function(s) return s end, Destroy = function(s) return nil end}
+      return {Start = function(s) return s end,
+        Destroy = function() UpdateTimerDestroyed = true end}
     end,
   },
 }
@@ -166,11 +176,18 @@ AutoCategory = {
 }
 
 local PreHooks, RegisteredEvents = {}, {}
-AutoCategory.hookmgr = {PreHook = function(_, obj, name, fn)
-  PreHooks[#PreHooks + 1] = {obj = obj, name = name, fn = fn}
-end}
+local HooksDisabled = false
+AutoCategory.hookmgr = {
+  PreHook = function(_, obj, name, fn)
+    PreHooks[#PreHooks + 1] = {obj = obj, name = name, fn = fn}
+  end,
+  disableAll = function() HooksDisabled = true end,
+}
 AutoCategory.evtmgr = {registerEvt = function(_, evt, fn)
   RegisteredEvents[evt] = fn
+end, unregEvt = function(_, evt, fn)
+  assert(RegisteredEvents[evt] == fn)
+  RegisteredEvents[evt] = nil
 end}
 
 SMITHING = {deconstructionPanel = {inventory = {list = makeList("DeconList")}},
@@ -217,10 +234,6 @@ GetItemUniqueId = function() return nil end
 --------------------------------------------------------------------
 -- Load the delivered Hooks_Keyboard.lua in this environment
 --------------------------------------------------------------------
--- Match the manifest order: the diagnostic module must remain passive
--- unless explicitly enabled, including on the delayed rebuild path.
-SLASH_COMMANDS = {}
-assert(loadfile("GuildBankTrace.lua"))()
 local Chunk = assert(loadfile("Hooks_Keyboard.lua"))
 setfenv(Chunk, getfenv(1))
 Chunk()
@@ -236,6 +249,12 @@ check("header data type 998 registered on the player inventory list",
   state(PlayerInventoryList).dataTypes[998] ~= nil)
 check("header data type 998 registered on the guild bank list",
   state(GuildBankBackpack).dataTypes[998] ~= nil)
+check("no bank-selected polling handler registered",
+  RegisteredEvents[EVENT_GUILD_BANK_SELECTED] == nil)
+check("no items-ready polling handler registered",
+  RegisteredEvents[EVENT_GUILD_BANK_ITEMS_READY] == nil)
+check("existing stack-items refresh remains registered",
+  RegisteredEvents[EVENT_STACKED_ALL_ITEMS_IN_BAG] ~= nil)
 
 --------------------------------------------------------------------
 -- prehookSort on a populated inventory: data is replaced and committed
@@ -289,8 +308,8 @@ check("header entry received top/bottom from the commit",
   invState.data[1].top ~= nil and invState.data[1].bottom ~= nil)
 
 --------------------------------------------------------------------
--- Guild-bank retry path: empty list queues a 100ms retry that must
--- also commit after replacing the data (this path had no commit at all)
+-- Empty guild bank: no retry or poll. The normal ESO list population
+-- calls ApplySort again when the data is available.
 --------------------------------------------------------------------
 local GuildBank = makeList("GuildBankBackpack")
 ZO_ScrollList_AddDataType(GuildBank, 1, "ZO_PlayerInventorySlot", 52)
@@ -312,12 +331,14 @@ SCENE_MANAGER = {GetCurrentScene = function()
 end}
 
 applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
-check("empty guild bank queues a delayed rebuild",
-  #CallLaterQueue == 1 and #gbState.data == 0)
+check("empty guild bank queues no delayed rebuild",
+  #CallLaterQueue == 0 and #gbState.data == 0)
+check("empty guild bank neither replaces nor commits data", #Log == 0)
 
---the bank contents arrive after the scene opened; the retry rebuilds
+-- The bank contents arrive after the scene opened. Only the next normal
+-- sort rebuilds the headers; no background callback is required.
 gbState.data = {itemEntry(1), itemEntry(2)}
-CallLaterQueue[1]()
+applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
 
 local GBReplaceAt, GBCommitAfter = nil, false
 for i, Event in ipairs(Log) do
@@ -326,12 +347,30 @@ for i, Event in ipairs(Log) do
     GBCommitAfter = true
   end
 end
-check("delayed guild bank rebuild commits after replacing data", GBCommitAfter)
+check("normal guild bank rebuild commits after replacing data", GBCommitAfter)
 check("guild bank header has a scroll position",
   gbState.data[1] ~= nil and gbState.data[1].typeId == 998
     and gbState.data[1].top ~= nil)
 check("guild bank list survives a simulated UpdateScroll",
   updateScrollSafe(GuildBank))
+check("normal guild bank rebuild schedules no callbacks", #CallLaterQueue == 0)
+check("every rebuilt list is already sorted when committed", UnsortedCommits == 0)
+
+-- Clearing and refilling simulates the stock rebuild on a guild switch.
+-- Repeated sorts must not duplicate headers or lose their ordering.
+for pass = 1, 3 do
+  gbState.data = {}
+  applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
+  gbState.data = {itemEntry(pass), itemEntry(pass + 1)}
+  applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
+  applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
+  check("guild switch " .. pass .. " keeps exactly one header",
+    #gbState.data == 3 and gbState.data[1].typeId == 998
+      and gbState.data[2].typeId == 1 and gbState.data[3].typeId == 1)
+  check("guild switch " .. pass .. " keeps valid scroll positions",
+    updateScrollSafe(GuildBank))
+end
+check("repeated guild switches schedule no callbacks", #CallLaterQueue == 0)
 
 --------------------------------------------------------------------
 -- updateHook: the one-shot CallLater starts it without arguments; a nil
@@ -340,78 +379,37 @@ check("guild bank list survives a simulated UpdateScroll",
 check("updateHook captured by the CallLater stub", CapturedUpdateHook ~= nil)
 local Ok, Err = pcall(CapturedUpdateHook)
 check("updateHook tolerates a nil inventory", Ok and Err == nil)
-check("diagnostics stay disabled throughout normal keyboard rebuilds",
-  AutoCategory.GuildBankTrace.enabled == false
-    and AutoCategory.GuildBankTrace.installed == nil)
 
 --------------------------------------------------------------------
--- Enable the real observer around the real delayed rebuild, without
--- changing the behavior of the hook/scroll-list model. The observer must
--- expose both the intermediate appended header and the corrected commit.
+-- Direct rebuild through the existing updateHook has no enclosing
+-- ApplySort. It must still sort before committing, with no debug module.
 --------------------------------------------------------------------
-local TraceMessages = {}
-AutoCat_Logger = function() return {Info = function(_, message)
-  TraceMessages[#TraceMessages + 1] = message
-end} end
-GetGameTimeMilliseconds = function() return 100 end
-d = function() end
-ZO_ScrollList_GetDataTypeTable = function(list, typeId)
-  return state(list).dataTypes[typeId]
-end
-gbState.IsControlHidden = function() return false end
-local Trace = AutoCategory.GuildBankTrace
-Trace.enabled, Trace.lines, Trace.stacks = true, 0, 0
-gbState.data = {}
-CallLaterQueue = {}
-applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
 gbState.data = {itemEntry(1), itemEntry(2)}
-CallLaterQueue[1]()
-local sawRetry, sawSorted, sawFilter = false, false, false
-for _, message in ipairs(TraceMessages) do
-  if message:find("RETRY_REBUILD list=", 1, true) then sawRetry = true end
-  if message:find("REBUILD_COMMITTED list=", 1, true)
-      and message:find("inversions=0", 1, true) then sawSorted = true end
-  if message:find("FILTER inputItems=2 kept=2", 1, true) then sawFilter = true end
-end
-check("real delayed rebuild is observable", sawRetry)
-check("real delayed rebuild commits a sorted list", sawSorted)
-check("real filter decisions counted before rebuilding", sawFilter)
+local guildInventory = PLAYER_INVENTORY.inventories[INVENTORY_GUILD_BANK]
+CapturedUpdateHook(guildInventory)
 check("rebuild puts header before items even without an enclosing ApplySort",
-  gbState.data[1].typeId == 998 and gbState.data[2].typeId == 1)
+  #gbState.data == 3 and gbState.data[1].typeId == 998
+    and gbState.data[2].typeId == 1)
+check("standalone rebuild commits sorted data", UnsortedCommits == 0)
+check("standalone rebuild commits valid scroll positions", updateScrollSafe(GuildBank))
+check("standalone rebuild schedules no callbacks", #CallLaterQueue == 0)
 
-local function pendingRetry()
-  gbState.data = {}
-  CallLaterQueue = {}
-  applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
-  local callback = CallLaterQueue[1]
-  gbState.data = {itemEntry(1), itemEntry(2)}
-  return callback, gbState.data
-end
-local callback, before = pendingRetry()
-SelectedGuildId = 20
-callback()
-check("retry for another selected guild is ignored", gbState.data == before)
-SelectedGuildId = 10
-callback, before = pendingRetry()
-RegisteredEvents[EVENT_GUILD_BANK_ITEMS_READY](EVENT_GUILD_BANK_ITEMS_READY)
-callback()
-check("items-ready event invalidates old empty-list retries", gbState.data == before)
-callback, before = pendingRetry()
+local before = gbState.data
 AutoCategory.Enabled = false
-callback()
-check("disabled addon ignores pending retry", gbState.data == before)
+applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
+check("disabled addon does not rebuild data", gbState.data == before)
 AutoCategory.Enabled = true
-callback, before = pendingRetry()
 AutoCategory.BulkMode = true
-callback()
-check("bulk mode ignores pending retry", gbState.data == before)
+applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
+check("guild bank bulk mode does not rebuild data", gbState.data == before)
 AutoCategory.BulkMode = false
-callback, before = pendingRetry()
-local inventory = PLAYER_INVENTORY.inventories[INVENTORY_GUILD_BANK]
-inventory.listView = makeList("Replacement")
-callback()
-check("replaced list ignores pending retry", gbState.data == before)
-inventory.listView = GuildBank
+
+AutoCategory.UnHookKeyboardMode()
+check("existing update timer is destroyed on keyboard unhook", UpdateTimerDestroyed)
+check("keyboard hooks are disabled on unhook", HooksDisabled)
+check("existing stack-items handler is unregistered on unhook",
+  RegisteredEvents[EVENT_STACKED_ALL_ITEMS_IN_BAG] == nil)
+check("no delayed callback survives keyboard unhook", #CallLaterQueue == 0)
 
 print(string.format("scroll commit passed=%d failed=%d", Passed, Failed))
 if Failed > 0 then os.exit(1) end

@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] 4.6.23 (163), tag edit crash fix (2026-11-15)[/COLOR]:
+[LIST]
+[*] Fix "attempt to index a nil value" when the Edit Category tag editbox lost focus: the tag-change handler referenced dropdowns local to another file instead of their AC_UI handles. Setting or leaving the tag of a category created with the empty tag no longer errors out; the Add Category dropdowns now stay in sync.
+[*] 463 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.22 (162), named category creation (2026-11-15)[/COLOR]:
 [LIST]
 [*] Replace "New Sub-Level" in the header right-click menu with "New Category" and a name-entry dialog. Blank and duplicate names are refused without closing the dialog; cancellation creates nothing.

@@ -780,9 +780,9 @@ function CatSet_TagEdit_LAM:setValue(value)
 	CatSet_SelectTag_LAM:select(currentRule.tag)
 	CatSet_SelectRule_LAM:assign(rbyt)
 	CatSet_SelectRule_LAM:select(currentRule.name)
-	AddCat_SelectTag_LAM:select(currentRule.tag)
-	AddCat_SelectRule_LAM:assign(AddCat_SelectRule_LAM.filterRules(getCurrentBagId(), value))
-	AddCat_SelectRule_LAM:select(currentRule.name)
+	AC_UI.AddCat_SelectTag_LAM:select(currentRule.tag)
+	AC_UI.AddCat_SelectRule_LAM:assign(AC_UI.AddCat_SelectRule_LAM.filterRules(getCurrentBagId(), value))
+	AC_UI.AddCat_SelectRule_LAM:select(currentRule.name)
 	AC_UI.RefreshControls()
 end
 

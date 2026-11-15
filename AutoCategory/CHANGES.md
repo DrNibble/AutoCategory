@@ -1,5 +1,35 @@
 # Changes
 
+## 2026-11-15: Tag edit no longer errors out in Edit Category (4.6.23)
+
+- CatSet_TagEdit_LAM:setValue (settings/CategorySettings.lua) crashed with
+  "attempt to index a nil value" as soon as the tag editbox lost focus,
+  including with an unchanged value: lines 783-785 referenced
+  AddCat_SelectTag_LAM / AddCat_SelectRule_LAM without the AC_UI. prefix.
+  Those names are locals of settings/BagSet.lua, nil in this file. The
+  crash aborted the whole tag change UI sync (Add-Category dropdowns and
+  RefreshControls) after the rule's tag had already been updated in
+  memory, leaving the settings screens out of sync and an error popup on
+  every focus loss. This blocked setting the tag of a category created
+  with the empty tag (e.g. via the header context menu "New Category").
+- Fix: use AC_UI.AddCat_SelectTag_LAM / AC_UI.AddCat_SelectRule_LAM,
+  matching the pattern already used at lines 581-583, 631-635 and
+  695-696 of the same function's file. No behavior change beyond the
+  crash: the Add-Category tag/rule dropdowns and the controls refresh
+  now run to completion.
+- Lua 5.1 harness on the delivered blocks: the original file reproduces
+  the exact user error (setValue with unchanged "<vide>" tag), the fixed
+  file completes unchanged-value, real tag change (rule moved between
+  tag groups, empty tag pruned) and return-to-empty-tag scenarios.
+  Regression suites re-run: 78 rule-level, 140 category-tree,
+  138 category-menu, 55 level-menu, 37 scroll-commit and 15 ParentDD
+  assertions pass. BagSet_Test remains unrunnable outside the author's
+  environment (LibSFUtils fixtures with Windows paths), unchanged.
+- Non testé dans ESO. Verify in game that editing the tag of a category
+  created with the empty tag no longer shows an error and that the
+  category then appears in the bag once added (Bag Settings, Add
+  Category with its tag selected).
+
 ## 2026-11-15: Named Normal category from the header context menu (4.6.22)
 
 - Replace "New Sub-Level" with "New Category". Open an ESO text-entry dialog

@@ -17,7 +17,7 @@ AutoCategory = {
     version = SF.colors.gold("4.6.23"),
     settingName = "AutoCategory",
     settingDisplayName = SF.colors.gold("AutoCategory - Revised"),
-    author = SF.colors.purple("Shadowfen, crafty35, RockingDice, Friday_the13_rus"),
+    author = SF.colors.purple("Shadowfen, crafty35, RockingDice, Friday_the13_rus, @Altorus13"),
 
     RuleFunc = {},  -- collection of internal and plugin rule functions
     Plugins = {},   -- registered plugins

@@ -627,6 +627,66 @@ local function createNewScrollData(scrollData)
         end
     end
 
+    -- Force the display of the categories of the bag that matched no
+    -- item (a new category whose rule is still false, an emptied
+    -- category): add a zero-count header for every non-hidden bag
+    -- rule that has no category entry yet. Only the bags present in
+    -- the list are completed; a fully empty list is not rebuilt at
+    -- all (rebuildScrollData returns early), so an empty inventory
+    -- shows no header either way.
+    if AutoCategory.saved.general
+        and AutoCategory.saved.general["SHOW_EMPTY_CATEGORIES"] then
+        local bagTypeIds = {}
+        for _, itemEntry in ipairs(scrollData) do
+            local data = itemEntry.data
+            if data and data.AC_bagTypeId then
+                bagTypeIds[data.AC_bagTypeId] = true
+            end
+        end
+        for bagTypeId in pairs(bagTypeIds) do
+            local savedBag = AutoCategory.saved.bags[bagTypeId]
+            local bagRules = savedBag and savedBag.rules
+            if bagRules then
+                for i = 1, #bagRules do
+                    local bagrule = bagRules[i]
+                    if bagrule and type(bagrule.name) == "string"
+                            and bagrule.name ~= ""
+                            and not bagrule.isHidden
+                            and cnsd_categoryList[bagrule.name] == nil then
+                        local categoryName = bagrule.name
+                        local priority = bagrule.showpriority
+                            or bagrule.runpriority or 0
+                        local catInfo = {
+                            AC_sortPriorityName = CategoryTree.BuildSortKey(
+                                priority, categoryName,
+                                AutoCategory.GetCategorySortName(categoryName)),
+                            AC_categoryName     = categoryName,
+                            AC_bagTypeId        = bagTypeId,
+                            AC_catCount         = 0,
+                        }
+
+                        local levelCount = CategoryTree.LevelCount(categoryName)
+                        if levelCount > 1 then
+                            catInfo.AC_parentName =
+                                CategoryTree.ParentOf(categoryName)
+                            catInfo.AC_headerLevel = levelCount
+                            catInfo.AC_displayName =
+                                CategoryTree.DisplayName(categoryName)
+                        end
+
+                        cnsd_categoryList[categoryName] = catInfo
+
+                        -- A hierarchical empty category also feeds
+                        -- every level's total above it (zero), so the
+                        -- intermediate headers are created too.
+                        feedAncestors(categoryName, bagTypeId,
+                            catInfo.AC_sortPriorityName, 0)
+                    end
+                end
+            end
+        end
+    end
+
     -- Merge the intermediate-level totals into a category that carries its
     -- own items: its header must show direct items plus all descendants.
     for _, headerInfo in pairs(cnsd_headerList) do

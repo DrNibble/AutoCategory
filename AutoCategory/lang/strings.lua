@@ -267,10 +267,17 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Enter a non-empty category name.",
     SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "A category with this name already exists. Choose another name.",
     SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Unable to create the category in this bag.",
+    SI_AC_MENU_CM_TAG_NEW = "New Tag...",
+    SI_AC_DIALOG_TAG_NAME_PROMPT = "Enter the name of the new tag. The category will be created with this tag.",
+    SI_AC_DIALOG_TAG_NAME_EMPTY = "Enter a non-empty tag name.",
+    SI_AC_MENU_CM_MOVE_UP = "Move Category Up",
+    SI_AC_MENU_CM_MOVE_DOWN = "Move Category Down",
     SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level",
     SI_AC_MENU_CM_COPY_SUBMENU = "Copy To",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Move To",
     SI_AC_MENU_CM_MOVE_TOP = "Top Level",
+    SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES = "Show Empty Categories",
+    SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES_TOOLTIP = "Shows the header of every category of the bag, even when no item matches its rule.",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there).",
 
 }

@@ -1,5 +1,49 @@
 # Changes
 
+## 2026-11-15: Tag choice at creation, empty categories, priority moves (4.6.25)
+
+- New category from the header right-click menu: after the name is
+  validated, a context menu now offers every existing tag, the empty
+  tag (the previous default) and "New Tag...", a small dialog that
+  creates the category with a brand new tag. The tag list is read
+  live, so tags created during the session are offered. Cancelling
+  the menu or the dialog creates nothing; a failure at creation
+  (priority compaction limit) is reported in the chat window.
+- New setting "Show Empty Categories" (General Settings, off by
+  default): when on, the inventory lists show a zero-count header for
+  every non-hidden category of the bag, even when no item matches its
+  rule. This answers why a new category did not appear: headers are
+  only built from matched items, and a new category is created with
+  the rule false. Intermediate headers of an empty hierarchical
+  category are shown too; hidden categories and a fully empty list are
+  not affected (an empty list is not rebuilt at all). Keyboard lists
+  only.
+- "Move Category Up" / "Move Category Down" in the inventory header
+  right-click menu and in the Display Order window context menu: swap
+  the category's display priority with the adjacent priority group,
+  so the category moves exactly one display position and the other
+  categories keep their relative order. Without an adjacent group the
+  priority steps by one. The display priority stays inside the 2..1000
+  slider range; execution priorities (runpriority) are never touched.
+- Lua 5.1 harness on the delivered blocks and updated CategoryCreation
+  suite: the name dialog now hands over to the tag menu (blank and
+  duplicate names still keep the dialog open), the tag menu creates
+  the category with the chosen tag, the new-tag dialog refuses blank
+  names, MoveCategoryPriority swaps adjacent groups, respects the
+  2..1000 bounds, refuses moves outside them and never touches
+  runpriority. createNewScrollData harness: empty categories appear
+  only when the setting is on, hidden ones never, hierarchical empty
+  categories feed their parent headers, collapsed ancestors still
+  suppress them, and matched categories are unaffected. Regression
+  suites re-run: RuleLevel 78, CategoryTree 140, CategoryLevelMenu 146,
+  ScrollCommit 37, ParentDD 15, LevelMenu 55, CategoryCreation 119
+  assertions pass, plus the 20 assertions of the createNewScrollData
+  empty-categories harness (610 total).
+- Non testé dans ESO. Verify in game: create a category from a header
+  right-click and pick a tag; toggle Show Empty Categories; move a
+  category up and down from the header menu and the Display Order
+  window.
+
 ## 2026-11-15: Tag dropdowns repopulated and self-healing (4.6.24)
 
 - Root cause of the always-empty, disabled Étiquette dropdowns: the

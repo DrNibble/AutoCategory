@@ -236,10 +236,17 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Saisissez un nom de catégorie non vide.",
     SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Une catégorie porte déjà ce nom. Choisissez un autre nom.",
     SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Impossible de créer la catégorie dans ce sac.",
+    SI_AC_MENU_CM_TAG_NEW = "Nouvelle étiquette...",
+    SI_AC_DIALOG_TAG_NAME_PROMPT = "Saisissez le nom de la nouvelle étiquette. La catégorie sera créée avec cette étiquette.",
+    SI_AC_DIALOG_TAG_NAME_EMPTY = "Saisissez un nom d'étiquette non vide.",
+    SI_AC_MENU_CM_MOVE_UP = "Monter la catégorie",
+    SI_AC_MENU_CM_MOVE_DOWN = "Descendre la catégorie",
     SI_AC_MENU_CM_DELETE_LEVEL = "Supprimer catégorie",
     SI_AC_MENU_CM_COPY_SUBMENU = "Copier vers",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Déplacer vers",
     SI_AC_MENU_CM_MOVE_TOP = "Premier niveau",
+    SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES = "Afficher les catégories vides",
+    SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES_TOOLTIP = "Affiche l'en-tête de chaque catégorie du sac, même si aucun objet ne correspond à sa règle.",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory : %d catégories copiées vers %s (%d déjà présentes).",
 
 }

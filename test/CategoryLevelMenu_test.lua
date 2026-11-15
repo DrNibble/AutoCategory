@@ -22,6 +22,8 @@ SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Empty name"
 SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Duplicate name"
 SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Invalid bag"
 SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level"
+SI_AC_MENU_CM_MOVE_UP = "Move Category Up"
+SI_AC_MENU_CM_MOVE_DOWN = "Move Category Down"
 SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
 SI_AC_MENU_CM_MOVE_SUBMENU = "Move To"
 SI_AC_MENU_CM_MOVE_TOP = "Top Level"
@@ -413,10 +415,12 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(3, #capturedItems, "new category, increase and delete entries for an operable header")
+equal(5, #capturedItems, "new category, level, move and delete entries for an operable header")
 equal("New Category", capturedItems[1].label, "first entry creates a category")
 equal("Increase Level", capturedItems[2].label)
-equal("Delete Level", capturedItems[3].label)
+equal("Move Category Up", capturedItems[3].label)
+equal("Move Category Down", capturedItems[4].label)
+equal("Delete Level", capturedItems[5].label)
 equal(1, #capturedSubmenus, "one Copy To submenu is added for an operable header")
 equal("Copy To", capturedSubmenus[1].text, "the submenu is the Copy To menu")
 local menu = capturedSubmenus[1].entries
@@ -430,6 +434,16 @@ refreshCalls.cacheInitialize = 0
 capturedItems[2].callback()
 equal(2, rKid.level, "the increase callback deepens the level")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
+
+-- the move callbacks step the display priority and refresh (Root is
+-- no longer in the bag here, so Kid has no adjacent group)
+refreshCalls.cacheInitialize = 0
+capturedItems[3].callback()
+equal(6, AutoCategory.saved.bags[12].rules[1].showpriority,
+    "move up steps by one without an adjacent group")
+equal(1, refreshCalls.cacheInitialize, "the move callback refreshes the caches")
+capturedItems[4].callback()
+equal(5, AutoCategory.saved.bags[12].rules[1].showpriority, "move down steps back")
 
 -- A header with no backing rule only gets category creation.
 capturedSubmenus = {}
@@ -461,10 +475,11 @@ setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
-equal(3, #capturedItems, "creation remains available at level 5")
+equal(4, #capturedItems, "creation remains available at level 5")
 equal("New Category", capturedItems[1].label)
 equal("Decrease Level", capturedItems[2].label)
-equal("Delete Level", capturedItems[3].label)
+equal("Move Category Up", capturedItems[3].label)
+equal("Delete Level", capturedItems[4].label)
 equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
 equal("Move To", capturedSubmenus[1].text)
 equal(1, #capturedSubmenus[1].entries,
@@ -573,7 +588,9 @@ equal("D", rE.parent, "the children keep their parent")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Mid", 20)
-equal(4, #capturedItems, "increase, decrease, new level and delete entries")
+equal(6, #capturedItems, "creation, level, move and delete entries")
+equal("Move Category Up", capturedItems[4].label)
+equal("Move Category Down", capturedItems[5].label)
 equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
 equal("Move To", capturedSubmenus[1].text)
 equal("Copy To", capturedSubmenus[2].text)

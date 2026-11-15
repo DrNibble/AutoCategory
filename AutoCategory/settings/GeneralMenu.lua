@@ -66,5 +66,19 @@ AC_UI.GeneralMenu = {
             disabled = function() return AutoCategory.saved.general["SHOW_CATEGORY_COLLAPSE_ICON"] == false end,
         },
 
+        -- Show empty categories
+        {
+            type = "checkbox",
+            name = SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES,
+            tooltip = SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES_TOOLTIP,
+            getFunc = function()
+                return AutoCategory.saved.general["SHOW_EMPTY_CATEGORIES"]
+                end,
+            setFunc = function(value)
+                AutoCategory.saved.general["SHOW_EMPTY_CATEGORIES"] = value
+                AutoCategory.RefreshCurrentList(true)
+                end,
+        },
+
     }
 }

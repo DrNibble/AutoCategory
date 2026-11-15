@@ -981,6 +981,7 @@ AutoCategory.defaultAcctSettings = {
 		["SHOW_CATEGORY_COLLAPSE_ICON"] = true,
 		["SAVE_CATEGORY_COLLAPSE_STATUS"] = false,
 		["SHOW_CATEGORY_SET_TITLE"] = true,
+		["SHOW_EMPTY_CATEGORIES"] = false,
 	},
 }
 	

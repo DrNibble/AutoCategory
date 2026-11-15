@@ -1,3 +1,11 @@
+[COLOR="DeepSkyBlue"] 4.6.25 (165), tag choice, empty categories, priority moves (2026-11-15)[/COLOR]:
+[LIST]
+[*] New Category from the header right-click menu now asks for the tag: a context menu offers every existing tag, the empty tag and a "New Tag..." dialog.
+[*] New "Show Empty Categories" general setting (off by default): inventory lists show a zero-count header for every non-hidden category of the bag, even with no matching item (a new category is created with rule false, which is why it did not display).
+[*] "Move Category Up"/"Move Category Down" in the header right-click menu and the Display Order window: swap the display priority with the adjacent priority group, within the 2..1000 slider range; runpriority untouched.
+[*] 610 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.24 (164), tag dropdown fix and self-heal (2026-11-15)[/COLOR]:
 [LIST]
 [*] Fix the always-empty disabled tag dropdowns: the delivered CVT class silently ignored the plain tables every tag-dropdown call site assigned, so the tag lists were never populated. A shared helper now builds a real CVT source from the live tag list for all four call sites.

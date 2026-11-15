@@ -361,9 +361,10 @@ function CLM.ValidateNewCategoryName(name)
     return name
 end
 
--- Create an ordinary category (Normal, no parent) in the captured bag.
+-- Create an ordinary category (Normal, no parent) in the captured bag,
+-- with the chosen tag (nil keeps the empty tag, the previous default).
 -- Prepare both objects before inserting anything into saved state.
-function CLM.CreateCategory(bagTypeId, name)
+function CLM.CreateCategory(bagTypeId, name, tag)
     local saved = AutoCategory.saved
     local savedBag = saved and saved.bags and saved.bags[bagTypeId]
     if not savedBag or not savedBag.rules then
@@ -372,7 +373,7 @@ function CLM.CreateCategory(bagTypeId, name)
     local newName, err = CLM.ValidateNewCategoryName(name)
     if not newName then return nil, err end
     local newRule = AutoCategory.CreateRule(newName,
-        GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG))
+        tag or GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG))
     newRule.rule = "false"
     newRule.level = nil
     newRule.parent = nil
@@ -565,6 +566,93 @@ function CLM.MoveSubtreeToParent(bagTypeId, ruleName, newParentName)
 end
 
 -- ------------------------------------------------------------------
+-- display priority move (the "Move Category Up/Down" menu entries)
+-- ------------------------------------------------------------------
+
+local function findBagRule(bagTypeId, ruleName)
+    local saved = AutoCategory.saved
+    local savedBag = saved and saved.bags and saved.bags[bagTypeId]
+    local rules = savedBag and savedBag.rules
+    if not rules then return nil end
+    for i = 1, #rules do
+        local bagrule = rules[i]
+        if bagrule and bagrule.name == ruleName then
+            return bagrule
+        end
+    end
+    return nil
+end
+
+-- Can the category's display priority move one position in this
+-- direction? The slider range of the display priority is 2..1000.
+function CLM.CanMoveCategoryPriority(bagTypeId, ruleName, delta)
+    local bagrule = findBagRule(bagTypeId, ruleName)
+    if not bagrule then return false end
+    local current = bagrule.showpriority or bagrule.runpriority or 0
+    if delta > 0 then
+        return current < 1000
+    end
+    return current > 2
+end
+
+-- Move a category one display position up (delta 1) or down (delta
+-- -1) within the bag, by swapping display priorities with the
+-- adjacent priority group: the category takes the priority of the
+-- group it passes and that group takes its old priority, so both keep
+-- distinct priorities and the relative order of the other categories
+-- does not change. Without an adjacent group the priority steps by
+-- one, inside the 2..1000 range. Execution priorities (runpriority)
+-- are never touched. Returns true when the priority changed.
+function CLM.MoveCategoryPriority(bagTypeId, ruleName, delta)
+    local bagrule = findBagRule(bagTypeId, ruleName)
+    if not bagrule then return false end
+    if delta > 0 then delta = 1 else delta = -1 end
+    local current = bagrule.showpriority or bagrule.runpriority or 0
+
+    -- the adjacent priority group in the move direction
+    local target = nil
+    local savedBag = AutoCategory.saved.bags[bagTypeId]
+    for i = 1, #savedBag.rules do
+        local other = savedBag.rules[i]
+        if other and other ~= bagrule and other.name then
+            local p = other.showpriority or other.runpriority or 0
+            if delta > 0 then
+                if p > current and (target == nil or p < target) then
+                    target = p
+                end
+            else
+                if p < current and (target == nil or p > target) then
+                    target = p
+                end
+            end
+        end
+    end
+
+    if target == nil then
+        -- no group to pass: step by one, inside the slider bounds
+        target = current + delta
+        if target < 2 or target > 1000 then return false end
+    else
+        -- swap with the adjacent group
+        target = math.max(2, math.min(1000, target))
+        if target == current then return false end
+        for i = 1, #savedBag.rules do
+            local other = savedBag.rules[i]
+            if other and other ~= bagrule and other.name then
+                local p = other.showpriority or other.runpriority or 0
+                if p == target then
+                    other.showpriority = current
+                end
+            end
+        end
+    end
+
+    if target == current then return false end
+    bagrule.showpriority = target
+    return true
+end
+
+-- ------------------------------------------------------------------
 -- context menu
 -- ------------------------------------------------------------------
 
@@ -582,7 +670,96 @@ local function refreshAfterChange()
 end
 
 local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
+local NEW_TAG_DIALOG = "AUTO_CATEGORY_NEW_TAG"
 local newCategoryDialogRegistered = false
+local newTagDialogRegistered = false
+
+-- Create the new category in the captured bag with the chosen tag.
+-- The name was already validated when the tag was chosen; creation can
+-- still fail (priority compaction limit), reported in the chat window.
+local function createCategoryWithTag(bagTypeId, name, tag)
+    local rule = CLM.CreateCategory(bagTypeId, name, tag)
+    if not rule then
+        CHAT_ROUTER:AddSystemMessage(GetString(
+            SI_AC_DIALOG_CATEGORY_CREATE_FAILED))
+        return
+    end
+    refreshAfterChange()
+end
+
+-- Tag selection for the new category: a context menu listing every
+-- existing tag, the empty tag (the previous default) and an entry that
+-- opens a name dialog for a brand new tag. The menu opens right after
+-- the name dialog closes; cancelling it (or the tag dialog) creates
+-- nothing.
+function CLM.OpenTagSelectionMenu(bagTypeId, name)
+    local RulesW = AutoCategory.RulesW
+    local tags = RulesW and RulesW.tags or {}
+    local sorted = {}
+    for i = 1, #tags do
+        local tag = tags[i]
+        if type(tag) == "string" and tag ~= ""
+                and tag ~= GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG) then
+            sorted[#sorted + 1] = tag
+        end
+    end
+    table.sort(sorted)
+
+    ClearMenu()
+    for i = 1, #sorted do
+        local tag = sorted[i]
+        AddCustomMenuItem(tag, function()
+            createCategoryWithTag(bagTypeId, name, tag)
+        end, MENU_ADD_OPTION_LABEL)
+    end
+    AddCustomMenuItem(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
+        function()
+            createCategoryWithTag(bagTypeId, name, nil)
+        end, MENU_ADD_OPTION_LABEL)
+    AddCustomMenuItem(GetString(SI_AC_MENU_CM_TAG_NEW),
+        function() CLM.OpenNewTagDialog(bagTypeId, name) end,
+        MENU_ADD_OPTION_LABEL)
+    ShowMenu()
+end
+
+function CLM.OpenNewTagDialog(bagTypeId, name)
+    if not newTagDialogRegistered then
+        ZO_Dialogs_RegisterCustomDialog(NEW_TAG_DIALOG, {
+            title = { text = SI_AC_MENU_CM_TAG_NEW },
+            mainText = { text = SI_AC_DIALOG_TAG_NAME_PROMPT },
+            editBox = { defaultText = "", maxInputCharacters = 128 },
+            buttons = {
+                {
+                    text = SI_OK,
+                    noReleaseOnClick = true,
+                    callback = function(dialog)
+                        local tag = ZO_Dialogs_GetEditBoxText(dialog)
+                        tag = type(tag) == "string"
+                            and tag:match("^%s*(.-)%s*$") or ""
+                        if tag == "" then
+                            ZO_Dialogs_UpdateDialogMainText(dialog,
+                                { text = GetString(
+                                    SI_AC_DIALOG_TAG_NAME_EMPTY) })
+                            return
+                        end
+                        -- native dialogs clear their state on
+                        -- release: capture the dialog data first
+                        local data = dialog.data
+                        ZO_Dialogs_ReleaseDialog(NEW_TAG_DIALOG)
+                        if data and data.bagTypeId and data.name then
+                            createCategoryWithTag(data.bagTypeId,
+                                data.name, tag)
+                        end
+                    end,
+                },
+                { text = SI_DIALOG_CANCEL },
+            },
+        })
+        newTagDialogRegistered = true
+    end
+    ZO_Dialogs_ShowDialog(NEW_TAG_DIALOG,
+        { bagTypeId = bagTypeId, name = name })
+end
 
 function CLM.OpenNewCategoryDialog(bagTypeId)
     local bags = AutoCategory.saved and AutoCategory.saved.bags
@@ -598,15 +775,18 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
                     noReleaseOnClick = true,
                     callback = function(dialog)
                         local bagTypeId = dialog.data.bagTypeId
-                        local rule, err = CLM.CreateCategory(bagTypeId,
+                        -- validate the name first: a blank or
+                        -- duplicate name keeps the dialog open
+                        local newName, err = CLM.ValidateNewCategoryName(
                             ZO_Dialogs_GetEditBoxText(dialog))
-                        if not rule then
+                        if not newName then
                             ZO_Dialogs_UpdateDialogMainText(dialog,
                                 { text = GetString(err) })
                             return
                         end
                         ZO_Dialogs_ReleaseDialog(NEW_CATEGORY_DIALOG)
-                        refreshAfterChange()
+                        -- then choose the tag of the new category
+                        CLM.OpenTagSelectionMenu(bagTypeId, newName)
                     end,
                 },
                 { text = SI_DIALOG_CANCEL },
@@ -664,6 +844,26 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
         AddCustomMenuItem(GetString(SI_AC_MENU_CM_LEVEL_DOWN),
             function()
                 if CLM.ShiftLevels(bagTypeId, subtree, -1) then
+                    refreshAfterChange()
+                end
+            end, MENU_ADD_OPTION_LABEL)
+    end
+
+    -- move the category one display position up/down: swap its
+    -- display priority with the adjacent priority group, inside the
+    -- 2..1000 range of the display slider
+    if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, 1) then
+        AddCustomMenuItem(GetString(SI_AC_MENU_CM_MOVE_UP),
+            function()
+                if CLM.MoveCategoryPriority(bagTypeId, rule.name, 1) then
+                    refreshAfterChange()
+                end
+            end, MENU_ADD_OPTION_LABEL)
+    end
+    if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, -1) then
+        AddCustomMenuItem(GetString(SI_AC_MENU_CM_MOVE_DOWN),
+            function()
+                if CLM.MoveCategoryPriority(bagTypeId, rule.name, -1) then
                     refreshAfterChange()
                 end
             end, MENU_ADD_OPTION_LABEL)

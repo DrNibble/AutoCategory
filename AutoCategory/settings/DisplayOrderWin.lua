@@ -99,6 +99,34 @@ local function setupDataRow(rowControl, data, scrollList)
                         AC_UI.BagSet_RefreshOrder()
                     end
                 )
+                -- move the category one display position up/down:
+                -- swap its display priority with the adjacent
+                -- priority group, inside the 2..1000 range
+                local CLMv = AutoCategory.CategoryLevelMenu
+                if CLMv and CLMv.CanMoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, 1) then
+                    AddMenuItem(
+                        GetString(SI_AC_MENU_CM_MOVE_UP),
+                        function()
+                            if CLMv.MoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, 1) then
+                                AutoCategory.cacheInitialize()
+                                AC_UI.BagSet_RefreshOrder()
+                                AutoCategory.RefreshCurrentList()
+                            end
+                        end
+                    )
+                end
+                if CLMv and CLMv.CanMoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, -1) then
+                    AddMenuItem(
+                        GetString(SI_AC_MENU_CM_MOVE_DOWN),
+                        function()
+                            if CLMv.MoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, -1) then
+                                AutoCategory.cacheInitialize()
+                                AC_UI.BagSet_RefreshOrder()
+                                AutoCategory.RefreshCurrentList()
+                            end
+                        end
+                    )
+                end
                 AddMenuItem(
                     GetString(SI_AC_MENU_BS_BUTTON_EDIT),
                     function()

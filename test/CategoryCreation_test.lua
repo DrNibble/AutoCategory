@@ -11,6 +11,9 @@ for _, key in ipairs({
     "SI_AC_MENU_CM_NEW_CATEGORY", "SI_AC_DEFAULT_NAME_EMPTY_TAG",
     "SI_AC_DIALOG_CATEGORY_NAME_PROMPT", "SI_AC_DIALOG_CATEGORY_NAME_EMPTY",
     "SI_AC_DIALOG_CATEGORY_NAME_EXISTS", "SI_AC_DIALOG_CATEGORY_CREATE_FAILED",
+    "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_PROMPT",
+    "SI_AC_DIALOG_TAG_NAME_EMPTY",
+    "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
     "SI_OK", "SI_DIALOG_CANCEL",
 }) do _G[key] = key end
 function GetString(key) return key end
@@ -66,8 +69,21 @@ function ZO_Dialogs_ReleaseDialog(name)
     displayed.data = nil
 end
 local items = {}
+function ClearMenu() items = {} end
+function ShowMenu() shownMenu = true end
+shownMenu = false
 function AddCustomMenuItem(label, callback)
     items[#items + 1] = { label = label, callback = callback }
+end
+local chatMessages = {}
+CHAT_ROUTER = { AddSystemMessage = function(_, msg)
+    chatMessages[#chatMessages + 1] = msg end }
+MENU_ADD_OPTION_LABEL = "option"
+local function menuItem(label)
+    for i = 1, #items do
+        if items[i].label == label then return items[i] end
+    end
+    error("no menu item " .. tostring(label))
 end
 assert(loadfile("AutoCategory_Tree.lua"))()
 assert(loadfile("AutoCategory_LevelMenu.lua"))()
@@ -93,9 +109,21 @@ equal(0, #AutoCategory.RulesW.ruleList, "blank name does not create a rule")
 
 -- Another bag becomes current while the popup is open.
 selectedBag = 1
+AutoCategory.RulesW.tags = { "Tag B", GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), "Tag A" }
 submit("  Ma catégorie  ")
+equal(1, releases, "valid name closes the popup")
+equal(true, shownMenu, "tag menu opens after the name dialog")
+equal(4, #items, "menu: two tags, empty tag, new tag")
+equal("Tag A", items[1].label, "tags are sorted")
+equal("Tag B", items[2].label, "second tag")
+equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), items[3].label, "empty tag entry")
+equal(SI_AC_MENU_CM_TAG_NEW, items[4].label, "new tag entry")
 local created = AutoCategory.GetRuleByName("Ma catégorie")
+equal(nil, created, "choosing a tag is required before creation")
+menuItem("Tag A").callback()
+created = AutoCategory.GetRuleByName("Ma catégorie")
 equal(true, created ~= nil, "trimmed name is registered")
+equal("Tag A", created.tag, "chosen tag is applied to the new rule")
 equal("false", created.rule, "false rule is preserved literally")
 equal(false, AutoCategory.compiledRules[created:key()](), "real compiled rule matches nothing")
 equal(nil, created.level, "Normal level")
@@ -119,9 +147,13 @@ equal(0, #AutoCategory.saved.bags[1].rules, "duplicate adds no bag entry")
 equal(1, #AutoCategory.RulesW.ruleList, "duplicate not suffixed or overwritten")
 submit("MA CATéGORIE")
 equal(SI_AC_DIALOG_CATEGORY_NAME_EXISTS, displayed.errorText, "case-insensitive duplicate")
+equal(1, releases, "duplicate keeps popup open")
 submit("Unique")
-equal(1, #AutoCategory.saved.bags[1].rules, "corrected input creates in captured bag")
 equal(2, releases, "corrected input closes popup")
+menuItem(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG)).callback()
+equal(1, #AutoCategory.saved.bags[1].rules, "corrected input creates in captured bag")
+equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
+    AutoCategory.GetRuleByName("Unique").tag, "empty tag entry keeps the default")
 
 -- An existing global rule need not belong to this bag; predefined names
 -- and orphan saved bag names must not be reused either.
@@ -135,6 +167,27 @@ equal(nil, CLM.CreateCategory(1, "orphan"), "orphan bag entry duplicate refused"
 local count = #AutoCategory.RulesW.ruleList
 equal(nil, CLM.CreateCategory(99, "Missing bag"), "unknown bag refused")
 equal(count, #AutoCategory.RulesW.ruleList, "unknown bag leaves no orphan rule")
+
+-- New Tag... dialog: blank refused, valid tag creates the category.
+AutoCategory.saved.bags[8] = { rules = {} }
+CLM.OpenNewCategoryDialog(8)
+submit("Étiquetée")
+menuItem(SI_AC_MENU_CM_TAG_NEW).callback()
+submit("  ")
+equal(SI_AC_DIALOG_TAG_NAME_EMPTY, displayed.errorText, "blank tag refused")
+equal(0, #AutoCategory.saved.bags[8].rules, "blank tag creates nothing")
+submit("  Ma nouvelle étiquette  ")
+equal(4, releases, "tag dialog closes on success")
+equal("Ma nouvelle étiquette",
+    AutoCategory.GetRuleByName("Étiquetée").tag, "typed tag is applied")
+equal(1, #AutoCategory.saved.bags[8].rules, "category created in captured bag")
+equal(1000, AutoCategory.saved.bags[8].rules[1].showpriority,
+    "tagged creation gets highest priority")
+CLM.CreateCategory(8, "Sans étiquette")
+equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
+    AutoCategory.GetRuleByName("Sans étiquette").tag, "nil tag keeps the default")
+-- the two creations above changed the rule count: re-baseline it
+count = #AutoCategory.RulesW.ruleList
 
 local factory = AutoCategory.CreateBagRule
 AutoCategory.CreateBagRule = function() return nil end
@@ -154,8 +207,9 @@ local bag = AutoCategory.saved.bags[3]
 AutoCategory.saved.bags[3] = nil
 local releasedBefore = releases
 submit("After removal")
-equal(SI_AC_DIALOG_CATEGORY_CREATE_FAILED, displayed.errorText, "stale bag error")
-equal(releasedBefore, releases, "stale bag leaves popup open")
+equal(releasedBefore + 1, releases, "name validation releases the popup")
+menuItem("Tag A").callback()
+equal(1, #chatMessages, "stale bag failure is reported in chat")
 equal(count, #AutoCategory.RulesW.ruleList, "stale bag leaves no orphan rule")
 AutoCategory.saved.bags[3] = bag
 
@@ -202,4 +256,57 @@ local beforeFull = #AutoCategory.RulesW.ruleList
 equal(nil, CLM.CreateCategory(7, "No room"), "full priority range fails without changing order")
 equal(beforeFull, #AutoCategory.RulesW.ruleList, "capacity failure creates no rule")
 equal(1000, full[#full].showpriority, "capacity failure leaves priorities unchanged")
+-- Move Category Up/Down: swap with the adjacent priority group,
+-- inside the 2..1000 slider range, without touching runpriority.
+AutoCategory.saved.bags[9] = { rules = {
+    { name = "A", showpriority = 900, runpriority = 10 },
+    { name = "B", showpriority = 500, runpriority = 20 },
+    { name = "C", showpriority = 500, runpriority = 30 },
+    { name = "D", showpriority = 100, runpriority = 40 },
+} }
+equal(true, CLM.CanMoveCategoryPriority(9, "B", 1), "B can move up")
+equal(true, CLM.MoveCategoryPriority(9, "B", 1), "B moves up")
+equal(900, AutoCategory.saved.bags[9].rules[2].showpriority, "B takes A's priority")
+equal(500, AutoCategory.saved.bags[9].rules[1].showpriority, "A takes B's old priority")
+equal(500, AutoCategory.saved.bags[9].rules[3].showpriority, "C keeps its group priority")
+equal(20, AutoCategory.saved.bags[9].rules[2].runpriority, "runpriority untouched")
+equal(true, CLM.MoveCategoryPriority(9, "B", -1), "B moves back down")
+equal(500, AutoCategory.saved.bags[9].rules[2].showpriority, "B restored")
+equal(900, AutoCategory.saved.bags[9].rules[1].showpriority, "A back on top")
+equal(900, AutoCategory.saved.bags[9].rules[3].showpriority, "C moved up with the swap")
+-- group below: B passes D's group
+equal(true, CLM.MoveCategoryPriority(9, "B", -1), "B moves below D")
+equal(100, AutoCategory.saved.bags[9].rules[2].showpriority, "B takes D's priority")
+equal(500, AutoCategory.saved.bags[9].rules[4].showpriority, "D takes B's old priority")
+-- bounds: a category at 1000 cannot move up, one at 2 cannot move down
+AutoCategory.saved.bags[13] = { rules = {
+    { name = "Top", showpriority = 1000, runpriority = 70 },
+} }
+equal(false, CLM.CanMoveCategoryPriority(13, "Top", 1), "1000 cannot move up")
+equal(false, CLM.MoveCategoryPriority(13, "Top", 1), "top move refused")
+equal(1000, AutoCategory.saved.bags[13].rules[1].showpriority, "top unchanged")
+AutoCategory.saved.bags[10] = { rules = {
+    { name = "Floor", showpriority = 2, runpriority = 50 },
+} }
+equal(false, CLM.CanMoveCategoryPriority(10, "Floor", -1), "floor cannot move down")
+equal(false, CLM.MoveCategoryPriority(10, "Floor", -1), "floor move refused")
+-- no adjacent group: the priority steps by one inside the bounds
+AutoCategory.saved.bags[11] = { rules = {
+    { name = "Solo", showpriority = 500, runpriority = 60 },
+} }
+equal(true, CLM.MoveCategoryPriority(11, "Solo", 1), "solo move up allowed")
+equal(501, AutoCategory.saved.bags[11].rules[1].showpriority, "solo steps by one")
+-- a bag rule without explicit showpriority uses runpriority and sets showpriority
+AutoCategory.saved.bags[12] = { rules = {
+    { name = "X", runpriority = 400 },
+    { name = "Y", runpriority = 300 },
+} }
+equal(true, CLM.MoveCategoryPriority(12, "Y", 1), "implicit priority move")
+equal(400, AutoCategory.saved.bags[12].rules[2].showpriority, "Y swaps to X's priority")
+equal(300, AutoCategory.saved.bags[12].rules[1].showpriority, "X takes Y's implicit priority")
+equal(400, AutoCategory.saved.bags[12].rules[1].runpriority, "X runpriority untouched")
+-- unknown rule or bag: refused, nothing changes
+equal(false, CLM.MoveCategoryPriority(9, "Nulle part", 1), "unknown rule refused")
+equal(false, CLM.CanMoveCategoryPriority(99, "A", 1), "unknown bag refused")
+
 print("CategoryCreation_test: " .. assertions .. " assertions passed")

@@ -1,5 +1,43 @@
 # Changes
 
+## 2026-11-15: autosettype under its category, new category visible, run priority (4.6.26)
+
+- autosettype rule (LibSets plugin): the category name now heads the
+  dynamic list. A hierarchical dynamic name used to be displayed as-is
+  ("Type----Set name"), so the sets showed detached from their
+  category. The category name is now the first level
+  ("Category----Type----Set name"), both for a top-level category and
+  for a level 2-5 category (where the dynamic levels follow the
+  category's own name under its parent chain). The plain (non
+  hierarchical) dynamic names and the set-title option are unchanged.
+- A newly created category is now visible right away, even with the
+  "Show Empty Categories" setting off: creation adds a hidden
+  placeholder sub-category to the new category (a "false" rule nested
+  under it, shown as "Name (empty)" in the rules list). The placeholder
+  never matches anything so it never displays, but it keeps the new
+  category a structural parent, so its header shows (with a zero
+  count) until items land in it. With the setting off, only the
+  categories carrying such a placeholder are shown when empty - an
+  ordinary emptied category stays hidden. The placeholder is an
+  ordinary category: it can be edited (to put items in it) or deleted
+  like any other.
+- The header right-click menu now shows the numeric execution
+  priority of the category ("Execution Priority: N"), read-only, from
+  the bag rule of the clicked bag. The display order (showpriority)
+  stays what the Move Category Up/Down entries change.
+- Updated suites and harness: the placeholder child of CreateCategory
+  (rule false, level 2, hidden bag rule), the menu entry and its
+  place in the captured menus, the new expected dynamic names
+  ("Category----Type----Set") and the option-off empty display of a
+  marked category. RuleLevel 78, CategoryTree 140,
+  CategoryLevelMenu 156, ScrollCommit 37, ParentDD 15, LevelMenu 55,
+  CategoryCreation 133, LibSets 2586 assertions pass, plus the 24
+  assertions of the createNewScrollData empty-categories harness.
+- Non testé dans ESO. Verify in game: create a category and check it
+  appears empty at once; right-click its header and read the
+  execution priority; drop a set item in an autosettype category and
+  check the category name heads the list.
+
 ## 2026-11-15: Tag choice at creation, empty categories, priority moves (4.6.25)
 
 - New category from the header right-click menu: after the name is

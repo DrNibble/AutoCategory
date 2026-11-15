@@ -627,15 +627,43 @@ local function createNewScrollData(scrollData)
         end
     end
 
-    -- Force the display of the categories of the bag that matched no
-    -- item (a new category whose rule is still false, an emptied
-    -- category): add a zero-count header for every non-hidden bag
-    -- rule that has no category entry yet. Only the bags present in
-    -- the list are completed; a fully empty list is not rebuilt at
-    -- all (rebuildScrollData returns early), so an empty inventory
-    -- shows no header either way.
-    if AutoCategory.saved.general
-        and AutoCategory.saved.general["SHOW_EMPTY_CATEGORIES"] then
+    -- Create the zero-count category entry of a bag rule that matched no
+    -- item, and feed its ancestors (zero) so the intermediate headers are
+    -- created too. Shared by both empty-category display modes below.
+    local function addEmptyCategoryHeader(bagTypeId, bagrule)
+        local categoryName = bagrule.name
+        local priority = bagrule.showpriority
+            or bagrule.runpriority or 0
+        local catInfo = {
+            AC_sortPriorityName = CategoryTree.BuildSortKey(
+                priority, categoryName,
+                AutoCategory.GetCategorySortName(categoryName)),
+            AC_categoryName     = categoryName,
+            AC_bagTypeId        = bagTypeId,
+            AC_catCount         = 0,
+        }
+
+        local levelCount = CategoryTree.LevelCount(categoryName)
+        if levelCount > 1 then
+            catInfo.AC_parentName =
+                CategoryTree.ParentOf(categoryName)
+            catInfo.AC_headerLevel = levelCount
+            catInfo.AC_displayName =
+                CategoryTree.DisplayName(categoryName)
+        end
+
+        cnsd_categoryList[categoryName] = catInfo
+
+        -- A hierarchical empty category also feeds every
+        -- level's total above it (zero), so the intermediate
+        -- headers are created too.
+        feedAncestors(categoryName, bagTypeId,
+            catInfo.AC_sortPriorityName, 0)
+    end
+
+    -- the bags present in the list (a fully empty list is not rebuilt
+    -- at all, so an empty inventory shows no header either way)
+    local function bagTypeIdsInList()
         local bagTypeIds = {}
         for _, itemEntry in ipairs(scrollData) do
             local data = itemEntry.data
@@ -643,7 +671,16 @@ local function createNewScrollData(scrollData)
                 bagTypeIds[data.AC_bagTypeId] = true
             end
         end
-        for bagTypeId in pairs(bagTypeIds) do
+        return bagTypeIds
+    end
+
+    -- Force the display of the categories of the bag that matched no
+    -- item (a new category whose rule is still false, an emptied
+    -- category): add a zero-count header for every non-hidden bag
+    -- rule that has no category entry yet.
+    if AutoCategory.saved.general
+        and AutoCategory.saved.general["SHOW_EMPTY_CATEGORIES"] then
+        for bagTypeId in pairs(bagTypeIdsInList()) do
             local savedBag = AutoCategory.saved.bags[bagTypeId]
             local bagRules = savedBag and savedBag.rules
             if bagRules then
@@ -653,39 +690,50 @@ local function createNewScrollData(scrollData)
                             and bagrule.name ~= ""
                             and not bagrule.isHidden
                             and cnsd_categoryList[bagrule.name] == nil then
-                        local categoryName = bagrule.name
-                        local priority = bagrule.showpriority
-                            or bagrule.runpriority or 0
-                        local catInfo = {
-                            AC_sortPriorityName = CategoryTree.BuildSortKey(
-                                priority, categoryName,
-                                AutoCategory.GetCategorySortName(categoryName)),
-                            AC_categoryName     = categoryName,
-                            AC_bagTypeId        = bagTypeId,
-                            AC_catCount         = 0,
-                        }
-
-                        local levelCount = CategoryTree.LevelCount(categoryName)
-                        if levelCount > 1 then
-                            catInfo.AC_parentName =
-                                CategoryTree.ParentOf(categoryName)
-                            catInfo.AC_headerLevel = levelCount
-                            catInfo.AC_displayName =
-                                CategoryTree.DisplayName(categoryName)
-                        end
-
-                        cnsd_categoryList[categoryName] = catInfo
-
-                        -- A hierarchical empty category also feeds
-                        -- every level's total above it (zero), so the
-                        -- intermediate headers are created too.
-                        feedAncestors(categoryName, bagTypeId,
-                            catInfo.AC_sortPriorityName, 0)
+                        addEmptyCategoryHeader(bagTypeId, bagrule)
+                    end
+                end
+            end
+        end
+    else
+        -- With the option off, a category that matched no item still
+        -- shows right after its creation: the creation adds a hidden
+        -- placeholder sub-category (a "false" rule nested under the
+        -- new category, see CLM.CreateCategory) that never matches
+        -- anything. The placeholder keeps the new category a parent
+        -- of nested rules, so its header displays (empty) until
+        -- items land in it - and only then: an ordinary emptied
+        -- category stays hidden.
+        -- the categories that carry a placeholder child rule
+        local markedParents = {}
+        local ruleList = AutoCategory.RulesW
+            and AutoCategory.RulesW.ruleList or {}
+        for r = 1, #ruleList do
+            local rule = ruleList[r]
+            if rule and type(rule.parent) == "string"
+                    and rule.parent ~= ""
+                    and rule.rule == "false" then
+                markedParents[rule.parent] = true
+            end
+        end
+        for bagTypeId in pairs(bagTypeIdsInList()) do
+            local savedBag = AutoCategory.saved.bags[bagTypeId]
+            local bagRules = savedBag and savedBag.rules
+            if bagRules then
+                for i = 1, #bagRules do
+                    local bagrule = bagRules[i]
+                    if bagrule and type(bagrule.name) == "string"
+                            and bagrule.name ~= ""
+                            and not bagrule.isHidden
+                            and markedParents[bagrule.name]
+                            and cnsd_categoryList[bagrule.name] == nil then
+                        addEmptyCategoryHeader(bagTypeId, bagrule)
                     end
                 end
             end
         end
     end
+
 
     -- Merge the intermediate-level totals into a category that carries its
     -- own items: its header must show direct items plus all descendants.

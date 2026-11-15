@@ -412,6 +412,31 @@ function CLM.CreateCategory(bagTypeId, name, tag)
         end
     end
     savedBag.rules[#savedBag.rules + 1] = entry
+
+    -- An empty category is invisible while nothing matches its rule
+    -- (the inventory only builds headers from matching items). Give
+    -- every new category a hidden placeholder sub-category: its rule
+    -- is false, so it never matches anything and never displays, but
+    -- its parent link keeps the new category a structural parent, so
+    -- the new category's header shows (empty) until items land in it
+    -- - even with the empty-category display option off (see
+    -- createNewScrollData). The placeholder is an ordinary category:
+    -- it can be edited (drop items in it) or deleted like any other.
+    local childName = AutoCategory.GetUsableRuleName(
+        newName .. " " .. GetString(SI_AC_NEW_CATEGORY_EMPTY_CHILD))
+    local childRule = AutoCategory.CreateRule(childName, newRule.tag)
+    childRule.rule = "false"
+    childRule.level = 2
+    childRule.parent = newName
+    local childEntry = AutoCategory.CreateBagRule(childRule,
+        entry.runpriority, newPriority)
+    if childEntry then
+        childEntry.isHidden = true
+        childRule:compile()
+        AutoCategory.ARW:AddRule(childRule)
+        AutoCategory.cache.AddRule(childRule)
+        savedBag.rules[#savedBag.rules + 1] = childEntry
+    end
     return newRule
 end
 
@@ -828,6 +853,17 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     -- the operations work on the bag rules of the clicked bag
     local subtree = CLM.SubtreeInBag(bagTypeId, rule.name)
     if not subtree then return end
+
+    -- the numeric execution priority of the category (read-only
+    -- information): the runpriority of its bag rule in this bag,
+    -- the order the rules run in (not the display order)
+    local infoBagrule = subtree[1].bagrule
+    if infoBagrule and infoBagrule.runpriority then
+        AddCustomMenuItem(
+            string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
+                infoBagrule.runpriority),
+            function() end, MENU_ADD_OPTION_LABEL)
+    end
 
     -- the level operations are direct entries of the header context
     -- menu (a submenu cannot hold a submenu in ESO, so they cannot

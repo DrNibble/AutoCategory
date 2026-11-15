@@ -14,6 +14,8 @@ for _, key in ipairs({
     "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_PROMPT",
     "SI_AC_DIALOG_TAG_NAME_EMPTY",
     "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
+    "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
+    "SI_AC_NEW_CATEGORY_EMPTY_CHILD", "SI_AC_MENU_CM_RUN_PRIORITY",
     "SI_OK", "SI_DIALOG_CANCEL",
 }) do _G[key] = key end
 function GetString(key) return key end
@@ -128,11 +130,20 @@ equal("false", created.rule, "false rule is preserved literally")
 equal(false, AutoCategory.compiledRules[created:key()](), "real compiled rule matches nothing")
 equal(nil, created.level, "Normal level")
 equal(nil, created.parent, "no inherited parent")
-equal(1, #AutoCategory.saved.bags[3].rules, "only captured bag receives category")
+equal(2, #AutoCategory.saved.bags[3].rules, "captured bag receives category and placeholder")
 equal(0, #AutoCategory.saved.bags[1].rules, "other bag unchanged")
 equal("Ma catégorie", AutoCategory.saved.bags[3].rules[1].name, "saved bag entry")
+local createdChild = AutoCategory.GetRuleByName("Ma catégorie " .. SI_AC_NEW_CATEGORY_EMPTY_CHILD)
+equal(true, createdChild ~= nil, "the hidden placeholder child rule is created")
+equal("false", createdChild.rule, "the placeholder child never matches")
+equal(2, createdChild.level, "the placeholder child sits one level below")
+equal("Ma catégorie", createdChild.parent, "the placeholder child nests under the new category")
+equal("Tag A", createdChild.tag, "the placeholder child keeps the category's tag")
+equal(true, AutoCategory.saved.bags[3].rules[2].isHidden, "the placeholder child bag rule is hidden")
+equal(1000, AutoCategory.saved.bags[3].rules[2].showpriority,
+    "the placeholder child keeps the display priority")
 equal(1000, AutoCategory.saved.bags[3].rules[1].showpriority, "default sortable priority")
-equal(1, cacheAdds, "cache updated once")
+equal(2, cacheAdds, "cache updated for the category and its placeholder")
 equal(1, refreshes, "lists refreshed once")
 equal(1, releases, "success closes popup")
 equal(1, selectedBag, "creation does not change settings bag selection")
@@ -144,14 +155,14 @@ submit("Ma catégorie")
 equal(SI_AC_DIALOG_CATEGORY_NAME_EXISTS, displayed.errorText, "cross-bag duplicate refused")
 equal(1, releases, "duplicate keeps popup open")
 equal(0, #AutoCategory.saved.bags[1].rules, "duplicate adds no bag entry")
-equal(1, #AutoCategory.RulesW.ruleList, "duplicate not suffixed or overwritten")
+equal(2, #AutoCategory.RulesW.ruleList, "duplicate not suffixed or overwritten")
 submit("MA CATéGORIE")
 equal(SI_AC_DIALOG_CATEGORY_NAME_EXISTS, displayed.errorText, "case-insensitive duplicate")
 equal(1, releases, "duplicate keeps popup open")
 submit("Unique")
 equal(2, releases, "corrected input closes popup")
 menuItem(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG)).callback()
-equal(1, #AutoCategory.saved.bags[1].rules, "corrected input creates in captured bag")
+equal(2, #AutoCategory.saved.bags[1].rules, "corrected input creates in captured bag")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
     AutoCategory.GetRuleByName("Unique").tag, "empty tag entry keeps the default")
 
@@ -180,7 +191,7 @@ submit("  Ma nouvelle étiquette  ")
 equal(4, releases, "tag dialog closes on success")
 equal("Ma nouvelle étiquette",
     AutoCategory.GetRuleByName("Étiquetée").tag, "typed tag is applied")
-equal(1, #AutoCategory.saved.bags[8].rules, "category created in captured bag")
+equal(2, #AutoCategory.saved.bags[8].rules, "category created in captured bag")
 equal(1000, AutoCategory.saved.bags[8].rules[1].showpriority,
     "tagged creation gets highest priority")
 CLM.CreateCategory(8, "Sans étiquette")
@@ -233,12 +244,12 @@ equal(100, entries[1].runpriority, "run priority untouched")
 equal(otherPriority, AutoCategory.saved.bags[3].rules[1].showpriority,
     "other bag priorities are unchanged")
 local second = assert(CLM.CreateCategory(5, "Second created"))
-equal(1000, entries[6].showpriority, "repeated creation goes to the top")
+equal(1000, entries[7].showpriority, "repeated creation goes to the top")
 equal(999, entries[5].showpriority, "previous new category remains directly below")
 equal("false", first.rule, "priority placement keeps false rule")
 equal(nil, second.level, "priority placement keeps Normal level")
 equal(0, windowOpens, "priority placement never opens ordering window")
-equal(true, AutoCategory.CategoryTree.BuildSortKey(entries[6].showpriority, second.name)
+equal(true, AutoCategory.CategoryTree.BuildSortKey(entries[7].showpriority, second.name)
     < AutoCategory.CategoryTree.BuildSortKey(entries[5].showpriority, first.name),
     "real inventory sort key puts newest category first")
 AutoCategory.saved.bags[6] = { rules = {

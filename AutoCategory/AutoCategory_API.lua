@@ -275,27 +275,39 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 							-- evaluation order.
 							local chain
 							if effectiveRuleLevel(rule) == 1 then
-								-- A top-level category (Normal or level 1):
-								-- the category name is the whole path. The
-								-- adjusted name keeps the dynamic categories
-								-- (autoset) and their own hierarchy.
-								local catname = adjustName(self, rule.name,
-									AutoCategory.AdditionCategoryName)
-								chain = categoryTree.Levels(catname)
-								if chain == nil then chain = { catname } end
+							-- A top-level category (Normal or level 1):
+							-- the category name is the whole path. A
+							-- hierarchical dynamic name (autosettype:
+							-- "Type----Set name") carries its own levels:
+							-- the category name goes at the head of the
+							-- list, so the dynamic categories show under
+							-- their category. A plain dynamic name keeps
+							-- the adjusted name (set title option).
+							local addition = AutoCategory.AdditionCategoryName
+							local catname
+							if addition ~= nil and addition ~= ""
+								and categoryTree.IsHierarchical(addition) then
+								catname = rule.name .. "----" .. addition
 							else
-								-- A level 2-5 category: its path is its
-								-- parent chain - the parent, its own parent,
-								-- and so on, up to the top - then the category
-								-- itself. A hierarchical dynamic name (autosettype:
-								-- "Type----Set name") carries its own levels: they
-								-- nest under the parent chain, replacing the
-								-- category's own name, exactly like a level 1
-								-- category uses a hierarchical dynamic name as-is.
+								catname = adjustName(self, rule.name, addition)
+							end
+							chain = categoryTree.Levels(catname)
+							if chain == nil then chain = { catname } end
+							else
+							-- A level 2-5 category: its path is its
+							-- parent chain - the parent, its own parent,
+							-- and so on, up to the top - then the category
+							-- itself. A hierarchical dynamic name (autosettype:
+							-- "Type----Set name") carries its own levels: they
+							-- nest under the parent chain, after the
+							-- category's own name, so the dynamic categories
+							-- show under their category (the same head of
+							-- list as a level 1 category).
 								local addition = AutoCategory.AdditionCategoryName
 								if addition ~= nil and addition ~= ""
 									and categoryTree.IsHierarchical(addition) then
-									chain = categoryTree.Levels(addition)
+									chain = categoryTree.Levels(
+										entry.name .. "----" .. addition)
 									if chain == nil then chain = { entry.name } end
 								else
 									chain = { entry.name }

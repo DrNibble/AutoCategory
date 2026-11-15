@@ -30,6 +30,8 @@ SI_AC_MENU_CM_MOVE_TOP = "Top Level"
 SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there)."
 SI_AC_DEFAULT_NAME_NEW_CATEGORY = "NewCategory"
 SI_AC_DEFAULT_NAME_EMPTY_TAG = "<Empty>"
+SI_AC_NEW_CATEGORY_EMPTY_CHILD = "(empty)"
+SI_AC_MENU_CM_RUN_PRIORITY = "Execution Priority: %d"
 
 function GetString(si)
     return si
@@ -356,9 +358,19 @@ equal(true, newRuleResult ~= nil, "a new named category is created")
 equal("false", newRuleResult.rule, "the new category has the rule false")
 equal(nil, newRuleResult.level, "the new category is Normal")
 equal(nil, newRuleResult.parent, "the new category has no parent")
-equal("Niv1,NewCategory", table.concat(bagNames(9), ","),
-    "the new category is added to the bag")
+equal("Niv1,NewCategory,NewCategory (empty)", table.concat(bagNames(9), ","),
+    "the new category is added to the bag with its placeholder child")
 equal(1000, bags[9].rules[2].runpriority, "the new category uses default priorities")
+local newChildRule = AutoCategory.GetRuleByName("NewCategory (empty)")
+equal(true, newChildRule ~= nil, "the placeholder child rule is created")
+equal("false", newChildRule.rule, "the placeholder child never matches")
+equal(2, newChildRule.level, "the placeholder child sits one level below")
+equal("NewCategory", newChildRule.parent, "the placeholder child nests under the new category")
+equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), newChildRule.tag,
+    "the placeholder child keeps the same tag")
+equal(true, bags[9].rules[3].isHidden, "the placeholder child bag rule is hidden")
+equal(bags[9].rules[2].showpriority, bags[9].rules[3].showpriority,
+    "the placeholder child keeps the new category's display priority")
 
 -- Creation is independent of the clicked category's level.
 newRule("Niv5", 5)
@@ -415,12 +427,14 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(5, #capturedItems, "new category, level, move and delete entries for an operable header")
+equal(6, #capturedItems, "new category, priority, level, move and delete entries for an operable header")
 equal("New Category", capturedItems[1].label, "first entry creates a category")
-equal("Increase Level", capturedItems[2].label)
-equal("Move Category Up", capturedItems[3].label)
-equal("Move Category Down", capturedItems[4].label)
-equal("Delete Level", capturedItems[5].label)
+equal("Execution Priority: 5", capturedItems[2].label,
+    "the header menu shows the category's execution priority")
+equal("Increase Level", capturedItems[3].label)
+equal("Move Category Up", capturedItems[4].label)
+equal("Move Category Down", capturedItems[5].label)
+equal("Delete Level", capturedItems[6].label)
 equal(1, #capturedSubmenus, "one Copy To submenu is added for an operable header")
 equal("Copy To", capturedSubmenus[1].text, "the submenu is the Copy To menu")
 local menu = capturedSubmenus[1].entries
@@ -431,18 +445,18 @@ equal("Guild Bank", menu[3].label)
 
 -- the callbacks run the operations and refresh
 refreshCalls.cacheInitialize = 0
-capturedItems[2].callback()
+capturedItems[3].callback()
 equal(2, rKid.level, "the increase callback deepens the level")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 
 -- the move callbacks step the display priority and refresh (Root is
 -- no longer in the bag here, so Kid has no adjacent group)
 refreshCalls.cacheInitialize = 0
-capturedItems[3].callback()
+capturedItems[4].callback()
 equal(6, AutoCategory.saved.bags[12].rules[1].showpriority,
     "move up steps by one without an adjacent group")
 equal(1, refreshCalls.cacheInitialize, "the move callback refreshes the caches")
-capturedItems[4].callback()
+capturedItems[5].callback()
 equal(5, AutoCategory.saved.bags[12].rules[1].showpriority, "move down steps back")
 
 -- A header with no backing rule only gets category creation.
@@ -475,11 +489,12 @@ setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
-equal(4, #capturedItems, "creation remains available at level 5")
+equal(5, #capturedItems, "creation remains available at level 5")
 equal("New Category", capturedItems[1].label)
-equal("Decrease Level", capturedItems[2].label)
-equal("Move Category Up", capturedItems[3].label)
-equal("Delete Level", capturedItems[4].label)
+equal("Execution Priority: 1", capturedItems[2].label)
+equal("Decrease Level", capturedItems[3].label)
+equal("Move Category Up", capturedItems[4].label)
+equal("Delete Level", capturedItems[5].label)
 equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
 equal("Move To", capturedSubmenus[1].text)
 equal(1, #capturedSubmenus[1].entries,
@@ -588,9 +603,10 @@ equal("D", rE.parent, "the children keep their parent")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Mid", 20)
-equal(6, #capturedItems, "creation, level, move and delete entries")
-equal("Move Category Up", capturedItems[4].label)
-equal("Move Category Down", capturedItems[5].label)
+equal(7, #capturedItems, "creation, priority, level, move and delete entries")
+equal("Execution Priority: 30", capturedItems[2].label)
+equal("Move Category Up", capturedItems[5].label)
+equal("Move Category Down", capturedItems[6].label)
 equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
 equal("Move To", capturedSubmenus[1].text)
 equal("Copy To", capturedSubmenus[2].text)

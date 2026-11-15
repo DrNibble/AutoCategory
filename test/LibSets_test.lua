@@ -360,8 +360,8 @@ AutoCategory.IsCategoryCollapsed = function() return false end
 assert(loadfile("AutoCategory_Tree.lua"))()
 CategoryTree = AutoCategory.CategoryTree
 local rules = {
-    arena = { name = "ZZZ parent", key = function() return 1 end },
-    otherSets = { name = "AAA parent", key = function() return 2 end },
+    arena = { name = "Sets", key = function() return 1 end },
+    otherSets = { name = "Sets", key = function() return 2 end },
     ordinary = { name = "Ordinary", key = function() return 3 end },
 }
 AutoCategory.GetRuleByName = function(name) return rules[name] end
@@ -467,7 +467,7 @@ local function checkOrder(expected, label)
 end
 
 cacheClientLanguage(LibSets, "fr")
-checkOrder({ 2, 5, 4, 3, 6, 1 }, "French type then set, mixed case, parent ignored")
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "French type then set, mixed case, same category")
 AutoCategory.saved.general.SHOW_CATEGORY_SET_TITLE = false
 checkOrder({ 2, 5, 4, 3, 6, 1 }, "same order without parent title")
 cacheClientLanguage(LibSets, "en")
@@ -491,6 +491,26 @@ checkOrder({ 2, 5, 4, 1, 6, 3 }, "case-only name collisions keep distinct groups
 equal(false, CategoryTree.BuildSortKey(10, "Donjon----ALPHA")
     == CategoryTree.BuildSortKey(10, "Donjon----alpha"), "distinct header keys")
 inventory[1].name, inventory[3].name = firstSetName, thirdSetName
+-- The category name leads the dynamic hierarchy: "Category----Type----Set".
+do
+    local row = { typeId = 1, data = { bagId = 1, slotIndex = 2 } }
+    runKeyboardRules(row)
+    equal("Sets----" .. typeNames[1].fr .. "----Zulu", row.data.AC_categoryName,
+        "category name at the head of the autosettype list")
+    local plain = AutoCategory.saved.general.SHOW_CATEGORY_SET_TITLE
+    AutoCategory.saved.general.SHOW_CATEGORY_SET_TITLE = false
+    row = { typeId = 1, data = { bagId = 1, slotIndex = 2 } }
+    runKeyboardRules(row)
+    equal("Sets----" .. typeNames[1].fr .. "----Zulu", row.data.AC_categoryName,
+        "category name at the head without the set title option")
+    AutoCategory.saved.general.SHOW_CATEGORY_SET_TITLE = plain
+end
+-- Two categories group first by their own name, then by type and set.
+rules.arena.name, rules.otherSets.name = "ZZZ parent", "AAA parent"
+checkOrder({ 4, 3, 6, 1, 2, 5 }, "category name leads the grouping")
+rules.arena.name, rules.otherSets.name = "AAA parent", "ZZZ parent"
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "category name leads the grouping, reversed")
+rules.arena.name, rules.otherSets.name = "Sets", "Sets"
 -- Original display priority still takes precedence over the alphabetical key.
 bagRules[2].showpriority = 50
 checkOrder({ 4, 3, 6, 1, 2, 5 }, "display priority preserved")

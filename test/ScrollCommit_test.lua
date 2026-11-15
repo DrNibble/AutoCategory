@@ -103,6 +103,7 @@ AC_BAG_TYPE_BACKPACK, AC_BAG_TYPE_CRAFTSTATION = 1, 5
 BAG_BACKPACK = 1
 ZO_SORT_ORDER_UP = true
 EVENT_STACKED_ALL_ITEMS, EVENT_STACKED_ALL_ITEMS_IN_BAG = "stacked", "stacked-bag"
+EVENT_GUILD_BANK_SELECTED, EVENT_GUILD_BANK_ITEMS_READY = "bank-selected", "bank-ready"
 
 LibMediaProvider = {Fetch = function() return "font" end}
 
@@ -214,6 +215,10 @@ GetItemUniqueId = function() return nil end
 --------------------------------------------------------------------
 -- Load the delivered Hooks_Keyboard.lua in this environment
 --------------------------------------------------------------------
+-- Match the manifest order: the diagnostic module must remain passive
+-- unless explicitly enabled, including on the delayed rebuild path.
+SLASH_COMMANDS = {}
+assert(loadfile("GuildBankTrace.lua"))()
 local Chunk = assert(loadfile("Hooks_Keyboard.lua"))
 setfenv(Chunk, getfenv(1))
 Chunk()
@@ -333,6 +338,45 @@ check("guild bank list survives a simulated UpdateScroll",
 check("updateHook captured by the CallLater stub", CapturedUpdateHook ~= nil)
 local Ok, Err = pcall(CapturedUpdateHook)
 check("updateHook tolerates a nil inventory", Ok and Err == nil)
+check("diagnostics stay disabled throughout normal keyboard rebuilds",
+  AutoCategory.GuildBankTrace.enabled == false
+    and AutoCategory.GuildBankTrace.installed == nil)
+
+--------------------------------------------------------------------
+-- Enable the real observer around the real delayed rebuild, without
+-- changing the behavior of the hook/scroll-list model. The observer must
+-- expose the appended (not yet sorted) header, not silently repair it.
+--------------------------------------------------------------------
+local TraceMessages = {}
+AutoCat_Logger = function() return {Info = function(_, message)
+  TraceMessages[#TraceMessages + 1] = message
+end} end
+GetGameTimeMilliseconds = function() return 100 end
+GetSelectedGuildBankId = function() return 10 end
+d = function() end
+ZO_ScrollList_GetDataTypeTable = function(list, typeId)
+  return state(list).dataTypes[typeId]
+end
+gbState.IsControlHidden = function() return false end
+local Trace = AutoCategory.GuildBankTrace
+Trace.enabled, Trace.lines, Trace.stacks = true, 0, 0
+gbState.data = {}
+CallLaterQueue = {}
+applySortHook(PLAYER_INVENTORY, INVENTORY_GUILD_BANK)
+gbState.data = {itemEntry(1), itemEntry(2)}
+CallLaterQueue[1]()
+local sawRetry, sawInversion, sawFilter = false, false, false
+for _, message in ipairs(TraceMessages) do
+  if message:find("RETRY_REBUILD list=", 1, true) then sawRetry = true end
+  if message:find("REBUILD_COMMITTED_BEFORE_CALLER_SORT list=", 1, true)
+      and message:find("inversions=1", 1, true) then sawInversion = true end
+  if message:find("FILTER inputItems=2 kept=2", 1, true) then sawFilter = true end
+end
+check("real delayed rebuild is observable", sawRetry)
+check("real delayed rebuild exposes the unsorted appended header", sawInversion)
+check("real filter decisions counted before rebuilding", sawFilter)
+check("observer does not repair the unsorted list",
+  gbState.data[1].typeId == 1 and gbState.data[3].typeId == 998)
 
 print(string.format("scroll commit passed=%d failed=%d", Passed, Failed))
 if Failed > 0 then os.exit(1) end

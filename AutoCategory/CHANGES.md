@@ -1,5 +1,29 @@
 # Changes
 
+## 2026-11-15: Opt-in guild bank trace through sorting and rendering
+
+- Version 4.6.19 (159). Add `/acgbtrace on|off|mark <symptom>|dump`,
+  disabled by default, using LibDebugLogger Info independently of `/acdebug`.
+- Observe UpdateList, ApplySort, list clear/commit, reconstruction, deferred
+  retries, polling and header setup. Log selected guild, generation, list/data
+  identity, sequence checksum, missing rules/positions, category-order
+  inversions, visible/active headers and current header controls.
+- Record enabled addon versions for A/B comparisons, filtering decisions for
+  actual items, and bounded caller stacks. No additional repair or sort.
+  Existing delayed rebuilds may commit before any caller sort: this trace
+  exposes that path rather than assuming headers present means correct UI.
+- Bound capture to 2500 messages and 32 caller stacks; guard delayed samples
+  against stale session/generation/guild/list/sort and keyboard mode changes.
+- Add a Lua 5.1 behavioral harness loading the delivered module and a French
+  capture/A-B guide in `wiki/Guild Bank Diagnostics.md`.
+- Lua 5.1: 53 diagnostic assertions and 19 scroll-commit/integration checks
+  pass, including observation (without repair) of an unsorted delayed rebuild.
+  Regression suites pass: RuleLevel 78, CategoryTree 125, CategoryLevelMenu 137,
+  LibSets 2242 with standalone fixtures (2654 assertions in total).
+- Not tested in ESO. Existing visual defect remains unconfirmed/unresolved;
+  the new logs are intended to distinguish an internal ordering/rendering
+  problem from interference by Swiss Knife or another addon.
+
 ## 2026-11-14 (23): /acdebug command to toggle the debug logging
 
 - The debug logs added in (22) never reach LibDebugLogger: the debug

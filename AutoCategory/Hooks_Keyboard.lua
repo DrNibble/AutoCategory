@@ -203,6 +203,9 @@ local function setup_InventoryItemRowHeader(rowControl, slot, overrideOptions)
 
 	rowControl:SetHeight(appearance["CATEGORY_HEADER_HEIGHT"])
 	rowControl.slot = slot
+	if AutoCategory.GuildBankTrace then
+		AutoCategory.GuildBankTrace:Rendered(rowControl, data, overrideOptions)
+	end
 end
 
 -- create the row header type and add to the inventory scroll list
@@ -270,25 +273,26 @@ local function isHiddenEntry(itemEntry)
     local data = itemEntry.data
 
     if data.AC_isHidden then
-        return true
+        return true, data.AC_matched == false and "ungrouped-hidden" or "rule-hidden"
     end
 
     local bagTypeId = data.AC_bagTypeId
     if bagTypeId == nil then
-        return true
+        return true, "missing-bag-type"
     end
 
     if not data.AC_matched and isUngroupedHidden(bagTypeId) then
-        return true
+        return true, "ungrouped-hidden"
     end
 
     -- Items and headers under a collapsed level are hidden, whatever
     -- the state of the levels in between.
     if CategoryTree.IsAnyAncestorCollapsed(bagTypeId, data.AC_categoryName) then
-        return true
+        return true, "ancestor-collapsed"
     end
 
-    return AutoCategory.IsCategoryCollapsed(bagTypeId, data.AC_categoryName)
+    return AutoCategory.IsCategoryCollapsed(bagTypeId, data.AC_categoryName),
+        "category-collapsed"
 end
 
 local function isCollapsed(itemEntry)
@@ -683,6 +687,9 @@ local function rebuildScrollData(zo_inventory)
             zo_callLater(function()
                 local freshData = ZO_ScrollList_GetDataList(list)
                 if freshData and #freshData > 0 then
+                    if AutoCategory.GuildBankTrace then
+                        AutoCategory.GuildBankTrace:Snapshot("RETRY_REBUILD", list, nil, true)
+                    end
                     rebuildScrollData(zo_inventory)
                 end
             end, 100)
@@ -690,7 +697,13 @@ local function rebuildScrollData(zo_inventory)
         return false 
     end
 	handleRules(scrollData, true)
+	if AutoCategory.GuildBankTrace then
+		AutoCategory.GuildBankTrace:Filtered(list, scrollData, isHiddenEntry)
+	end
 	list.data = createNewScrollData(scrollData)
+	if AutoCategory.GuildBankTrace then
+		AutoCategory.GuildBankTrace:Snapshot("REBUILD_REPLACED_UNSORTED", list)
+	end
 	logDebug("[AC] rebuildScrollData: ", #scrollData, " entries -> ",
 		#list.data, " entries with headers")
 	--The replaced entries (including category headers, typeId 998) only
@@ -701,6 +714,9 @@ local function rebuildScrollData(zo_inventory)
 	--such as the combobox dropdown - scrolls. Callers like ApplySort sort
 	--and commit again afterwards, which is harmless.
 	ZO_ScrollList_Commit(list)
+	if AutoCategory.GuildBankTrace then
+		AutoCategory.GuildBankTrace:Snapshot("REBUILD_COMMITTED_BEFORE_CALLER_SORT", list)
+	end
 	return true
 end
 
@@ -875,8 +891,11 @@ end
 -- unlike UpdateList, which repopulates it and can empty it while
 -- the text search results of the new guild are not ready yet.
 local gbPollGeneration = 0
-local function onGuildBankChanged()
+local function onGuildBankChanged(eventId)
 	if not AutoCategory.Enabled then return end
+	if AutoCategory.GuildBankTrace then
+		AutoCategory.GuildBankTrace:BankChanged(eventId)
+	end
 
 	local zo_inventory = PLAYER_INVENTORY.inventories[INVENTORY_GUILD_BANK]
 	if not zo_inventory then return end
@@ -894,6 +913,9 @@ local function onGuildBankChanged()
 		if not AutoCategory.Enabled then return end
 
 		local scrollData = ZO_ScrollList_GetDataList(list)
+		if AutoCategory.GuildBankTrace then
+			AutoCategory.GuildBankTrace:Snapshot("POLL", list, "attempt=" .. attempts)
+		end
 		if scrollData and #scrollData > 0 then
 			local hasHeaders = false
 			local itemsWithoutRules = 0
@@ -928,6 +950,7 @@ end
 
 
 function AutoCategory.HookKeyboardMode()
+	if AutoCategory.GuildBankTrace then AutoCategory.GuildBankTrace.keyboard = true end
 	--Add a new header row data type
 	local rowHeight = AutoCategory.acctSaved.appearance["CATEGORY_HEADER_HEIGHT"]
     local hookmgr = AutoCategory.hookmgr
@@ -968,6 +991,7 @@ function AutoCategory.HookKeyboardMode()
 end
 
 function AutoCategory.UnHookKeyboardMode()
+	if AutoCategory.GuildBankTrace then AutoCategory.GuildBankTrace.keyboard = false end
  	-- Other events that cause a full refresh
 	-- user can force a refresh with stack key
 	AutoCategory.evtmgr:unregEvt(EVENT_STACKED_ALL_ITEMS_IN_BAG, onStackItems)
@@ -981,5 +1005,4 @@ function AutoCategory.UnHookKeyboardMode()
         callLater = callLater:Destroy()
     end
 end
-
 

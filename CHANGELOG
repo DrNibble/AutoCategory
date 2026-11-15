@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] 4.6.19 (159), diagnostic build (2026-11-15)[/COLOR]:
+[LIST]
+[*] New opt-in /acgbtrace on|off|mark <symptom>|dump: observe the keyboard guild bank from list rebuild/clear through sorting, commit and header rendering, with ordering checks, filter reasons, enabled addon versions and bounded caller stacks (LibDebugLogger Info, prefix [ACGB]).
+[*] This diagnostic does not add sorting or repair. The visual guild bank defect is not declared fixed. Not tested in ESO. Capture and Swiss Knife comparison instructions: wiki/Guild Bank Diagnostics.md.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 21)[/COLOR]:
 [LIST]
 [*] The guild bank list is now polled for about four seconds after another guild bank is selected, and whenever items are displayed without their category headers the full list update runs (UpdateList, which sorts and commits through the addon's sort hook) - the same refresh the filter reset of Advanced Filters performs, which is known to restore the headers. The direct rebuild of entry (20) could be bypassed by the other addons that filter the inventory lists.

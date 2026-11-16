@@ -891,6 +891,35 @@ local function setupNewCategoryTagDropdown(dialog)
     end
 end
 
+-- Center the OK and Cancel buttons of the New Category dialog
+-- horizontally under the edit box row: the dialog framework
+-- anchors them to the bottom right corner by default, and it
+-- re-applies its own anchors on every opening, so this runs
+-- after every ZO_Dialogs_ShowDialog, keeping the framework's
+-- spacing and vertical offset. The edit box row keeps its
+-- original width through the control its top anchor is attached
+-- to (the main text of the dialog, spanning the full row).
+local function centerDialogButtons(dialog)
+    local edit = dialog:GetNamedChild("Edit")
+    local b1 = dialog:GetNamedChild("Button1")
+    local b2 = dialog:GetNamedChild("Button2")
+    if not edit or not b1 or not b2 then return end
+    local isValid, _, relTo = edit:GetAnchor(0)
+    if not isValid or not relTo or not relTo.GetWidth then return end
+    local rowWidth = relTo:GetWidth()
+    local spacing = 20 -- the framework's BUTTON_SPACING
+    local w1, w2 = b1:GetWidth(), b2:GetWidth()
+    b1:ClearAnchors()
+    b2:ClearAnchors()
+    if b2:IsHidden() then
+        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, (rowWidth - w1) / 2, 23)
+    else
+        local total = w1 + spacing + w2
+        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, (rowWidth - total) / 2, 23)
+        b2:SetAnchor(TOPLEFT, b1, TOPRIGHT, spacing, 0)
+    end
+end
+
 function CLM.OpenNewTagDialog(bagTypeId, name)
     if not newTagDialogRegistered then
         ZO_Dialogs_RegisterCustomDialog(NEW_TAG_DIALOG, {
@@ -983,6 +1012,7 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
         ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
     if dialog then
         setupNewCategoryTagDropdown(dialog)
+        centerDialogButtons(dialog)
     end
 end
 

@@ -36,6 +36,10 @@
   "New Tag..."), replacing the follow-up context menu; the edit box
   is narrowed to make room. The default selection stays the empty
   tag, so a plain submit keeps the previous default behavior.
+- The OK and Cancel buttons of the New Category dialog are centered
+  horizontally under the edit box row (the dialog framework anchors
+  them to the bottom right corner by default; the framework's spacing
+  and vertical offset are kept).
 - "Collapse All" now folds every category of the bag, not only the
   already folded ones: the names come from the displayed headers and
   from the parent chains of the bag rules, so the levels hidden

@@ -89,7 +89,8 @@ local comboControl = {
 }
 ZO_ComboBox_ObjectFromContainer = function() return comboBox end
 CT_LABEL = "CT_LABEL"
-RIGHT, TOPLEFT, TOPRIGHT = "RIGHT", "TOPLEFT", "TOPRIGHT"
+RIGHT, TOPLEFT, TOPRIGHT, BOTTOMLEFT =
+    "RIGHT", "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT"
 CreateControlFromVirtual = function(name, parent, virtual) return comboControl end
 local tagLabel = nil
 WINDOW_MANAGER = {
@@ -103,16 +104,36 @@ WINDOW_MANAGER = {
         return tagLabel
     end,
 }
+-- the dialog's main text control: it spans the full edit box row,
+-- the reference the centered buttons are placed from
+local textControl = { GetWidth = function() return 540 end }
 local editControl = {
     GetWidth = function() return 600 end,
     SetWidth = function() end,
-    GetAnchor = function() return true, "TOPLEFT", "Text", "BOTTOMLEFT", 0, 10 end,
+    GetAnchor = function()
+        return true, "TOPLEFT", textControl, "BOTTOMLEFT", 0, 10
+    end,
     ClearAnchors = function() end,
     SetAnchor = function() end,
 }
+-- the OK and Cancel buttons of the dialog: their anchors are
+-- recorded to check the horizontal centering
+local button1, button2 = nil, nil
+local function newButton(width)
+    local b = { GetWidth = function() return width end }
+    function b:ClearAnchors() b.anchor = nil end
+    function b:SetAnchor(point, relTo, relPoint, offX, offY)
+        b.anchor = { point, relTo, relPoint, offX, offY }
+    end
+    function b:IsHidden() return false end
+    return b
+end
+button1, button2 = newButton(120), newButton(100)
 local dialogControl = {
     GetNamedChild = function(self, name)
         if name == "Edit" then return editControl end
+        if name == "Button1" then return button1 end
+        if name == "Button2" then return button2 end
     end,
 }
 function ZO_Dialogs_FindDialog(name)
@@ -170,6 +191,18 @@ equal("Tag B", comboBoxItems[2].label, "second tag")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), comboBoxItems[3].label, "empty tag entry")
 equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "new tag entry")
 equal(true, tagLabel ~= nil, "the tag label is built beside the edit box")
+-- the OK and Cancel buttons are centered under the edit box row:
+-- row 540, buttons 120 and 100 wide with the framework spacing
+-- of 20, the pair starts at (540 - 240) / 2 = 150 from the left
+equal("TOPLEFT", button1.anchor[1], "the OK button is anchored from its top left")
+equal(editControl, button1.anchor[2], "the OK button sits under the edit box")
+equal("BOTTOMLEFT", button1.anchor[3], "measured from the left end of the row")
+equal(150, button1.anchor[4], "the button pair is centered on the row")
+equal(23, button1.anchor[5], "the framework's vertical offset is kept")
+equal("TOPLEFT", button2.anchor[1], "the Cancel button is anchored from its top left")
+equal(button1, button2.anchor[2], "the Cancel button sits right of the OK button")
+equal("TOPRIGHT", button2.anchor[3], "measured from the right end of the OK button")
+equal(20, button2.anchor[4], "the framework's button spacing is kept")
 -- releasing the dialog hides the dropdown until the next opening
 displayed.info.finishedCallback()
 equal(true, tagLabel.hidden, "the tag label hides on release")

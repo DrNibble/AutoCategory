@@ -1175,13 +1175,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
             end
     end
 
-    -- creation does not modify the clicked rule or inherit its
-    -- level; offered on ungrouped/predefined headers and at level 5
-    -- as well
-    AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
-        function() CLM.OpenNewCategoryDialog(bagTypeId) end,
-        MENU_ADD_OPTION_LABEL)
-
     -- the removal of the category from the inventory list of the
     -- clicked bag only, never for a predefined (protected) rule: the
     -- global rule stays and the categories nested under it move up
@@ -1194,4 +1187,11 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
                 end
             end, MENU_ADD_OPTION_LABEL)
     end
+    
+    -- creation does not modify the clicked rule or inherit its
+    -- level; offered on ungrouped/predefined headers and at level 5
+    -- as well
+    AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
+        function() CLM.OpenNewCategoryDialog(bagTypeId) end,
+        MENU_ADD_OPTION_LABEL)
 end

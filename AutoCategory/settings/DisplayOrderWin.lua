@@ -237,8 +237,8 @@ local winData = {
     prefix = "DisplayOrder",
     visible = false,
 
-    minWidth = 220,
-    minHeight = 150,
+    minWidth = 400,
+    minHeight = 600,
 }
 
 

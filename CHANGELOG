@@ -5,6 +5,7 @@
 [*] "Move Up"/"Move Down" (Level submenu and Display Order window): the category now takes the display priority of the category displayed just above/below and steps one past it (+1/-1); no displayed neighbor in the direction (alone in the bag, or at that end) means no move offered.
 [*] Level submenu entries carry a Unicode arrow picturing the operation: "↑" up, "↓" down, "→" nest deeper, "←" un-nest.
 [*] New Category: the tag is chosen in a dropdown directly beside the name edit box (existing tags, empty tag, "New Tag..."), replacing the follow-up context menu.
+[*] New Category dialog: the OK and Cancel buttons are now centered horizontally.
 [*] Fixed "Collapse All": it now folds every category of the bag, including the levels hidden under an already folded parent.
 [*] Translations updated (fr/en/de/es/ru/zh).
 [*] 3241 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.

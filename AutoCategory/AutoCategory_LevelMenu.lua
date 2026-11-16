@@ -652,71 +652,87 @@ local function findBagRule(bagTypeId, ruleName)
     return nil
 end
 
+-- The display priority of the category displayed just above (delta
+-- 1) or just below (delta -1) the category: a member of its own tie
+-- group when the display order (equal priorities sorted by name)
+-- puts one next to it, else the nearest priority group beyond in
+-- the move direction. Nil when the category already sits at that
+-- end of the bag: no displayed neighbor to pass.
+local function displayNeighborPriority(bagTypeId, bagrule, current, delta)
+    local savedBag = AutoCategory.saved.bags[bagTypeId]
+    if not savedBag or not savedBag.rules then return nil end
+    -- a tie-group member displayed just above/below the category
+    for i = 1, #savedBag.rules do
+        local other = savedBag.rules[i]
+        if other and other ~= bagrule and other.name then
+            local p = other.showpriority or other.runpriority or 0
+            if p == current
+                    and ((delta > 0 and other.name < bagrule.name)
+                        or (delta < 0 and other.name > bagrule.name)) then
+                return current
+            end
+        end
+    end
+    -- the nearest priority group beyond, in the move direction
+    local neighbor = nil
+    for i = 1, #savedBag.rules do
+        local other = savedBag.rules[i]
+        if other and other ~= bagrule and other.name then
+            local p = other.showpriority or other.runpriority or 0
+            if delta > 0 then
+                if p > current and (neighbor == nil or p < neighbor) then
+                    neighbor = p
+                end
+            else
+                if p < current and (neighbor == nil or p > neighbor) then
+                    neighbor = p
+                end
+            end
+        end
+    end
+    return neighbor
+end
+
 -- Can the category's display priority move one position in this
--- direction? The slider range of the display priority is 2..1000.
+-- direction? The move takes the display priority of the category
+-- displayed just above (up) or just below (down) and steps one past
+-- it, so a displayed neighbor must exist in that direction and the
+-- result must stay inside the 2..1000 slider range.
 function CLM.CanMoveCategoryPriority(bagTypeId, ruleName, delta)
     local bagrule = findBagRule(bagTypeId, ruleName)
     if not bagrule then return false end
     local current = bagrule.showpriority or bagrule.runpriority or 0
+    local neighbor = displayNeighborPriority(bagTypeId, bagrule, current, delta)
+    if not neighbor then return false end
     if delta > 0 then
-        return current < 1000
+        return neighbor + 1 <= 1000
     end
-    return current > 2
+    return neighbor - 1 >= 2
 end
 
 -- Move a category one display position up (delta 1) or down (delta
--- -1) within the bag, by swapping display priorities with the
--- adjacent priority group: the category takes the priority of the
--- group it passes and that group takes its old priority, so both keep
--- distinct priorities and the relative order of the other categories
--- does not change. Without an adjacent group the priority steps by
--- one, inside the 2..1000 range. Execution priorities (runpriority)
--- are never touched. Returns true when the priority changed.
+-- -1) within the bag: the category takes the display priority of the
+-- category displayed just above (up: +1, to sit just above it) or
+-- just below (down: -1, to sit just below it) and steps one past
+-- that neighbor, so it passes the neighbor and every category
+-- sharing its priority. The other categories keep their priorities.
+-- The result must stay inside the 2..1000 slider range, and without
+-- a displayed neighbor in the direction the category already is at
+-- that end of the bag: nothing moves. Execution priorities
+-- (runpriority) are never touched. Returns true when the priority
+-- changed.
 function CLM.MoveCategoryPriority(bagTypeId, ruleName, delta)
     local bagrule = findBagRule(bagTypeId, ruleName)
     if not bagrule then return false end
     if delta > 0 then delta = 1 else delta = -1 end
     local current = bagrule.showpriority or bagrule.runpriority or 0
 
-    -- the adjacent priority group in the move direction
-    local target = nil
-    local savedBag = AutoCategory.saved.bags[bagTypeId]
-    for i = 1, #savedBag.rules do
-        local other = savedBag.rules[i]
-        if other and other ~= bagrule and other.name then
-            local p = other.showpriority or other.runpriority or 0
-            if delta > 0 then
-                if p > current and (target == nil or p < target) then
-                    target = p
-                end
-            else
-                if p < current and (target == nil or p > target) then
-                    target = p
-                end
-            end
-        end
-    end
+    local neighbor = displayNeighborPriority(bagTypeId, bagrule, current, delta)
+    if neighbor == nil then return false end
 
-    if target == nil then
-        -- no group to pass: step by one, inside the slider bounds
-        target = current + delta
-        if target < 2 or target > 1000 then return false end
-    else
-        -- swap with the adjacent group
-        target = math.max(2, math.min(1000, target))
-        if target == current then return false end
-        for i = 1, #savedBag.rules do
-            local other = savedBag.rules[i]
-            if other and other ~= bagrule and other.name then
-                local p = other.showpriority or other.runpriority or 0
-                if p == target then
-                    other.showpriority = current
-                end
-            end
-        end
-    end
-
-    if target == current then return false end
+    -- one step past the neighbor, inside the slider bounds
+    local target = neighbor + delta
+    if target < 2 or target > 1000 then return false end
     bagrule.showpriority = target
     return true
 end
@@ -975,8 +991,8 @@ end
 -- display-position operations in a "Level" submenu, the move of
 -- the whole section under another category of the bag in a "Move To"
 -- submenu, the copy of the whole section to another bag in a "Copy
--- To" submenu, category creation, and the removal of the category
--- from the inventory list of the clicked bag (the global rule stays
+-- To" submenu, the removal of the category from the inventory list
+-- of the clicked bag, and category creation last (the global rule stays
 -- and the categories nested under it move up one level, exactly like
 -- the Remove Category button of Bag Settings; it is neither the
 -- hidden state - the children would disappear with it - nor the
@@ -1026,9 +1042,9 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
         -- limits (the 1-5 levels, the 2..1000 display priorities);
         -- an inapplicable operation is not offered
         local levelEntries = {}
-        -- move the category one display position up: swap its
-        -- display priority with the adjacent priority group, inside
-        -- the 2..1000 range of the display slider
+        -- move the category one display position up: take the
+        -- display priority of the category displayed just above
+        -- and step one past it, inside the 2..1000 slider range
         if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, 1) then
             levelEntries[#levelEntries + 1] = {
                 label = GetString(SI_AC_MENU_CM_LEVEL_MOVE_UP),
@@ -1063,7 +1079,9 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
                 end,
             }
         end
-        -- move the category one display position down
+        -- move the category one display position down: take the
+        -- display priority of the category displayed just below
+        -- and step one past it
         if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, -1) then
             levelEntries[#levelEntries + 1] = {
                 label = GetString(SI_AC_MENU_CM_LEVEL_MOVE_DOWN),

@@ -336,8 +336,10 @@ local beforeFull = #AutoCategory.RulesW.ruleList
 equal(nil, CLM.CreateCategory(7, "No room"), "full priority range fails without changing order")
 equal(beforeFull, #AutoCategory.RulesW.ruleList, "capacity failure creates no rule")
 equal(1000, full[#full].showpriority, "capacity failure leaves priorities unchanged")
--- Move Category Up/Down: swap with the adjacent priority group,
--- inside the 2..1000 slider range, without touching runpriority.
+-- Move Category Up/Down: take the display priority of the category
+-- displayed just above (up: +1) or just below (down: -1) and step
+-- one past it, inside the 2..1000 slider range, without touching
+-- runpriority. The other categories keep their priorities.
 AutoCategory.saved.bags[9] = { rules = {
     { name = "A", showpriority = 900, runpriority = 10 },
     { name = "B", showpriority = 500, runpriority = 20 },
@@ -346,44 +348,70 @@ AutoCategory.saved.bags[9] = { rules = {
 } }
 equal(true, CLM.CanMoveCategoryPriority(9, "B", 1), "B can move up")
 equal(true, CLM.MoveCategoryPriority(9, "B", 1), "B moves up")
-equal(900, AutoCategory.saved.bags[9].rules[2].showpriority, "B takes A's priority")
-equal(500, AutoCategory.saved.bags[9].rules[1].showpriority, "A takes B's old priority")
+equal(901, AutoCategory.saved.bags[9].rules[2].showpriority,
+    "B takes one above the category displayed just above")
+equal(900, AutoCategory.saved.bags[9].rules[1].showpriority, "A keeps its priority")
 equal(500, AutoCategory.saved.bags[9].rules[3].showpriority, "C keeps its group priority")
 equal(20, AutoCategory.saved.bags[9].rules[2].runpriority, "runpriority untouched")
 equal(true, CLM.MoveCategoryPriority(9, "B", -1), "B moves back down")
-equal(500, AutoCategory.saved.bags[9].rules[2].showpriority, "B restored")
-equal(900, AutoCategory.saved.bags[9].rules[1].showpriority, "A back on top")
-equal(900, AutoCategory.saved.bags[9].rules[3].showpriority, "C moved up with the swap")
--- group below: B passes D's group
+equal(899, AutoCategory.saved.bags[9].rules[2].showpriority,
+    "B takes one below the category displayed just below")
+-- B passes the whole group of its displayed neighbor
+equal(true, CLM.MoveCategoryPriority(9, "B", -1), "B moves below the C group")
+equal(499, AutoCategory.saved.bags[9].rules[2].showpriority, "B sits one below C")
+equal(500, AutoCategory.saved.bags[9].rules[3].showpriority, "C keeps its priority")
 equal(true, CLM.MoveCategoryPriority(9, "B", -1), "B moves below D")
-equal(100, AutoCategory.saved.bags[9].rules[2].showpriority, "B takes D's priority")
-equal(500, AutoCategory.saved.bags[9].rules[4].showpriority, "D takes B's old priority")
--- bounds: a category at 1000 cannot move up, one at 2 cannot move down
+equal(99, AutoCategory.saved.bags[9].rules[2].showpriority, "B sits one below D")
+equal(100, AutoCategory.saved.bags[9].rules[4].showpriority, "D keeps its priority")
+-- bounds: no displayed neighbor beyond the end of the bag, or the
+-- step past the neighbor would leave the 2..1000 range
 AutoCategory.saved.bags[13] = { rules = {
     { name = "Top", showpriority = 1000, runpriority = 70 },
 } }
-equal(false, CLM.CanMoveCategoryPriority(13, "Top", 1), "1000 cannot move up")
+equal(false, CLM.CanMoveCategoryPriority(13, "Top", 1), "no neighbor above: cannot move up")
 equal(false, CLM.MoveCategoryPriority(13, "Top", 1), "top move refused")
 equal(1000, AutoCategory.saved.bags[13].rules[1].showpriority, "top unchanged")
 AutoCategory.saved.bags[10] = { rules = {
     { name = "Floor", showpriority = 2, runpriority = 50 },
 } }
-equal(false, CLM.CanMoveCategoryPriority(10, "Floor", -1), "floor cannot move down")
+equal(false, CLM.CanMoveCategoryPriority(10, "Floor", -1), "no neighbor below: cannot move down")
 equal(false, CLM.MoveCategoryPriority(10, "Floor", -1), "floor move refused")
--- no adjacent group: the priority steps by one inside the bounds
+-- a neighbor at the range edge: the step past it is out of range
+AutoCategory.saved.bags[14] = { rules = {
+    { name = "Ceiling", showpriority = 1000, runpriority = 80 },
+    { name = "Below", showpriority = 500, runpriority = 90 },
+} }
+equal(false, CLM.CanMoveCategoryPriority(14, "Below", 1), "one above a 1000 neighbor is out of range")
+equal(false, CLM.MoveCategoryPriority(14, "Below", 1), "step past a 1000 neighbor refused")
+AutoCategory.saved.bags[15] = { rules = {
+    { name = "Floor2", showpriority = 2, runpriority = 95 },
+    { name = "Above2", showpriority = 500, runpriority = 96 },
+} }
+equal(false, CLM.MoveCategoryPriority(15, "Above2", -1), "step past a 2 neighbor refused")
+-- a category alone in the bag has no displayed neighbor to pass
 AutoCategory.saved.bags[11] = { rules = {
     { name = "Solo", showpriority = 500, runpriority = 60 },
 } }
-equal(true, CLM.MoveCategoryPriority(11, "Solo", 1), "solo move up allowed")
-equal(501, AutoCategory.saved.bags[11].rules[1].showpriority, "solo steps by one")
--- a bag rule without explicit showpriority uses runpriority and sets showpriority
+equal(false, CLM.MoveCategoryPriority(11, "Solo", 1), "solo move refused: no neighbor")
+equal(500, AutoCategory.saved.bags[11].rules[1].showpriority, "solo unchanged")
+-- a tie-group member displayed just above: the step goes past it
+AutoCategory.saved.bags[16] = { rules = {
+    { name = "A1", showpriority = 500, runpriority = 97 },
+    { name = "Mid", showpriority = 500, runpriority = 98 },
+    { name = "Z9", showpriority = 500, runpriority = 99 },
+} }
+equal(true, CLM.MoveCategoryPriority(16, "Mid", 1), "tie-group neighbor move up")
+equal(501, AutoCategory.saved.bags[16].rules[2].showpriority, "Mid sits just above A1")
+equal(500, AutoCategory.saved.bags[16].rules[1].showpriority, "A1 unchanged")
+-- a bag rule without explicit showpriority uses runpriority for
+-- itself and its neighbors, and sets showpriority
 AutoCategory.saved.bags[12] = { rules = {
     { name = "X", runpriority = 400 },
     { name = "Y", runpriority = 300 },
 } }
 equal(true, CLM.MoveCategoryPriority(12, "Y", 1), "implicit priority move")
-equal(400, AutoCategory.saved.bags[12].rules[2].showpriority, "Y swaps to X's priority")
-equal(300, AutoCategory.saved.bags[12].rules[1].showpriority, "X takes Y's implicit priority")
+equal(401, AutoCategory.saved.bags[12].rules[2].showpriority, "Y sits one above X")
+equal(nil, AutoCategory.saved.bags[12].rules[1].showpriority, "X keeps its implicit priority")
 equal(400, AutoCategory.saved.bags[12].rules[1].runpriority, "X runpriority untouched")
 -- unknown rule or bag: refused, nothing changes
 equal(false, CLM.MoveCategoryPriority(9, "Nulle part", 1), "unknown rule refused")

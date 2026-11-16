@@ -100,8 +100,9 @@ local function setupDataRow(rowControl, data, scrollList)
                     end
                 )
                 -- move the category one display position up/down:
-                -- swap its display priority with the adjacent
-                -- priority group, inside the 2..1000 range
+                -- take the display priority of the category displayed
+                -- just above/below and step one past it, inside the
+                -- 2..1000 range
                 local CLMv = AutoCategory.CategoryLevelMenu
                 if CLMv and CLMv.CanMoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, 1) then
                     AddMenuItem(

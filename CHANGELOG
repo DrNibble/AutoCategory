@@ -2,7 +2,7 @@
 [LIST]
 [*] Header right-click menu reworked: execution priority first, a "Level" submenu (move up / nest deeper / un-nest / move down, each within its existing limits), then Move To, Copy To, New Category and "Remove from display" (removes the category from the clicked bag's list only; the global rule stays and its children move up one level - not hiding, not deleting the rule).
 [*] Predefined (protected) rules accept level and priority changes but are never offered the removal.
-[*] Level submenu entries carry an ASCII arrow picturing the operation: "^" up, "v" down, "-->" nest deeper, "<--" un-nest.
+[*] Level submenu entries carry a Unicode arrow picturing the operation: "↑" up, "↓" down, "→" nest deeper, "←" un-nest.
 [*] New Category: the tag is chosen in a dropdown directly beside the name edit box (existing tags, empty tag, "New Tag..."), replacing the follow-up context menu.
 [*] Fixed "Collapse All": it now folds every category of the bag, including the levels hidden under an already folded parent.
 [*] Translations updated (fr/en/de/es/ru/zh).

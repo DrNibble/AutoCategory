@@ -16,10 +16,10 @@ end
 
 -- string constants (the real translations live in lang/)
 SI_AC_MENU_CM_LEVEL_SUBMENU = "Level"
-SI_AC_MENU_CM_LEVEL_MOVE_UP = "Move Up ^"
-SI_AC_MENU_CM_LEVEL_DEEPER = "Increase Level -->"
-SI_AC_MENU_CM_LEVEL_SHALLOWER = "Decrease Level <--"
-SI_AC_MENU_CM_LEVEL_MOVE_DOWN = "Move Down v"
+SI_AC_MENU_CM_LEVEL_MOVE_UP = "Move Up ↑"
+SI_AC_MENU_CM_LEVEL_DEEPER = "Increase Level →"
+SI_AC_MENU_CM_LEVEL_SHALLOWER = "Decrease Level ←"
+SI_AC_MENU_CM_LEVEL_MOVE_DOWN = "Move Down ↓"
 SI_AC_MENU_CM_REMOVE_DISPLAY = "Remove from display"
 SI_AC_MENU_CM_NEW_CATEGORY = "New Category"
 SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Empty name"
@@ -461,9 +461,9 @@ equal(2, #capturedSubmenus, "a Level submenu and a Copy To submenu")
 equal("Level", capturedSubmenus[1].text, "the level operations sit in their own submenu")
 local levelMenu = capturedSubmenus[1].entries
 equal(3, #levelMenu, "Kid is Normal: no Decrease entry")
-equal("Move Up ^", levelMenu[1].label)
-equal("Increase Level -->", levelMenu[2].label)
-equal("Move Down v", levelMenu[3].label)
+equal("Move Up ↑", levelMenu[1].label)
+equal("Increase Level →", levelMenu[2].label)
+equal("Move Down ↓", levelMenu[3].label)
 equal("Copy To", capturedSubmenus[2].text, "the second submenu is the Copy To menu")
 menu = capturedSubmenus[2].entries
 equal(3, #menu, "the copy entries list the other bags")
@@ -523,9 +523,9 @@ equal(false, hasRemove, "a predefined rule is never offered the removal")
 equal(2, #capturedSubmenus, "a Level submenu and a Copy To submenu for a predefined rule")
 equal("Level", capturedSubmenus[1].text)
 equal(3, #capturedSubmenus[1].entries, "level 1: no Move Down at the priority floor")
-equal("Move Up ^", capturedSubmenus[1].entries[1].label)
-equal("Increase Level -->", capturedSubmenus[1].entries[2].label)
-equal("Decrease Level <--", capturedSubmenus[1].entries[3].label,
+equal("Move Up ↑", capturedSubmenus[1].entries[1].label)
+equal("Increase Level →", capturedSubmenus[1].entries[2].label)
+equal("Decrease Level ←", capturedSubmenus[1].entries[3].label,
     "an explicit level 1 can go back to Normal")
 equal("Copy To", capturedSubmenus[2].text)
 equal(3, #capturedSubmenus[2].entries, "the copy entries are offered for a predefined rule")
@@ -550,8 +550,8 @@ equal("Remove from display", capturedItems[3].label)
 equal(3, #capturedSubmenus, "Level, Move To and Copy To submenus at level 5")
 equal("Level", capturedSubmenus[1].text)
 equal(2, #capturedSubmenus[1].entries, "no Increase at level 5, no Move Down at the priority floor")
-equal("Move Up ^", capturedSubmenus[1].entries[1].label)
-equal("Decrease Level <--", capturedSubmenus[1].entries[2].label)
+equal("Move Up ↑", capturedSubmenus[1].entries[1].label)
+equal("Decrease Level ←", capturedSubmenus[1].entries[2].label)
 equal("Move To", capturedSubmenus[2].text)
 equal(1, #capturedSubmenus[2].entries,
     "only the top level entry: no other category in the bag")
@@ -669,10 +669,10 @@ equal("Remove from display", capturedItems[3].label)
 equal(3, #capturedSubmenus, "a Level, a Move To and a Copy To submenu")
 equal("Level", capturedSubmenus[1].text)
 equal(4, #capturedSubmenus[1].entries, "all four level operations for a mid-level category")
-equal("Move Up ^", capturedSubmenus[1].entries[1].label)
-equal("Increase Level -->", capturedSubmenus[1].entries[2].label)
-equal("Decrease Level <--", capturedSubmenus[1].entries[3].label)
-equal("Move Down v", capturedSubmenus[1].entries[4].label)
+equal("Move Up ↑", capturedSubmenus[1].entries[1].label)
+equal("Increase Level →", capturedSubmenus[1].entries[2].label)
+equal("Decrease Level ←", capturedSubmenus[1].entries[3].label)
+equal("Move Down ↓", capturedSubmenus[1].entries[4].label)
 equal("Move To", capturedSubmenus[2].text)
 equal("Copy To", capturedSubmenus[3].text)
 local moveMenu = capturedSubmenus[2].entries

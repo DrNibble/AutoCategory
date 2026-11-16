@@ -44,6 +44,50 @@ local function isExplicitLevel(lv)
         and lv == math.floor(lv)
 end
 
+-- Every display name a rule contributes to the inventory lists of a
+-- bag that has it: the full name of its parent chain (the Level and
+-- Parent dropdowns) and every prefix of it - each level is its own
+-- collapsible header. A rule without a parent contributes just its
+-- own name (a legacy hierarchical "----" name contributes the
+-- prefix of each of its levels). Used by Collapse All to fold every
+-- level of a bag, including the ones hidden under an already folded
+-- parent.
+function CLM.RuleChainPrefixes(rule)
+    local prefixes = {}
+    if not rule or type(rule.name) ~= "string" or rule.name == "" then
+        return prefixes
+    end
+
+    -- the chain of the rule, as MatchCategoryRules builds it: the
+    -- name of a top-level category (a Normal category counts as
+    -- level 1) carries its own levels, a level 2-5 category is
+    -- preceded by its parent chain
+    local chain
+    if CLM.EffectiveLevel(rule) == 1 then
+        chain = CategoryTree.Levels(rule.name)
+        if not chain then chain = { rule.name } end
+    else
+        chain = { rule.name }
+        local visited = { [rule.name] = true }
+        local crule = rule
+        while crule and CLM.EffectiveLevel(crule) > 1
+                and type(crule.parent) == "string"
+                and crule.parent ~= "" do
+            local prule = AutoCategory.GetRuleByName(crule.parent)
+            if not prule or visited[prule.name] then break end
+            table.insert(chain, 1, prule.name)
+            visited[prule.name] = true
+            crule = prule
+        end
+    end
+
+    for i = 1, #chain do
+        prefixes[#prefixes + 1] =
+            table.concat(chain, CategoryTree.SEPARATOR, 1, i)
+    end
+    return prefixes
+end
+
 -- The rule (category definition) of a clicked header: the whole
 -- displayed name for a flat category (including a legacy hierarchical
 -- "----" name), else the deepest level of the name chain - the rule
@@ -712,39 +756,123 @@ local function createCategoryWithTag(bagTypeId, name, tag)
     refreshAfterChange()
 end
 
--- Tag selection for the new category: a context menu listing every
--- existing tag, the empty tag (the previous default) and an entry that
--- opens a name dialog for a brand new tag. The menu opens right after
--- the name dialog closes; cancelling it (or the tag dialog) creates
--- nothing.
-function CLM.OpenTagSelectionMenu(bagTypeId, name)
+-- The tag choices of the New Category dialog dropdown: the existing
+-- tags (sorted), the empty tag (the previous default) and an entry
+-- that opens the name dialog of a brand new tag. The value is the
+-- tag the new category gets (nil keeps the empty tag); the new-tag
+-- entry is marked with isNew and defers the creation to the tag
+-- dialog.
+function CLM.NewCategoryTagChoices()
     local RulesW = AutoCategory.RulesW
     local tags = RulesW and RulesW.tags or {}
-    local sorted = {}
+    local choices = {}
     for i = 1, #tags do
         local tag = tags[i]
         if type(tag) == "string" and tag ~= ""
                 and tag ~= GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG) then
-            sorted[#sorted + 1] = tag
+            choices[#choices + 1] = { label = tag, value = tag }
         end
     end
-    table.sort(sorted)
+    table.sort(choices, function(a, b) return a.label < b.label end)
+    choices[#choices + 1] =
+        { label = GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG) }
+    choices[#choices + 1] =
+        { label = GetString(SI_AC_MENU_CM_TAG_NEW), isNew = true }
+    return choices
+end
 
-    ClearMenu()
-    for i = 1, #sorted do
-        local tag = sorted[i]
-        AddCustomMenuItem(tag, function()
-            createCategoryWithTag(bagTypeId, name, tag)
-        end, MENU_ADD_OPTION_LABEL)
+-- The tag dropdown of the New Category dialog, directly beside the
+-- edit box: the name and the tag are chosen in the same dialog, no
+-- follow-up context menu. The controls are built once per dialog
+-- control and reused; every opening refreshes the tag list and
+-- resets the selection to the empty tag (the previous default).
+local TAG_DROPDOWN_WIDTH = 230 -- the dropdown
+local TAG_LABEL_WIDTH = 90     -- room for the "Tag" label
+local TAG_DROPDOWN_GAP = 12    -- between the edit box and the label
+
+local newCategoryTagControls = nil -- { label, comboControl, comboBox }
+local newCategoryTagChoice = nil   -- the selected choice entry
+
+-- The choice currently selected in the dropdown of the open dialog
+-- (the empty tag before the user picks one).
+function CLM.GetNewCategoryTagChoice()
+    return newCategoryTagChoice
+end
+
+local function hideNewCategoryTagDropdown()
+    if newCategoryTagControls then
+        newCategoryTagControls.label:SetHidden(true)
+        newCategoryTagControls.comboControl:SetHidden(true)
     end
-    AddCustomMenuItem(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
-        function()
-            createCategoryWithTag(bagTypeId, name, nil)
-        end, MENU_ADD_OPTION_LABEL)
-    AddCustomMenuItem(GetString(SI_AC_MENU_CM_TAG_NEW),
-        function() CLM.OpenNewTagDialog(bagTypeId, name) end,
-        MENU_ADD_OPTION_LABEL)
-    ShowMenu()
+end
+
+local function setupNewCategoryTagDropdown(dialog)
+    if not WINDOW_MANAGER then return end
+    local edit = dialog:GetNamedChild("Edit")
+    if not edit then return end
+
+    if not newCategoryTagControls then
+        local label = WINDOW_MANAGER:CreateControl(
+            "$(parent)ACTagLabel", dialog, CT_LABEL)
+        label:SetFont("ZoFontGame")
+        label:SetText(GetString(SI_AC_MENU_CS_DROPDOWN_TAG))
+        local comboControl = CreateControlFromVirtual(
+            "$(parent)ACTagCombo", dialog, "ZO_ComboBox")
+        comboControl:SetWidth(TAG_DROPDOWN_WIDTH)
+        -- the label sits between the edit box and the dropdown, on
+        -- the row of the edit box
+        label:SetAnchor(RIGHT, comboControl, LEFT, -TAG_DROPDOWN_GAP, 2)
+        comboControl:SetAnchor(TOPLEFT, edit, TOPRIGHT,
+            TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH + TAG_DROPDOWN_GAP, 2)
+        newCategoryTagControls = {
+            label = label,
+            comboControl = comboControl,
+            comboBox = ZO_ComboBox_ObjectFromContainer(comboControl),
+        }
+        newCategoryTagControls.originalEditWidth = edit:GetWidth()
+    end
+
+    local controls = newCategoryTagControls
+    local comboBox = controls.comboBox
+    if not comboBox then return end
+    controls.label:SetHidden(false)
+    controls.comboControl:SetHidden(false)
+
+    -- make room for the dropdown: the edit box keeps the left end
+    -- of its row and takes a fixed width, the label and the
+    -- dropdown sit at the right end (the anchors of the edit box
+    -- are set again by the dialog framework on every opening)
+    local isValid, point, relTo, relPoint, offX, offY = edit:GetAnchor(0)
+    if isValid and relTo then
+        edit:ClearAnchors()
+        edit:SetAnchor(point, relTo, relPoint, offX, offY)
+    end
+    local editWidth = (controls.originalEditWidth or edit:GetWidth())
+        - TAG_DROPDOWN_GAP - TAG_LABEL_WIDTH
+        - TAG_DROPDOWN_GAP - TAG_DROPDOWN_WIDTH
+    if editWidth > 100 then
+        edit:SetWidth(editWidth)
+    end
+
+    comboBox:ClearItems()
+    local choices = CLM.NewCategoryTagChoices()
+    local defaultEntry = nil
+    for i = 1, #choices do
+        local choice = choices[i]
+        local entry = comboBox:CreateItemEntry(choice.label, function()
+            newCategoryTagChoice = choice
+        end)
+        comboBox:AddItem(entry)
+        if choice.value == nil and not choice.isNew then
+            defaultEntry = entry
+        end
+    end
+    -- reset the selection to the empty tag without firing its
+    -- callback
+    newCategoryTagChoice = nil
+    if defaultEntry then
+        comboBox:SelectItem(defaultEntry, true)
+    end
 end
 
 function CLM.OpenNewTagDialog(bagTypeId, name)
@@ -794,6 +922,9 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
             title = { text = SI_AC_MENU_CM_NEW_CATEGORY },
             mainText = { text = SI_AC_DIALOG_CATEGORY_NAME_PROMPT },
             editBox = { defaultText = "", maxInputCharacters = 128 },
+            finishedCallback = function()
+                hideNewCategoryTagDropdown()
+            end,
             buttons = {
                 {
                     text = SI_OK,
@@ -810,8 +941,17 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
                             return
                         end
                         ZO_Dialogs_ReleaseDialog(NEW_CATEGORY_DIALOG)
-                        -- then choose the tag of the new category
-                        CLM.OpenTagSelectionMenu(bagTypeId, newName)
+                        -- then apply the tag chosen in the dropdown
+                        -- beside the edit box: the empty tag (the
+                        -- previous default), an existing tag, or the
+                        -- new-tag dialog before creating anything
+                        local choice = CLM.GetNewCategoryTagChoice()
+                        if choice and choice.isNew then
+                            CLM.OpenNewTagDialog(bagTypeId, newName)
+                        else
+                            createCategoryWithTag(bagTypeId, newName,
+                                choice and choice.value or nil)
+                        end
                     end,
                 },
                 { text = SI_DIALOG_CANCEL },
@@ -820,189 +960,238 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
         newCategoryDialogRegistered = true
     end
     ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, { bagTypeId = bagTypeId })
+    -- a standard edit box dialog has no setup hook (only the
+    -- custom-control dialogs have one), so build the tag dropdown
+    -- of this opening now, against the displayed dialog
+    local dialog = ZO_Dialogs_FindDialog and
+        ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
+    if dialog then
+        setupNewCategoryTagDropdown(dialog)
+    end
 end
 
 -- The AutoCategory entries of the category header context menu: the
--- level operations on the clicked category and the categories nested
--- under it as direct menu entries, the move of the whole section
--- under another category of the bag in a "Move To" submenu, and the
--- copy of the whole level to another bag in a "Copy To" submenu. A
--- submenu cannot hold a submenu in ESO, so the level operations
--- cannot be nested inside those submenus: they sit at the top level
--- of the menu, next to them. Added by
+-- execution priority of the clicked category, its level and
+-- display-position operations in a "Level" submenu, the move of
+-- the whole section under another category of the bag in a "Move To"
+-- submenu, the copy of the whole section to another bag in a "Copy
+-- To" submenu, category creation, and the removal of the category
+-- from the inventory list of the clicked bag (the global rule stays
+-- and the categories nested under it move up one level, exactly like
+-- the Remove Category button of Bag Settings; it is neither the
+-- hidden state - the children would disappear with it - nor the
+-- deletion of the rule). A submenu cannot hold a submenu in ESO, so
+-- the level operations sit in their own submenu, next to the move
+-- and copy submenus. A predefined (protected) rule accepts the level
+-- and priority changes but is never offered the removal. Added by
 -- AC_ItemRowHeader_OnShowContextMenu (AutoCategory.lua); a no-op for
 -- headers with no operable backing rule, except for New Category.
--- The menu is keyboard-only:
--- the gamepad inventory lists have no right click.
+-- The menu is keyboard-only: the gamepad inventory lists have no
+-- right click.
 function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
 
-    -- Creation does not modify the clicked rule or inherit its level.
-    -- Offer it on ungrouped/predefined headers and at level 5 as well.
+    local rule = CLM.HeaderRule(cateName)
+    -- a predefined (protected) rule: its level and its display
+    -- priorities can be changed, but it is never offered the
+    -- removal from the bag
+    local isPredefined = rule ~= nil and rule:isPredefined()
+
+    -- the operations work on the bag rules of the clicked bag
+    local subtree = nil
+    if rule then
+        subtree = CLM.SubtreeInBag(bagTypeId, rule.name)
+    end
+    if not subtree then
+        rule = nil
+    end
+
+    if rule then
+
+        -- the numeric execution priority of the category (read-only
+        -- information): the runpriority of its bag rule in this bag,
+        -- the order the rules run in (not the display order)
+        local infoBagrule = subtree[1].bagrule
+        if infoBagrule and infoBagrule.runpriority then
+            AddCustomMenuItem(
+                string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
+                    infoBagrule.runpriority),
+                function() end, MENU_ADD_OPTION_LABEL)
+        end
+
+        -- the level and display-position operations of the
+        -- category, in a "Level" submenu and inside their existing
+        -- limits (the 1-5 levels, the 2..1000 display priorities);
+        -- an inapplicable operation is not offered
+        local levelEntries = {}
+        -- move the category one display position up: swap its
+        -- display priority with the adjacent priority group, inside
+        -- the 2..1000 range of the display slider
+        if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, 1) then
+            levelEntries[#levelEntries + 1] = {
+                label = GetString(SI_AC_MENU_CM_LEVEL_MOVE_UP),
+                callback = function()
+                    if CLM.MoveCategoryPriority(bagTypeId,
+                            rule.name, 1) then
+                        refreshAfterChange()
+                    end
+                end,
+            }
+        end
+        -- one level deeper: nest the category under the category
+        -- displayed just above it
+        if CLM.CanIncrease(subtree) then
+            levelEntries[#levelEntries + 1] = {
+                label = GetString(SI_AC_MENU_CM_LEVEL_DEEPER),
+                callback = function()
+                    if CLM.ShiftLevels(bagTypeId, subtree, 1) then
+                        refreshAfterChange()
+                    end
+                end,
+            }
+        end
+        -- one level higher: un-nest the category from its parent
+        if CLM.CanDecrease(subtree) then
+            levelEntries[#levelEntries + 1] = {
+                label = GetString(SI_AC_MENU_CM_LEVEL_SHALLOWER),
+                callback = function()
+                    if CLM.ShiftLevels(bagTypeId, subtree, -1) then
+                        refreshAfterChange()
+                    end
+                end,
+            }
+        end
+        -- move the category one display position down
+        if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, -1) then
+            levelEntries[#levelEntries + 1] = {
+                label = GetString(SI_AC_MENU_CM_LEVEL_MOVE_DOWN),
+                callback = function()
+                    if CLM.MoveCategoryPriority(bagTypeId,
+                            rule.name, -1) then
+                        refreshAfterChange()
+                    end
+                end,
+            }
+        end
+        if #levelEntries > 0 then
+            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_LEVEL_SUBMENU),
+                levelEntries)
+        end
+
+        -- move the category under another category of the bag: the
+        -- candidates in the display order of the bag, never the category
+        -- itself, the categories nested under it, its current parent or
+        -- a category the section does not fit under; the first entry
+        -- moves the section back to the top level (a Normal category)
+        local moveEntries = {}
+        if CLM.EffectiveLevel(rule) > 1 or (type(rule.parent) == "string"
+                and rule.parent ~= "") then
+            moveEntries[#moveEntries + 1] = {
+                label = GetString(SI_AC_MENU_CM_MOVE_TOP),
+                callback = function()
+                    if CLM.MoveSubtreeToParent(bagTypeId, rule.name, nil) then
+                        refreshAfterChange()
+                    end
+                end,
+            }
+        end
+        local savedBag = AutoCategory.saved.bags[bagTypeId]
+        if savedBag and savedBag.rules then
+            local excluded = {}
+            for i = 1, #subtree do
+                excluded[subtree[i].rule.name] = true
+            end
+            if type(rule.parent) == "string" and rule.parent ~= "" then
+                excluded[rule.parent] = true
+            end
+
+            local ordered = {}
+            for i = 1, #savedBag.rules do
+                local brule = savedBag.rules[i]
+                if brule and type(brule.name) == "string"
+                        and brule.name ~= "" then
+                    ordered[#ordered + 1] = brule
+                end
+            end
+            table.sort(ordered, function(a, b)
+                local ap = a.showpriority or a.runpriority or 0
+                local bp = b.showpriority or b.runpriority or 0
+                if ap ~= bp then
+                    return ap > bp
+                end
+                return a.name < b.name
+            end)
+
+            for i = 1, #ordered do
+                local name = ordered[i].name
+                if not excluded[name] and moveDelta(subtree, name) ~= nil then
+                    moveEntries[#moveEntries + 1] = {
+                        label = name,
+                        callback = function()
+                            if CLM.MoveSubtreeToParent(bagTypeId,
+                                    rule.name, name) then
+                                refreshAfterChange()
+                            end
+                        end,
+                    }
+                end
+            end
+        end
+        if #moveEntries > 0 then
+            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_MOVE_SUBMENU),
+                moveEntries)
+        end
+
+        -- copy the category and the categories nested under it to another
+        -- bag: every other bag of the addon in a "Copy To" submenu (the
+        -- rules are shared; the categories already present in the
+        -- destination bag are skipped)
+        local copyEntries = {}
+        local bags_cvt = AutoCategory.cache and AutoCategory.cache.bags_cvt
+        if bags_cvt and bags_cvt.choices and bags_cvt.choicesValues then
+            for i = 1, #bags_cvt.choicesValues do
+                local bagId = bags_cvt.choicesValues[i]
+                local bagName = bags_cvt.choices[i]
+                if bagId ~= bagTypeId and bagName then
+                    copyEntries[#copyEntries + 1] = {
+                        label = bagName,
+                        callback = function()
+                            local copied, skipped = CLM.CopySubtreeToBag(
+                                bagTypeId, rule.name, bagId)
+                            CHAT_ROUTER:AddSystemMessage(string.format(
+                                GetString(SI_AC_MESSAGE_CM_COPY_DONE),
+                                copied, bagName, skipped))
+                            refreshAfterChange()
+                        end,
+                    }
+                end
+            end
+        end
+            if #copyEntries > 0 then
+                AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_COPY_SUBMENU),
+                    copyEntries)
+            end
+    end
+
+    -- creation does not modify the clicked rule or inherit its
+    -- level; offered on ungrouped/predefined headers and at level 5
+    -- as well
     AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
         function() CLM.OpenNewCategoryDialog(bagTypeId) end,
         MENU_ADD_OPTION_LABEL)
 
-    local rule = CLM.HeaderRule(cateName)
-    -- no backing rule (the "Others" category, dynamic plugin
-    -- categories) or a predefined rule: nothing to operate on
-    if not rule or rule:isPredefined() then return end
-
-    -- the operations work on the bag rules of the clicked bag
-    local subtree = CLM.SubtreeInBag(bagTypeId, rule.name)
-    if not subtree then return end
-
-    -- the numeric execution priority of the category (read-only
-    -- information): the runpriority of its bag rule in this bag,
-    -- the order the rules run in (not the display order)
-    local infoBagrule = subtree[1].bagrule
-    if infoBagrule and infoBagrule.runpriority then
-        AddCustomMenuItem(
-            string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
-                infoBagrule.runpriority),
-            function() end, MENU_ADD_OPTION_LABEL)
-    end
-
-    -- the level operations are direct entries of the header context
-    -- menu (a submenu cannot hold a submenu in ESO, so they cannot
-    -- be nested inside the "Copy To" submenu)
-    if CLM.CanIncrease(subtree) then
-        AddCustomMenuItem(GetString(SI_AC_MENU_CM_LEVEL_UP),
+    -- the removal of the category from the inventory list of the
+    -- clicked bag only, never for a predefined (protected) rule: the
+    -- global rule stays and the categories nested under it move up
+    -- one level
+    if rule and not isPredefined then
+        AddCustomMenuItem(GetString(SI_AC_MENU_CM_REMOVE_DISPLAY),
             function()
-                if CLM.ShiftLevels(bagTypeId, subtree, 1) then
+                if CLM.DeleteLevelInBag(bagTypeId, rule.name) then
                     refreshAfterChange()
                 end
             end, MENU_ADD_OPTION_LABEL)
-    end
-    if CLM.CanDecrease(subtree) then
-        AddCustomMenuItem(GetString(SI_AC_MENU_CM_LEVEL_DOWN),
-            function()
-                if CLM.ShiftLevels(bagTypeId, subtree, -1) then
-                    refreshAfterChange()
-                end
-            end, MENU_ADD_OPTION_LABEL)
-    end
-
-    -- move the category one display position up/down: swap its
-    -- display priority with the adjacent priority group, inside the
-    -- 2..1000 range of the display slider
-    if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, 1) then
-        AddCustomMenuItem(GetString(SI_AC_MENU_CM_MOVE_UP),
-            function()
-                if CLM.MoveCategoryPriority(bagTypeId, rule.name, 1) then
-                    refreshAfterChange()
-                end
-            end, MENU_ADD_OPTION_LABEL)
-    end
-    if CLM.CanMoveCategoryPriority(bagTypeId, rule.name, -1) then
-        AddCustomMenuItem(GetString(SI_AC_MENU_CM_MOVE_DOWN),
-            function()
-                if CLM.MoveCategoryPriority(bagTypeId, rule.name, -1) then
-                    refreshAfterChange()
-                end
-            end, MENU_ADD_OPTION_LABEL)
-    end
-
-    AddCustomMenuItem(GetString(SI_AC_MENU_CM_DELETE_LEVEL),
-        function()
-            if CLM.DeleteLevelInBag(bagTypeId, rule.name) then
-                refreshAfterChange()
-            end
-        end, MENU_ADD_OPTION_LABEL)
-
-    -- move the category under another category of the bag: the
-    -- candidates in the display order of the bag, never the category
-    -- itself, the categories nested under it, its current parent or
-    -- a category the section does not fit under; the first entry
-    -- moves the section back to the top level (a Normal category)
-    local moveEntries = {}
-    if CLM.EffectiveLevel(rule) > 1 or (type(rule.parent) == "string"
-            and rule.parent ~= "") then
-        moveEntries[#moveEntries + 1] = {
-            label = GetString(SI_AC_MENU_CM_MOVE_TOP),
-            callback = function()
-                if CLM.MoveSubtreeToParent(bagTypeId, rule.name, nil) then
-                    refreshAfterChange()
-                end
-            end,
-        }
-    end
-    local savedBag = AutoCategory.saved.bags[bagTypeId]
-    if savedBag and savedBag.rules then
-        local excluded = {}
-        for i = 1, #subtree do
-            excluded[subtree[i].rule.name] = true
-        end
-        if type(rule.parent) == "string" and rule.parent ~= "" then
-            excluded[rule.parent] = true
-        end
-
-        local ordered = {}
-        for i = 1, #savedBag.rules do
-            local brule = savedBag.rules[i]
-            if brule and type(brule.name) == "string"
-                    and brule.name ~= "" then
-                ordered[#ordered + 1] = brule
-            end
-        end
-        table.sort(ordered, function(a, b)
-            local ap = a.showpriority or a.runpriority or 0
-            local bp = b.showpriority or b.runpriority or 0
-            if ap ~= bp then
-                return ap > bp
-            end
-            return a.name < b.name
-        end)
-
-        for i = 1, #ordered do
-            local name = ordered[i].name
-            if not excluded[name] and moveDelta(subtree, name) ~= nil then
-                moveEntries[#moveEntries + 1] = {
-                    label = name,
-                    callback = function()
-                        if CLM.MoveSubtreeToParent(bagTypeId,
-                                rule.name, name) then
-                            refreshAfterChange()
-                        end
-                    end,
-                }
-            end
-        end
-    end
-    if #moveEntries > 0 then
-        AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_MOVE_SUBMENU),
-            moveEntries)
-    end
-
-    -- copy the category and the categories nested under it to another
-    -- bag: every other bag of the addon in a "Copy To" submenu (the
-    -- rules are shared; the categories already present in the
-    -- destination bag are skipped)
-    local copyEntries = {}
-    local bags_cvt = AutoCategory.cache and AutoCategory.cache.bags_cvt
-    if bags_cvt and bags_cvt.choices and bags_cvt.choicesValues then
-        for i = 1, #bags_cvt.choicesValues do
-            local bagId = bags_cvt.choicesValues[i]
-            local bagName = bags_cvt.choices[i]
-            if bagId ~= bagTypeId and bagName then
-                copyEntries[#copyEntries + 1] = {
-                    label = bagName,
-                    callback = function()
-                        local copied, skipped = CLM.CopySubtreeToBag(
-                            bagTypeId, rule.name, bagId)
-                        CHAT_ROUTER:AddSystemMessage(string.format(
-                            GetString(SI_AC_MESSAGE_CM_COPY_DONE),
-                            copied, bagName, skipped))
-                        refreshAfterChange()
-                    end,
-                }
-            end
-        end
-    end
-    if #copyEntries > 0 then
-        AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_COPY_SUBMENU),
-            copyEntries)
     end
 end

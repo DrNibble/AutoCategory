@@ -1,3 +1,13 @@
+[COLOR="DeepSkyBlue"] 4.6.27 (167), header menu rework, tag dropdown, predefined rules, collapse all (2026-11-16)[/COLOR]:
+[LIST]
+[*] Header right-click menu reworked: execution priority first, a "Level" submenu (move up / nest deeper / un-nest / move down, each within its existing limits), then Move To, Copy To, New Category and "Remove from display" (removes the category from the clicked bag's list only; the global rule stays and its children move up one level - not hiding, not deleting the rule).
+[*] Predefined (protected) rules accept level and priority changes but are never offered the removal.
+[*] New Category: the tag is chosen in a dropdown directly beside the name edit box (existing tags, empty tag, "New Tag..."), replacing the follow-up context menu.
+[*] Fixed "Collapse All": it now folds every category of the bag, including the levels hidden under an already folded parent.
+[*] Translations updated (fr/en/de/es/ru/zh).
+[*] 3238 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.26 (166), autosettype under its category, new category visible, run priority (2026-11-15)[/COLOR]:
 [LIST]
 [*] autosettype (LibSets): the category name now heads the dynamic list - "Category----Type----Set name" - so the sets display under their category, for top-level and nested categories alike.

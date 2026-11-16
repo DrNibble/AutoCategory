@@ -1,5 +1,44 @@
 # Changes
 
+## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
+
+- The header right-click menu is reorganized: the execution priority
+  first, then the level operations grouped in a "Level" submenu
+  (Monter / Abaisser / Relever / Descendre: move one display position
+  up, nest one level deeper, un-nest one level, move one display
+  position down - each inside its existing limits, and an
+  inapplicable operation is not offered), then the "Move To" and
+  "Copy To" submenus, "New Category" and "Remove the category from
+  display". The removal takes the category out of the inventory list
+  of the clicked bag only: the global rule stays and the categories
+  nested under it move up one level (the previous "Delete Level"
+  behavior). It is neither hiding the category (its children would
+  vanish with it) nor deleting the rule.
+- A predefined (protected) rule keeps its level and its display
+  priorities editable through the menu, but is never offered the
+  removal.
+- New Category: the tag is now chosen in a dropdown directly beside
+  the name edit box (the existing tags sorted, the empty tag and
+  "New Tag..."), replacing the follow-up context menu; the edit box
+  is narrowed to make room. The default selection stays the empty
+  tag, so a plain submit keeps the previous default behavior.
+- "Collapse All" now folds every category of the bag, not only the
+  already folded ones: the names come from the displayed headers and
+  from the parent chains of the bag rules, so the levels hidden
+  under an already folded parent are collapsed too.
+- Translations updated (fr / en / de / es / ru / zh) for the new
+  menu entries; the old level entry strings were removed.
+- Updated suites and harness: the menu structure expectations, the
+  predefined rule (operations without removal), the dialog flow with
+  the tag dropdown and the placeholder child tag. CategoryLevelMenu
+  188, CategoryCreation 139 assertions pass; RuleLevel 78,
+  CategoryTree 140, ScrollCommit 37, ParentDD 15, LevelMenu 55,
+  LibSets 2586 unchanged and passing (3238 in total).
+- Non testé dans ESO. Verify in game: right-click a category header
+  and check the new menu order and the Level submenu; change the
+  level of a predefined rule and check the removal is absent; create
+  a category and pick its tag in the dropdown; collapse all on a bag
+  with several nested levels and check every level folds.
 ## 2026-11-15: autosettype under its category, new category visible, run priority (4.6.26)
 
 - autosettype rule (LibSets plugin): the category name now heads the

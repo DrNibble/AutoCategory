@@ -1268,6 +1268,60 @@ local function subLevelNames(fullName, bagTypeId)
     return names
 end
 
+
+-- The names of every category of a bag that Collapse All has to fold:
+-- the headers present in the inventory lists of that bag type, the
+-- full chains of its bag rules (the levels of a folded parent are
+-- absent from the lists) and the folded ones remembered in the
+-- collapses table. Deduplicated.
+local function bagCategoryNames(bagTypeId)
+    local names = {}
+    local seen = {}
+    local function add(name)
+        if type(name) == "string" and name ~= "" and not seen[name] then
+            seen[name] = true
+            names[#names + 1] = name
+        end
+    end
+    for _, info in pairs(inven_data) do
+        local listView = info.listView
+        local dataList = listView and ZO_ScrollList_GetDataList(listView)
+        if dataList then
+            for _, entry in ipairs(dataList) do
+                local data = entry and entry.data
+                if data and data.AC_bagTypeId == bagTypeId
+                        and data.AC_categoryName then
+                    add(data.AC_categoryName)
+                end
+            end
+        end
+    end
+    local CLM = AutoCategory.CategoryLevelMenu
+    local savedBag = AutoCat.saved.bags[bagTypeId]
+    if savedBag and savedBag.rules and CLM and CLM.RuleChainPrefixes then
+        for i = 1, #savedBag.rules do
+            local rule = savedBag.rules[i]
+            if rule and type(rule.name) == "string"
+                    and rule.name ~= "" then
+                -- the level and the parent live on the global
+                -- rule; an orphan bag entry falls back to its own
+                -- name
+                local grule = AutoCategory.GetRuleByName(rule.name)
+                local prefixes = CLM.RuleChainPrefixes(grule or rule)
+                for j = 1, #prefixes do
+                    add(prefixes[j])
+                end
+            end
+        end
+    end
+    local collapsedNames = AutoCat.saved.collapses[bagTypeId]
+    if collapsedNames then
+        for name in pairs(collapsedNames) do
+            add(name)
+        end
+    end
+    return names
+end
 -- called from AutoCategory.xml
 function AC_ItemRowHeader_OnMouseEnter(header)
     local cateName = header.slot.dataEntry.data.AC_categoryName
@@ -1392,21 +1446,24 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         end
     )
 
-	-- add Collapse All to menu
+	-- add Collapse All to menu: fold every category of the bag, not
+	-- only the already folded ones (the collapses table holds only
+	-- those), so the names come from the displayed headers and from
+	-- the chains of the bag rules
     AddMenuItem(
         L(SI_CONTEXT_MENU_COLLAPSE_ALL),
         function()
-            for k, _ in pairs(AutoCat.saved.collapses[bagTypeId]) do
-				setCategoryCollapsed(bagTypeId,k,true)
+            for _, name in ipairs(bagCategoryNames(bagTypeId)) do
+				setCategoryCollapsed(bagTypeId, name, true)
             end
-			setCategoryCollapsed(bagTypeId,AutoCat.saved.appearance["CATEGORY_OTHER_TEXT"],true)
+				setCategoryCollapsed(bagTypeId,AutoCat.saved.appearance["CATEGORY_OTHER_TEXT"],true)
             AutoCat.RefreshCurrentList()
         end
     )
-    -- the AutoCategory level entries: the level operations on the
-    -- clicked category and the categories nested under it, and the
-    -- "Copy To" submenu with the other bags (a no-op for headers
-    -- with no operable backing rule)
+    -- the AutoCategory entries: the run priority, the "Level"
+    -- submenu, the "Move To" and "Copy To" submenus, the category
+    -- creation and the removal from the bag (a no-op for headers
+    -- with no operable backing rule, except for New Category)
     if AutoCategory.AddCategoryLevelMenuEntries then
         AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     end

@@ -12,7 +12,7 @@ for _, key in ipairs({
     "SI_AC_DIALOG_CATEGORY_NAME_PROMPT", "SI_AC_DIALOG_CATEGORY_NAME_EMPTY",
     "SI_AC_DIALOG_CATEGORY_NAME_EXISTS", "SI_AC_DIALOG_CATEGORY_CREATE_FAILED",
     "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_PROMPT",
-    "SI_AC_DIALOG_TAG_NAME_EMPTY",
+    "SI_AC_DIALOG_TAG_NAME_EMPTY", "SI_AC_MENU_CS_DROPDOWN_TAG",
     "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
     "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
     "SI_AC_NEW_CATEGORY_EMPTY_CHILD", "SI_AC_MENU_CM_RUN_PRIORITY",
@@ -70,6 +70,54 @@ function ZO_Dialogs_ReleaseDialog(name)
     -- Native dialogs clear their state on release: capture the bag first.
     displayed.data = nil
 end
+-- the tag dropdown beside the edit box: the dialog control, the edit
+-- box it anchors to and the combo box API the dropdown uses
+local comboBoxItems = {}
+local comboBox = {}
+function comboBox:ClearItems() comboBoxItems = {} end
+function comboBox:CreateItemEntry(label, callback)
+    return { label = label, callback = callback }
+end
+function comboBox:AddItem(entry) comboBoxItems[#comboBoxItems + 1] = entry end
+function comboBox:SelectItem(entry, ignoreCallback)
+    if not ignoreCallback and entry.callback then entry.callback() end
+end
+local comboControl = {
+    SetWidth = function() end,
+    SetAnchor = function() end,
+    SetHidden = function() end,
+}
+ZO_ComboBox_ObjectFromContainer = function() return comboBox end
+CT_LABEL = "CT_LABEL"
+RIGHT, TOPLEFT, TOPRIGHT = "RIGHT", "TOPLEFT", "TOPRIGHT"
+CreateControlFromVirtual = function(name, parent, virtual) return comboControl end
+local tagLabel = nil
+WINDOW_MANAGER = {
+    CreateControl = function(self, name, parent, controlType)
+        tagLabel = {
+            SetFont = function() end,
+            SetText = function(self, text) self.text = text end,
+            SetAnchor = function() end,
+            SetHidden = function(self, hidden) self.hidden = hidden end,
+        }
+        return tagLabel
+    end,
+}
+local editControl = {
+    GetWidth = function() return 600 end,
+    SetWidth = function() end,
+    GetAnchor = function() return true, "TOPLEFT", "Text", "BOTTOMLEFT", 0, 10 end,
+    ClearAnchors = function() end,
+    SetAnchor = function() end,
+}
+local dialogControl = {
+    GetNamedChild = function(self, name)
+        if name == "Edit" then return editControl end
+    end,
+}
+function ZO_Dialogs_FindDialog(name)
+    if displayed and displayed.name == name then return dialogControl end
+end
 local items = {}
 function ClearMenu() items = {} end
 function ShowMenu() shownMenu = true end
@@ -109,23 +157,32 @@ equal(SI_AC_DIALOG_CATEGORY_NAME_EMPTY, displayed.errorText, "blank error is vis
 equal(0, releases, "blank name keeps popup open")
 equal(0, #AutoCategory.RulesW.ruleList, "blank name does not create a rule")
 
--- Another bag becomes current while the popup is open.
+-- The tag dropdown sits directly beside the edit box: its choices
+-- are the existing tags (sorted), the empty tag and the New Tag
+-- entry. Reopening the dialog refreshes the list.
 selectedBag = 1
 AutoCategory.RulesW.tags = { "Tag B", GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), "Tag A" }
+CLM.OpenNewCategoryDialog(3)
+equal(1, registrations, "popup definition reused")
+equal(4, #comboBoxItems, "dropdown: two tags, the empty tag and New Tag")
+equal("Tag A", comboBoxItems[1].label, "tags are sorted")
+equal("Tag B", comboBoxItems[2].label, "second tag")
+equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), comboBoxItems[3].label, "empty tag entry")
+equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "new tag entry")
+equal(true, tagLabel ~= nil, "the tag label is built beside the edit box")
+-- releasing the dialog hides the dropdown until the next opening
+displayed.info.finishedCallback()
+equal(true, tagLabel.hidden, "the tag label hides on release")
+-- the default selection is the empty tag: a plain submit creates
+-- directly, without the follow-up context menu
+CLM.OpenNewCategoryDialog(3)
+equal(false, tagLabel.hidden, "the dropdown is shown again on the next opening")
 submit("  Ma catégorie  ")
 equal(1, releases, "valid name closes the popup")
-equal(true, shownMenu, "tag menu opens after the name dialog")
-equal(4, #items, "menu: two tags, empty tag, new tag")
-equal("Tag A", items[1].label, "tags are sorted")
-equal("Tag B", items[2].label, "second tag")
-equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), items[3].label, "empty tag entry")
-equal(SI_AC_MENU_CM_TAG_NEW, items[4].label, "new tag entry")
+equal(false, shownMenu, "no tag context menu anymore")
 local created = AutoCategory.GetRuleByName("Ma catégorie")
-equal(nil, created, "choosing a tag is required before creation")
-menuItem("Tag A").callback()
-created = AutoCategory.GetRuleByName("Ma catégorie")
 equal(true, created ~= nil, "trimmed name is registered")
-equal("Tag A", created.tag, "chosen tag is applied to the new rule")
+equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), created.tag, "the default empty tag is applied")
 equal("false", created.rule, "false rule is preserved literally")
 equal(false, AutoCategory.compiledRules[created:key()](), "real compiled rule matches nothing")
 equal(nil, created.level, "Normal level")
@@ -138,7 +195,8 @@ equal(true, createdChild ~= nil, "the hidden placeholder child rule is created")
 equal("false", createdChild.rule, "the placeholder child never matches")
 equal(2, createdChild.level, "the placeholder child sits one level below")
 equal("Ma catégorie", createdChild.parent, "the placeholder child nests under the new category")
-equal("Tag A", createdChild.tag, "the placeholder child keeps the category's tag")
+equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), createdChild.tag,
+    "the placeholder child keeps the category's tag")
 equal(true, AutoCategory.saved.bags[3].rules[2].isHidden, "the placeholder child bag rule is hidden")
 equal(1000, AutoCategory.saved.bags[3].rules[2].showpriority,
     "the placeholder child keeps the display priority")
@@ -161,7 +219,6 @@ equal(SI_AC_DIALOG_CATEGORY_NAME_EXISTS, displayed.errorText, "case-insensitive 
 equal(1, releases, "duplicate keeps popup open")
 submit("Unique")
 equal(2, releases, "corrected input closes popup")
-menuItem(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG)).callback()
 equal(2, #AutoCategory.saved.bags[1].rules, "corrected input creates in captured bag")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
     AutoCategory.GetRuleByName("Unique").tag, "empty tag entry keeps the default")
@@ -179,11 +236,19 @@ local count = #AutoCategory.RulesW.ruleList
 equal(nil, CLM.CreateCategory(99, "Missing bag"), "unknown bag refused")
 equal(count, #AutoCategory.RulesW.ruleList, "unknown bag leaves no orphan rule")
 
--- New Tag... dialog: blank refused, valid tag creates the category.
+-- New Tag... entry of the dropdown: the name dialog closes, the tag
+-- dialog opens; blank refused, valid tag creates the category.
 AutoCategory.saved.bags[8] = { rules = {} }
 CLM.OpenNewCategoryDialog(8)
+local newTagEntry = nil
+for i = 1, #comboBoxItems do
+    if comboBoxItems[i].label == SI_AC_MENU_CM_TAG_NEW then
+        newTagEntry = comboBoxItems[i]
+    end
+end
+equal(true, newTagEntry ~= nil, "the dropdown offers New Tag")
+newTagEntry.callback()
 submit("Étiquetée")
-menuItem(SI_AC_MENU_CM_TAG_NEW).callback()
 submit("  ")
 equal(SI_AC_DIALOG_TAG_NAME_EMPTY, displayed.errorText, "blank tag refused")
 equal(0, #AutoCategory.saved.bags[8].rules, "blank tag creates nothing")
@@ -194,6 +259,11 @@ equal("Ma nouvelle étiquette",
 equal(2, #AutoCategory.saved.bags[8].rules, "category created in captured bag")
 equal(1000, AutoCategory.saved.bags[8].rules[1].showpriority,
     "tagged creation gets highest priority")
+local taggedChild = AutoCategory.GetRuleByName(
+    "Étiquetée " .. SI_AC_NEW_CATEGORY_EMPTY_CHILD)
+equal(true, taggedChild ~= nil, "the placeholder child of a tagged category is created")
+equal("Ma nouvelle étiquette", taggedChild.tag,
+    "the placeholder child keeps the category's tag")
 CLM.CreateCategory(8, "Sans étiquette")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
     AutoCategory.GetRuleByName("Sans étiquette").tag, "nil tag keeps the default")
@@ -219,7 +289,6 @@ AutoCategory.saved.bags[3] = nil
 local releasedBefore = releases
 submit("After removal")
 equal(releasedBefore + 1, releases, "name validation releases the popup")
-menuItem("Tag A").callback()
 equal(1, #chatMessages, "stale bag failure is reported in chat")
 equal(count, #AutoCategory.RulesW.ruleList, "stale bag leaves no orphan rule")
 AutoCategory.saved.bags[3] = bag

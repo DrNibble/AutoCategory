@@ -15,15 +15,16 @@ end
 -- ---------------------------------------------------------------------------
 
 -- string constants (the real translations live in lang/)
-SI_AC_MENU_CM_LEVEL_UP = "Increase Level"
-SI_AC_MENU_CM_LEVEL_DOWN = "Decrease Level"
+SI_AC_MENU_CM_LEVEL_SUBMENU = "Level"
+SI_AC_MENU_CM_LEVEL_MOVE_UP = "Move Up"
+SI_AC_MENU_CM_LEVEL_DEEPER = "Increase Level"
+SI_AC_MENU_CM_LEVEL_SHALLOWER = "Decrease Level"
+SI_AC_MENU_CM_LEVEL_MOVE_DOWN = "Move Down"
+SI_AC_MENU_CM_REMOVE_DISPLAY = "Remove from display"
 SI_AC_MENU_CM_NEW_CATEGORY = "New Category"
 SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Empty name"
 SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Duplicate name"
 SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Invalid bag"
-SI_AC_MENU_CM_DELETE_LEVEL = "Delete Level"
-SI_AC_MENU_CM_MOVE_UP = "Move Category Up"
-SI_AC_MENU_CM_MOVE_DOWN = "Move Category Down"
 SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
 SI_AC_MENU_CM_MOVE_SUBMENU = "Move To"
 SI_AC_MENU_CM_MOVE_TOP = "Top Level"
@@ -208,6 +209,30 @@ setBag(1, {
 })
 newRule("Soin", 3, "Magie")
 newRule("Armes", 1)
+
+-- RuleChainPrefixes: every display name a rule contributes to the
+-- lists of a bag that has it - the full chain and each prefix, the
+-- same names Collapse All folds
+local function prefixesOf(name)
+    local out = {}
+    for _, p in ipairs(CLM.RuleChainPrefixes(AutoCategory.GetRuleByName(name))) do
+        out[#out + 1] = p
+    end
+    return table.concat(out, ",")
+end
+equal("Flat", prefixesOf("Flat"), "a Normal category contributes its name only")
+equal("Potions", prefixesOf("Potions"), "a level 1 category contributes its name")
+equal("Potions,Potions----Magie", prefixesOf("Magie"),
+    "a nested category contributes its chain and each prefix")
+equal("Potions,Potions----Magie,Potions----Magie----Soin", prefixesOf("Soin"),
+    "the chain runs to the top")
+equal(0, #CLM.RuleChainPrefixes(nil), "a nil rule contributes nothing")
+
+-- a parent cycle must not loop
+newRule("CycA", 2, "CycB")
+newRule("CycB", 2, "CycA")
+equal(true, #CLM.RuleChainPrefixes(AutoCategory.GetRuleByName("CycA")) >= 1,
+    "a parent cycle terminates")
 
 local function descendantNames(bagId, name)
     local names = {}
@@ -420,24 +445,27 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 -- Part 7: the context menu itself
 -- ---------------------------------------------------------------------------
 
--- a header of a category of the bag gets the flat level entries and
--- the Copy To submenu (Kid is Normal here: no Decrease entry; three
--- copy entries for the three bags of the stub other than the
--- clicked one)
+-- a header of a category of the bag gets the run priority, the Level
+-- submenu and the Copy To submenu (Kid is Normal here: no Decrease
+-- entry; three copy entries for the three bags of the stub other
+-- than the clicked one)
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(6, #capturedItems, "new category, priority, level, move and delete entries for an operable header")
-equal("New Category", capturedItems[1].label, "first entry creates a category")
-equal("Execution Priority: 5", capturedItems[2].label,
+equal(3, #capturedItems, "priority, creation and removal entries for an operable header")
+equal("Execution Priority: 5", capturedItems[1].label,
     "the header menu shows the category's execution priority")
-equal("Increase Level", capturedItems[3].label)
-equal("Move Category Up", capturedItems[4].label)
-equal("Move Category Down", capturedItems[5].label)
-equal("Delete Level", capturedItems[6].label)
-equal(1, #capturedSubmenus, "one Copy To submenu is added for an operable header")
-equal("Copy To", capturedSubmenus[1].text, "the submenu is the Copy To menu")
-local menu = capturedSubmenus[1].entries
+equal("New Category", capturedItems[2].label, "creation comes after the operations")
+equal("Remove from display", capturedItems[3].label, "the removal entry comes last")
+equal(2, #capturedSubmenus, "a Level submenu and a Copy To submenu")
+equal("Level", capturedSubmenus[1].text, "the level operations sit in their own submenu")
+local levelMenu = capturedSubmenus[1].entries
+equal(3, #levelMenu, "Kid is Normal: no Decrease entry")
+equal("Move Up", levelMenu[1].label)
+equal("Increase Level", levelMenu[2].label)
+equal("Move Down", levelMenu[3].label)
+equal("Copy To", capturedSubmenus[2].text, "the second submenu is the Copy To menu")
+menu = capturedSubmenus[2].entries
 equal(3, #menu, "the copy entries list the other bags")
 equal("Backpack", menu[1].label)
 equal("Bank", menu[2].label)
@@ -445,19 +473,27 @@ equal("Guild Bank", menu[3].label)
 
 -- the callbacks run the operations and refresh
 refreshCalls.cacheInitialize = 0
-capturedItems[3].callback()
+levelMenu[2].callback()
 equal(2, rKid.level, "the increase callback deepens the level")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 
 -- the move callbacks step the display priority and refresh (Root is
 -- no longer in the bag here, so Kid has no adjacent group)
 refreshCalls.cacheInitialize = 0
-capturedItems[4].callback()
+levelMenu[1].callback()
 equal(6, AutoCategory.saved.bags[12].rules[1].showpriority,
     "move up steps by one without an adjacent group")
 equal(1, refreshCalls.cacheInitialize, "the move callback refreshes the caches")
-capturedItems[5].callback()
+levelMenu[3].callback()
 equal(5, AutoCategory.saved.bags[12].rules[1].showpriority, "move down steps back")
+
+-- the removal callback removes the category from the inventory
+-- list of the clicked bag only: the global rule stays
+refreshCalls.cacheInitialize = 0
+capturedItems[3].callback()
+equal(1, refreshCalls.cacheInitialize, "the removal callback refreshes the caches")
+equal(0, #AutoCategory.saved.bags[12].rules, "the category leaves the bag list")
+equal(true, rKid ~= nil, "the global rule is kept")
 
 -- A header with no backing rule only gets category creation.
 capturedSubmenus = {}
@@ -466,15 +502,33 @@ AutoCategory.AddCategoryLevelMenuEntries("Others", 12)
 equal(1, #capturedItems, "creation is offered on ungrouped headers")
 equal(0, #capturedSubmenus, "no submenu for a category without a rule")
 
--- a predefined rule is not operable
+-- a predefined (protected) rule: its level and its priorities can be
+-- changed, but it is never offered the removal
 newRule("Pred", 1)
 ruleList[ruleNames["Pred"]].pred = 1
 setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Pred", 13)
-equal(1, #capturedItems, "creation is offered without editing a predefined rule")
-equal(0, #capturedSubmenus, "no submenu for a predefined rule")
+equal(2, #capturedItems, "priority and creation for a predefined rule")
+equal("Execution Priority: 1", capturedItems[1].label)
+equal("New Category", capturedItems[2].label)
+local hasRemove = false
+for i = 1, #capturedItems do
+    if capturedItems[i].label == "Remove from display" then
+        hasRemove = true
+    end
+end
+equal(false, hasRemove, "a predefined rule is never offered the removal")
+equal(2, #capturedSubmenus, "a Level submenu and a Copy To submenu for a predefined rule")
+equal("Level", capturedSubmenus[1].text)
+equal(3, #capturedSubmenus[1].entries, "level 1: no Move Down at the priority floor")
+equal("Move Up", capturedSubmenus[1].entries[1].label)
+equal("Increase Level", capturedSubmenus[1].entries[2].label)
+equal("Decrease Level", capturedSubmenus[1].entries[3].label,
+    "an explicit level 1 can go back to Normal")
+equal("Copy To", capturedSubmenus[2].text)
+equal(3, #capturedSubmenus[2].entries, "the copy entries are offered for a predefined rule")
 
 -- A category outside the clicked bag has no level operations.
 capturedSubmenus = {}
@@ -489,18 +543,20 @@ setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
-equal(5, #capturedItems, "creation remains available at level 5")
-equal("New Category", capturedItems[1].label)
-equal("Execution Priority: 1", capturedItems[2].label)
-equal("Decrease Level", capturedItems[3].label)
-equal("Move Category Up", capturedItems[4].label)
-equal("Delete Level", capturedItems[5].label)
-equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
-equal("Move To", capturedSubmenus[1].text)
-equal(1, #capturedSubmenus[1].entries,
+equal(3, #capturedItems, "priority, creation and removal at level 5")
+equal("Execution Priority: 1", capturedItems[1].label)
+equal("New Category", capturedItems[2].label)
+equal("Remove from display", capturedItems[3].label)
+equal(3, #capturedSubmenus, "Level, Move To and Copy To submenus at level 5")
+equal("Level", capturedSubmenus[1].text)
+equal(2, #capturedSubmenus[1].entries, "no Increase at level 5, no Move Down at the priority floor")
+equal("Move Up", capturedSubmenus[1].entries[1].label)
+equal("Decrease Level", capturedSubmenus[1].entries[2].label)
+equal("Move To", capturedSubmenus[2].text)
+equal(1, #capturedSubmenus[2].entries,
     "only the top level entry: no other category in the bag")
-equal("Top Level", capturedSubmenus[1].entries[1].label)
-menu = capturedSubmenus[2].entries
+equal("Top Level", capturedSubmenus[2].entries[1].label)
+menu = capturedSubmenus[3].entries
 equal(3, #menu, "the copy entries are still offered at level 5")
 equal("Backpack", menu[1].label)
 
@@ -510,7 +566,10 @@ newRule("CopyMe", 1)
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("CopyMe", 15)
-menu = capturedSubmenus[1].entries
+equal(2, #capturedSubmenus, "a Level submenu and a Copy To submenu")
+equal("Level", capturedSubmenus[1].text)
+equal("Copy To", capturedSubmenus[2].text)
+menu = capturedSubmenus[2].entries
 local copyEntry = nil
 for i = 1, #menu do
     if menu[i].label == "Backpack" then
@@ -603,14 +662,20 @@ equal("D", rE.parent, "the children keep their parent")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Mid", 20)
-equal(7, #capturedItems, "creation, priority, level, move and delete entries")
-equal("Execution Priority: 30", capturedItems[2].label)
-equal("Move Category Up", capturedItems[5].label)
-equal("Move Category Down", capturedItems[6].label)
-equal(2, #capturedSubmenus, "a Move To submenu and a Copy To submenu")
-equal("Move To", capturedSubmenus[1].text)
-equal("Copy To", capturedSubmenus[2].text)
-local moveMenu = capturedSubmenus[1].entries
+equal(3, #capturedItems, "priority, creation and removal entries")
+equal("Execution Priority: 30", capturedItems[1].label)
+equal("New Category", capturedItems[2].label)
+equal("Remove from display", capturedItems[3].label)
+equal(3, #capturedSubmenus, "a Level, a Move To and a Copy To submenu")
+equal("Level", capturedSubmenus[1].text)
+equal(4, #capturedSubmenus[1].entries, "all four level operations for a mid-level category")
+equal("Move Up", capturedSubmenus[1].entries[1].label)
+equal("Increase Level", capturedSubmenus[1].entries[2].label)
+equal("Decrease Level", capturedSubmenus[1].entries[3].label)
+equal("Move Down", capturedSubmenus[1].entries[4].label)
+equal("Move To", capturedSubmenus[2].text)
+equal("Copy To", capturedSubmenus[3].text)
+local moveMenu = capturedSubmenus[2].entries
 equal(4, #moveMenu, "top level, then the candidates in display order")
 equal("Top Level", moveMenu[1].label)
 equal("TopA", moveMenu[2].label)

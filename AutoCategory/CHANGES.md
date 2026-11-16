@@ -14,6 +14,10 @@
   nested under it move up one level (the previous "Delete Level"
   behavior). It is neither hiding the category (its children would
   vanish with it) nor deleting the rule.
+- Each entry of the Level submenu carries an ASCII arrow that
+  pictures the operation: "^" to move one display position up, "v"
+  to move one display position down, "-->" to nest one level deeper
+  and "<--" to un-nest one level.
 - A predefined (protected) rule keeps its level and its display
   priorities editable through the menu, but is never offered the
   removal.

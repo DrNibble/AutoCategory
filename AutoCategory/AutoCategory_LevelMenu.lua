@@ -652,18 +652,42 @@ local function findBagRule(bagTypeId, ruleName)
     return nil
 end
 
--- The display priority of the category displayed just above (delta
--- 1) or just below (delta -1) the category: a member of its own tie
--- group when the display order (equal priorities sorted by name)
--- puts one next to it, else the nearest priority group beyond in
--- the move direction. Nil when the category already sits at that
--- end of the bag: no displayed neighbor to pass.
-local function displayNeighborPriority(bagTypeId, bagrule, current, delta)
-    local savedBag = AutoCategory.saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules then return nil end
+-- The displayed sibling categories of a category, in the visible
+-- display order of the bag: the headers present in the inventory
+-- lists, the categories the player actually sees. A hidden or
+-- empty category has no header, so it never is a neighbor. Only
+-- the categories backed by a bag rule are kept (the ungrouped
+-- "Others" section has none). Nil when the visible display order
+-- is not available (the inventory lists are not built, or show
+-- nothing at all); an empty list means the bag displays no
+-- sibling category.
+local function displayedSiblingNames(bagTypeId, fullName)
+    if not AutoCategory.GetDisplayedHeaders then return nil end
+    local headers = AutoCategory.GetDisplayedHeaders(bagTypeId)
+    if not headers or #headers == 0 then return nil end
+    if not CategoryTree or not CategoryTree.ParentOf then return nil end
+    local parent = CategoryTree.ParentOf(fullName)
+    local siblings = {}
+    for i = 1, #headers do
+        local name = headers[i]
+        if CategoryTree.ParentOf(name) == parent
+                and findBagRule(bagTypeId, name) then
+            siblings[#siblings + 1] = name
+        end
+    end
+    return siblings
+end
+
+-- The display priority of the neighbor among a set of rules: a
+-- member of the moved category's own tie group when the display
+-- order (equal priorities sorted by name) puts one next to it,
+-- else the nearest priority group beyond in the move direction.
+-- Nil when the category already sits at that end of the set: no
+-- neighbor to pass.
+local function neighborFromRules(rules, bagrule, current, delta)
     -- a tie-group member displayed just above/below the category
-    for i = 1, #savedBag.rules do
-        local other = savedBag.rules[i]
+    for i = 1, #rules do
+        local other = rules[i]
         if other and other ~= bagrule and other.name then
             local p = other.showpriority or other.runpriority or 0
             if p == current
@@ -675,8 +699,8 @@ local function displayNeighborPriority(bagTypeId, bagrule, current, delta)
     end
     -- the nearest priority group beyond, in the move direction
     local neighbor = nil
-    for i = 1, #savedBag.rules do
-        local other = savedBag.rules[i]
+    for i = 1, #rules do
+        local other = rules[i]
         if other and other ~= bagrule and other.name then
             local p = other.showpriority or other.runpriority or 0
             if delta > 0 then
@@ -691,6 +715,56 @@ local function displayNeighborPriority(bagTypeId, bagrule, current, delta)
         end
     end
     return neighbor
+end
+
+-- The display priority of the category displayed just above (delta
+-- 1) or just below (delta -1) the category, following the visible
+-- display order of the bag: the neighbor is the category whose
+-- header is displayed just above/below the moved one - a hidden
+-- or empty category (no header displayed) is never a neighbor.
+-- When the inventory lists give no visible order, the bag rules
+-- stand in for it (all the categories of the bag, hidden ones
+-- included). Nil when the category already sits at that end of
+-- the bag: no displayed neighbor to pass.
+local function displayNeighborPriority(bagTypeId, bagrule, current, delta)
+    local savedBag = AutoCategory.saved.bags[bagTypeId]
+    if not savedBag or not savedBag.rules then return nil end
+
+    -- the visible display order first
+    local siblings = displayedSiblingNames(bagTypeId, bagrule.name)
+    if siblings then
+        local index = nil
+        for i = 1, #siblings do
+            if siblings[i] == bagrule.name then
+                index = i
+                break
+            end
+        end
+        if index then
+            -- the displayed sibling just above/below
+            local i = delta > 0 and index - 1 or index + 1
+            if i < 1 or i > #siblings then return nil end
+            local neighborRule = findBagRule(bagTypeId, siblings[i])
+            if not neighborRule then return nil end
+            return neighborRule.showpriority
+                or neighborRule.runpriority or 0
+        end
+        -- the moved category itself has no displayed header (it
+        -- is hidden or empty): its neighbors are the displayed
+        -- siblings around its priority position
+        local siblingRules = {}
+        for i = 1, #siblings do
+            local other = findBagRule(bagTypeId, siblings[i])
+            if other then
+                siblingRules[#siblingRules + 1] = other
+            end
+        end
+        return neighborFromRules(siblingRules, bagrule, current, delta)
+    end
+
+    -- no visible display order (the inventory lists are not built):
+    -- the bag rules
+    return neighborFromRules(savedBag.rules, bagrule, current, delta)
 end
 
 -- Can the category's display priority move one position in this

@@ -1269,6 +1269,38 @@ local function subLevelNames(fullName, bagTypeId)
 end
 
 
+-- The names of the category headers currently displayed in the
+-- inventory lists of a bag, in display order: exactly the
+-- categories the player sees in that bag - a hidden or empty
+-- category has no header. The display-priority moves use this to
+-- find the category displayed just above or below: the visible
+-- display order of the bag, never the hidden or empty
+-- categories. Nil when the lists are not accessible.
+function AutoCategory.GetDisplayedHeaders(bagTypeId)
+    if bagTypeId == nil then return nil end
+    local names = {}
+    local seen = {}
+    for _, info in pairs(inven_data) do
+        local listView = info.listView
+        local dataList = listView and ZO_ScrollList_GetDataList
+            and ZO_ScrollList_GetDataList(listView)
+        if dataList then
+            for _, entry in ipairs(dataList) do
+                local data = entry and entry.data
+                if data and data.AC_isHeader
+                        and data.AC_bagTypeId == bagTypeId
+                        and type(data.AC_categoryName) == "string"
+                        and data.AC_categoryName ~= ""
+                        and not seen[data.AC_categoryName] then
+                    seen[data.AC_categoryName] = true
+                    names[#names + 1] = data.AC_categoryName
+                end
+            end
+        end
+    end
+    return names
+end
+
 -- The names of every category of a bag that Collapse All has to fold:
 -- the headers present in the inventory lists of that bag type, the
 -- full chains of its bag rules (the levels of a folded parent are

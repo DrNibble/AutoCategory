@@ -28,6 +28,15 @@
   direction (alone in the bag, or already at that end) is not
   offered the move, and the result must stay inside the 2..1000
   slider range.
+- The neighbor search follows the visible display order of the
+  bag: the neighbor is the category whose header is actually
+  displayed just above / below the moved one (read from the
+  inventory lists), so a hidden or empty category is never a
+  neighbor. Sub-level headers are not neighbors of a top-level
+  category either (the search stays among the displayed siblings
+  of the same level); the ungrouped "Others" section has no
+  priority and stays out of it. When the inventory lists are not
+  built yet, the bag rules stand in for the visible order.
 - A predefined (protected) rule keeps its level and its display
   priorities editable through the menu, and can be removed from
   the display of the clicked bag like any other category: the

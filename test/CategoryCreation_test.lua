@@ -462,4 +462,64 @@ equal(400, AutoCategory.saved.bags[12].rules[1].runpriority, "X runpriority unto
 equal(false, CLM.MoveCategoryPriority(9, "Nulle part", 1), "unknown rule refused")
 equal(false, CLM.CanMoveCategoryPriority(99, "A", 1), "unknown bag refused")
 
+-- the neighbor search follows the VISIBLE display order of the bag,
+-- read from the displayed headers: a hidden or empty category (no
+-- header displayed) is never a neighbor. Each case gets its own bag:
+-- a move changes the priorities, and the stubbed header order is
+-- static
+local function visRules()
+    return {
+        { name = "VisTop", showpriority = 900, runpriority = 10 },
+        { name = "HiddenMid", showpriority = 500, runpriority = 20, isHidden = true },
+        { name = "VisBottom", showpriority = 100, runpriority = 30 },
+    }
+end
+AutoCategory.GetDisplayedHeaders = function(bagTypeId)
+    if bagTypeId >= 17 and bagTypeId <= 21 then
+        return { "VisTop", "VisBottom" }
+    end
+    return {}
+end
+-- VisBottom moves up: the neighbor is VisTop, displayed just above it;
+-- the hidden HiddenMid (a higher priority than VisBottom) is skipped
+AutoCategory.saved.bags[17] = { rules = visRules() }
+equal(true, CLM.CanMoveCategoryPriority(17, "VisBottom", 1), "visible neighbor above")
+equal(true, CLM.MoveCategoryPriority(17, "VisBottom", 1), "moves above the displayed category")
+equal(901, AutoCategory.saved.bags[17].rules[3].showpriority,
+    "the move takes VisTop's priority, not the hidden category's")
+-- VisTop moves down: the neighbor is VisBottom, displayed just below;
+-- the hidden HiddenMid between them is skipped
+AutoCategory.saved.bags[18] = { rules = visRules() }
+equal(true, CLM.MoveCategoryPriority(18, "VisTop", -1), "moves below the displayed category")
+equal(99, AutoCategory.saved.bags[18].rules[1].showpriority,
+    "the move takes VisBottom's priority, not the hidden category's")
+-- VisTop cannot move up: it is the topmost displayed category
+AutoCategory.saved.bags[19] = { rules = visRules() }
+equal(false, CLM.CanMoveCategoryPriority(19, "VisTop", 1),
+    "no displayed neighbor above the top category")
+-- a hidden category itself moves relative to the displayed siblings
+-- around its priority position
+AutoCategory.saved.bags[20] = { rules = visRules() }
+equal(true, CLM.MoveCategoryPriority(20, "HiddenMid", -1),
+    "a hidden category moves relative to the displayed ones")
+equal(99, AutoCategory.saved.bags[20].rules[2].showpriority,
+    "the hidden category sits just below the displayed VisBottom")
+-- a sub-level header is not a neighbor of a top-level category: the
+-- sibling filter keeps the displayed headers of the same level only
+AutoCategory.saved.bags[21] = { rules = {
+    { name = "Top", showpriority = 900, runpriority = 40 },
+    { name = "Top----Kid", showpriority = 500, runpriority = 50 },
+    { name = "Other", showpriority = 100, runpriority = 60 },
+} }
+AutoCategory.GetDisplayedHeaders = function(bagTypeId)
+    if bagTypeId == 21 then
+        return { "Top", "Top----Kid", "Other" }
+    end
+    return {}
+end
+equal(true, CLM.MoveCategoryPriority(21, "Top", -1), "Top moves down")
+equal(99, AutoCategory.saved.bags[21].rules[1].showpriority,
+    "the neighbor is the displayed top-level Other, not the sub-level")
+AutoCategory.GetDisplayedHeaders = nil
+
 print("CategoryCreation_test: " .. assertions .. " assertions passed")

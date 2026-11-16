@@ -491,23 +491,19 @@ equal(1, #capturedItems, "creation is offered on ungrouped headers")
 equal(0, #capturedSubmenus, "no submenu for a category without a rule")
 
 -- a predefined (protected) rule: its level and its priorities can be
--- changed, but it is never offered the removal
+-- changed, and its display can be removed from the clicked bag too
+-- (the protected rule itself is never deletable)
 newRule("Pred", 1)
 ruleList[ruleNames["Pred"]].pred = 1
 setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Pred", 13)
-equal(2, #capturedItems, "priority and creation for a predefined rule")
+equal(3, #capturedItems, "priority, removal and creation for a predefined rule")
 equal("Execution Priority: 1", capturedItems[1].label)
-equal("New Category", capturedItems[2].label)
-local hasRemove = false
-for i = 1, #capturedItems do
-    if capturedItems[i].label == "Remove from display" then
-        hasRemove = true
-    end
-end
-equal(false, hasRemove, "a predefined rule is never offered the removal")
+equal("Remove from display", capturedItems[2].label,
+    "a predefined rule is offered the removal")
+equal("New Category", capturedItems[3].label)
 equal(2, #capturedSubmenus, "a Level submenu and a Copy To submenu for a predefined rule")
 equal("Level", capturedSubmenus[1].text)
 equal(2, #capturedSubmenus[1].entries, "alone in the bag: no move entries")
@@ -516,6 +512,14 @@ equal("Decrease Level ←", capturedSubmenus[1].entries[2].label,
     "an explicit level 1 can go back to Normal")
 equal("Copy To", capturedSubmenus[2].text)
 equal(3, #capturedSubmenus[2].entries, "the copy entries are offered for a predefined rule")
+
+-- the removal of a predefined category only takes it out of the
+-- inventory list of the clicked bag: the protected rule is kept
+refreshCalls.cacheInitialize = 0
+capturedItems[2].callback()
+equal(1, refreshCalls.cacheInitialize, "the removal callback refreshes the caches")
+equal(0, #AutoCategory.saved.bags[13].rules, "the predefined category leaves the bag list")
+equal(true, ruleList[ruleNames["Pred"]] ~= nil, "the protected rule is kept")
 
 -- A category outside the clicked bag has no level operations.
 capturedSubmenus = {}

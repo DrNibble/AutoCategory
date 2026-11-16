@@ -29,8 +29,11 @@
   offered the move, and the result must stay inside the 2..1000
   slider range.
 - A predefined (protected) rule keeps its level and its display
-  priorities editable through the menu, but is never offered the
-  removal.
+  priorities editable through the menu, and can be removed from
+  the display of the clicked bag like any other category: the
+  global rule stays (a protected rule is never deleted, it only
+  leaves the inventory list of the bag) and its nested categories
+  move up one level.
 - New Category: the tag is now chosen in a dropdown directly beside
   the name edit box (the existing tags sorted, the empty tag and
   "New Tag..."), replacing the follow-up context menu; the edit box

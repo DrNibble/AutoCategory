@@ -1055,8 +1055,10 @@ end
 -- hidden state - the children would disappear with it - nor the
 -- deletion of the rule). A submenu cannot hold a submenu in ESO, so
 -- the level operations sit in their own submenu, next to the move
--- and copy submenus. A predefined (protected) rule accepts the level
--- and priority changes but is never offered the removal. Added by
+-- and copy submenus. A predefined (protected) rule accepts the
+-- level, priority and display-removal operations too (the display
+-- removal only takes it out of the inventory list of the clicked
+-- bag; the protected rule itself is never deletable). Added by
 -- AC_ItemRowHeader_OnShowContextMenu (AutoCategory.lua); a no-op for
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
@@ -1067,10 +1069,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     if not AutoCategory.saved.bags[bagTypeId] then return end
 
     local rule = CLM.HeaderRule(cateName)
-    -- a predefined (protected) rule: its level and its display
-    -- priorities can be changed, but it is never offered the
-    -- removal from the bag
-    local isPredefined = rule ~= nil and rule:isPredefined()
 
     -- the operations work on the bag rules of the clicked bag
     local subtree = nil
@@ -1251,10 +1249,11 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
     end
 
     -- the removal of the category from the inventory list of the
-    -- clicked bag only, never for a predefined (protected) rule: the
-    -- global rule stays and the categories nested under it move up
-    -- one level
-    if rule and not isPredefined then
+    -- clicked bag only, for a predefined (protected) rule as well:
+    -- the global rule stays (a protected rule is never deleted,
+    -- it only leaves the display of the clicked bag) and the
+    -- categories nested under it move up one level
+    if rule then
         AddCustomMenuItem(GetString(SI_AC_MENU_CM_REMOVE_DISPLAY),
             function()
                 if CLM.DeleteLevelInBag(bagTypeId, rule.name) then

@@ -892,13 +892,18 @@ local function setupNewCategoryTagDropdown(dialog)
 end
 
 -- Center the OK and Cancel buttons of the New Category dialog
--- horizontally under the edit box row: the dialog framework
--- anchors them to the bottom right corner by default, and it
--- re-applies its own anchors on every opening, so this runs
--- after every ZO_Dialogs_ShowDialog, keeping the framework's
--- spacing and vertical offset. The edit box row keeps its
--- original width through the control its top anchor is attached
--- to (the main text of the dialog, spanning the full row).
+-- horizontally under the edit box row, on their texts (SI_OK /
+-- SI_DIALOG_CANCEL): the dialog framework anchors them to the
+-- bottom right corner by default, and it re-applies its own
+-- anchors on every opening, so this runs after every
+-- ZO_Dialogs_ShowDialog, keeping the framework's spacing and
+-- vertical offset. Each button also carries its key label
+-- ([E], [ALT]) and its paddings on the left of its text, so the
+-- pair is positioned from the name labels (right-anchored inside
+-- their button) instead of the button boxes. The edit box row
+-- keeps its original width through the control its top anchor is
+-- attached to (the main text of the dialog, spanning the full
+-- row).
 local function centerDialogButtons(dialog)
     local edit = dialog:GetNamedChild("Edit")
     local b1 = dialog:GetNamedChild("Button1")
@@ -909,13 +914,35 @@ local function centerDialogButtons(dialog)
     local rowWidth = relTo:GetWidth()
     local spacing = 20 -- the framework's BUTTON_SPACING
     local w1, w2 = b1:GetWidth(), b2:GetWidth()
+    -- the name text of each button and its inset from the
+    -- button's right edge (the name label is right-anchored)
+    local t1, t2 = w1, w2
+    local r1, r2 = 0, 0
+    local function readNameLabel(button)
+        if not button.GetNamedChild then return end
+        local label = button:GetNamedChild("NameLabel")
+        if not label or not label.GetWidth or not label.GetAnchor then
+            return
+        end
+        local aValid, _, aRelTo, _, aOffX = label:GetAnchor(0)
+        if not aValid or aRelTo ~= button then return end
+        return label:GetWidth(), -aOffX
+    end
+    local nt1, nr1 = readNameLabel(b1)
+    local nt2, nr2 = readNameLabel(b2)
+    if nt1 then t1, r1 = nt1, nr1 end
+    if nt2 then t2, r2 = nt2, nr2 end
     b1:ClearAnchors()
     b2:ClearAnchors()
     if b2:IsHidden() then
-        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, (rowWidth - w1) / 2, 23)
+        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT,
+            (rowWidth - t1) / 2 - (w1 - t1 - r1), 23)
     else
-        local total = w1 + spacing + w2
-        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, (rowWidth - total) / 2, 23)
+        -- offset so that the pair of texts is centered on the
+        -- row (the buttons keep the framework's spacing)
+        local offX = (rowWidth - (w1 + spacing + w2)) / 2
+            + (r1 + r2 + t1 - w1) / 2
+        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, offX, 23)
         b2:SetAnchor(TOPLEFT, b1, TOPRIGHT, spacing, 0)
     end
 end

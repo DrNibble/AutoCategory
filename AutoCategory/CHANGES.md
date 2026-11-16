@@ -37,9 +37,12 @@
   is narrowed to make room. The default selection stays the empty
   tag, so a plain submit keeps the previous default behavior.
 - The OK and Cancel buttons of the New Category dialog are centered
-  horizontally under the edit box row (the dialog framework anchors
-  them to the bottom right corner by default; the framework's spacing
-  and vertical offset are kept).
+  horizontally under the edit box row, on their texts (SI_OK /
+  SI_DIALOG_CANCEL): each button also carries its key label ([E],
+  [ALT]) and its paddings on the left of its text, so the pair is
+  positioned from the name labels instead of the button boxes (the
+  dialog framework anchors them to the bottom right corner by
+  default; the framework's spacing and vertical offset are kept).
 - "Collapse All" now folds every category of the bag, not only the
   already folded ones: the names come from the displayed headers and
   from the parent chains of the bag rules, so the levels hidden

@@ -117,18 +117,28 @@ local editControl = {
     SetAnchor = function() end,
 }
 -- the OK and Cancel buttons of the dialog: their anchors are
--- recorded to check the horizontal centering
+-- recorded to check the horizontal centering. Each button hugs
+-- its name text but carries its key label and its paddings on
+-- the left of the text, so the name label is right-anchored
+-- inside its button (5 pixels from the right edge)
 local button1, button2 = nil, nil
-local function newButton(width)
+local function newButton(width, textWidth)
     local b = { GetWidth = function() return width end }
+    local label = { GetWidth = function() return textWidth end }
     function b:ClearAnchors() b.anchor = nil end
     function b:SetAnchor(point, relTo, relPoint, offX, offY)
         b.anchor = { point, relTo, relPoint, offX, offY }
     end
     function b:IsHidden() return false end
+    function b:GetNamedChild(name)
+        if name == "NameLabel" then return label end
+    end
+    function label:GetAnchor()
+        return true, "RIGHT", b, "RIGHT", -5, 0
+    end
     return b
 end
-button1, button2 = newButton(120), newButton(100)
+button1, button2 = newButton(120, 40), newButton(100, 50)
 local dialogControl = {
     GetNamedChild = function(self, name)
         if name == "Edit" then return editControl end
@@ -191,13 +201,15 @@ equal("Tag B", comboBoxItems[2].label, "second tag")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), comboBoxItems[3].label, "empty tag entry")
 equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "new tag entry")
 equal(true, tagLabel ~= nil, "the tag label is built beside the edit box")
--- the OK and Cancel buttons are centered under the edit box row:
--- row 540, buttons 120 and 100 wide with the framework spacing
--- of 20, the pair starts at (540 - 240) / 2 = 150 from the left
+-- the OK and Cancel TEXTS are centered under the edit box row:
+-- row 540, buttons 120 and 100 wide carrying name texts 40 and
+-- 50 (5 pixels from their right edge), spacing 20 - the name
+-- texts span [offX + 75, offX + 235] (button 1: 120 - 5 - 40)
+-- so the pair starts at (540 - 240) / 2 - 35 = 115 from the left
 equal("TOPLEFT", button1.anchor[1], "the OK button is anchored from its top left")
 equal(editControl, button1.anchor[2], "the OK button sits under the edit box")
 equal("BOTTOMLEFT", button1.anchor[3], "measured from the left end of the row")
-equal(150, button1.anchor[4], "the button pair is centered on the row")
+equal(115, button1.anchor[4], "the pair of texts is centered on the row")
 equal(23, button1.anchor[5], "the framework's vertical offset is kept")
 equal("TOPLEFT", button2.anchor[1], "the Cancel button is anchored from its top left")
 equal(button1, button2.anchor[2], "the Cancel button sits right of the OK button")

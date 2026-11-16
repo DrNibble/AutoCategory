@@ -415,8 +415,8 @@ function AC_UI.DspWin:New()
 
     scrollData.parent = win
 
-    local minWidth = winData.minWidth or 220
-    local minHeight = winData.minHeight or 150
+    local minWidth = winData.minWidth or 400
+    local minHeight = winData.minHeight or 600
     local visible = winData.visible or false
     win.winData = winData
 

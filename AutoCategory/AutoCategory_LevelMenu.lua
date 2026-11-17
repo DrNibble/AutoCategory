@@ -895,6 +895,8 @@ local TAG_DROPDOWN_MIN_WIDTH = 120 -- the dropdown never shrinks
 local TAG_LABEL_WIDTH = 90     -- room for the "Tag" label
 local TAG_DROPDOWN_GAP = 12    -- between the edit box and the label
 local TAG_EDIT_MIN_WIDTH = 160 -- the name field never collapses
+local NEW_CATEGORY_DIALOG_WIDTH = 450 -- the window is a quarter
+                                     -- wider than the framework's 360
                                -- below this (it becomes an unusable
                                -- sliver without an explicit width)
 
@@ -947,10 +949,27 @@ local function hideNewTagNameRow()
     end
 end
 
-local function hideNewCategoryTagDropdown()
+local function hideNewCategoryTagDropdown(dialog)
     if newCategoryTagControls then
         newCategoryTagControls.label:SetHidden(true)
         newCategoryTagControls.comboControl:SetHidden(true)
+        -- restore the framework's stock window width: the
+        -- other dialogs that use the same window must not
+        -- see the widened one
+        if newCategoryTagControls.stockTitleWidth then
+            local dialogControl = dialog
+            if not dialogControl and ZO_Dialogs_FindDialog then
+                dialogControl = ZO_Dialogs_FindDialog(
+                    NEW_CATEGORY_DIALOG)
+            end
+            local title = dialogControl
+                and dialogControl.GetNamedChild
+                and dialogControl:GetNamedChild("Title")
+            if title and title.SetWidth then
+                title:SetWidth(
+                    newCategoryTagControls.stockTitleWidth)
+            end
+        end
     end
     hideNewTagNameRow()
 end
@@ -1000,7 +1019,14 @@ local function setupNewCategoryTagDropdown(dialog)
             tagEdit = tagEdit,
             tagEditBox = tagEditBox,
         }
-        newCategoryTagControls.originalEditWidth = edit:GetWidth()
+        -- the framework's stock width of the title, captured
+        -- once before the window is ever widened, to restore
+        -- it on release
+        local title = dialog:GetNamedChild("Title")
+        if title and title.GetWidth then
+            newCategoryTagControls.stockTitleWidth
+                = title:GetWidth()
+        end
         newCategoryTagControls.tagNameLabelWidth =
             tagNameLabel:GetWidth()
     end
@@ -1028,7 +1054,20 @@ local function setupNewCategoryTagDropdown(dialog)
         edit:ClearAnchors()
         edit:SetAnchor(point, relTo, relPoint, offX, offY)
     end
-    local rowWidth = controls.originalEditWidth or edit:GetWidth()
+    -- widen the window itself: the row is a quarter wider
+    -- than the stock 360 content, and the title is set to the
+    -- SAME width so the whole window (the backdrop sizes
+    -- itself to its children) grows symmetrically around the
+    -- screen center - a wider row alone would overflow the
+    -- right edge of a still-centered window
+    local title = dialog:GetNamedChild("Title")
+    if title and title.SetWidth then
+        title:SetWidth(NEW_CATEGORY_DIALOG_WIDTH)
+    end
+    -- the row is laid out on the widened width: the extra
+    -- room goes to the name field (the dropdown and the
+    -- label keep their width)
+    local rowWidth = NEW_CATEGORY_DIALOG_WIDTH
     local labelRoom = TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH
         + TAG_DROPDOWN_GAP
     local dropdownWidth = TAG_DROPDOWN_WIDTH
@@ -1164,8 +1203,8 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
             title = { text = SI_AC_MENU_CM_NEW_CATEGORY },
             mainText = { text = SI_AC_DIALOG_CATEGORY_NAME_PROMPT },
             editBox = { defaultText = "", maxInputCharacters = 128 },
-            finishedCallback = function()
-                hideNewCategoryTagDropdown()
+            finishedCallback = function(dialog)
+                hideNewCategoryTagDropdown(dialog)
             end,
             buttons = {
                 {

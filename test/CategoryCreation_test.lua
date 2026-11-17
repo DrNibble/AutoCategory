@@ -166,9 +166,13 @@ local function newButton(width, textWidth)
     return b
 end
 button1, button2 = newButton(120, 40), newButton(100, 50)
+local titleControl = { width = 360 }
+function titleControl:GetWidth() return self.width end
+function titleControl:SetWidth(width) self.width = width end
 local dialogControl = {
     GetNamedChild = function(self, name)
         if name == "Edit" then return editControl end
+        if name == "Title" then return titleControl end
         if name == "Button1" then return button1 end
         if name == "Button2" then return button2 end
     end,
@@ -228,21 +232,23 @@ equal("Tag B", comboBoxItems[2].label, "second tag")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), comboBoxItems[3].label, "empty tag entry")
 equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "new tag entry")
 equal(true, tagLabel ~= nil, "the tag label is built beside the edit box")
--- the name edit box keeps the leftover of the row: 600 - the
--- label room (12 + 90 + 12) - the dropdown (150) = 336, above the
--- 160 minimum, so the dropdown keeps its width
-equal(336, editControl.width, "the name edit box keeps the row's leftover width")
+-- the window is widened to a fixed 450 (a quarter past the
+-- framework's 360): the name edit box keeps the leftover of the
+-- row, 450 - the label room (12 + 90 + 12) - the dropdown (150)
+-- = 186, above the 160 minimum, so the dropdown keeps its width
+equal(450, titleControl.width, "the window is a quarter wider than the stock one")
+equal(186, editControl.width, "the name edit box keeps the row's leftover width")
 equal(150, comboControl.width, "the dropdown keeps its width when the row fits")
 -- the OK and Cancel TEXTS are centered under the edit box row:
--- the row is the laid-out one (336 + 114 + 150 = 600), buttons 120
+-- the row is the fixed 450 (186 + 114 + 150), buttons 120
 -- and 100 wide carrying name texts 40 and 50 (5 pixels from their
 -- right edge), spacing 20 - the name texts span [offX + 75,
 -- offX + 235] (button 1: 120 - 5 - 40) so the pair starts at
--- (600 - 240) / 2 - 35 = 145 from the left
+-- (450 - 240) / 2 - 35 = 70 from the left
 equal("TOPLEFT", button1.anchor[1], "the OK button is anchored from its top left")
 equal(editControl, button1.anchor[2], "the OK button sits under the edit box")
 equal("BOTTOMLEFT", button1.anchor[3], "measured from the left end of the row")
-equal(145, button1.anchor[4], "the pair of texts is centered on the row")
+equal(70, button1.anchor[4], "the pair of texts is centered on the row")
 equal(23, button1.anchor[5], "the framework's vertical offset is kept")
 equal("TOPLEFT", button2.anchor[1], "the Cancel button is anchored from its top left")
 equal(button1, button2.anchor[2], "the Cancel button sits right of the OK button")
@@ -251,10 +257,12 @@ equal(20, button2.anchor[4], "the framework's button spacing is kept")
 -- releasing the dialog hides the dropdown until the next opening
 displayed.info.finishedCallback()
 equal(true, tagLabel.hidden, "the tag label hides on release")
+equal(360, titleControl.width, "the stock window width is restored on release")
 -- the default selection is the empty tag: a plain submit creates
 -- directly, without the follow-up context menu
 CLM.OpenNewCategoryDialog(3)
 equal(false, tagLabel.hidden, "the dropdown is shown again on the next opening")
+equal(450, titleControl.width, "the widened width is re-applied on each opening")
 submit("  Ma catégorie  ")
 equal(1, releases, "valid name closes the popup")
 equal(false, shownMenu, "no tag context menu anymore")
@@ -320,7 +328,7 @@ equal(count, #AutoCategory.RulesW.ruleList, "unknown bag leaves no orphan rule")
 AutoCategory.saved.bags[8] = { rules = {} }
 CLM.OpenNewCategoryDialog(8)
 equal(true, tagEdit.hidden, "the tag name input row is hidden by default")
-equal(438, tagEdit.width, "the tag name input spans the row after its label")
+equal(288, tagEdit.width, "the tag name input spans the row after its label")
 local newTagEntry = nil
 for i = 1, #comboBoxItems do
     if comboBoxItems[i].label == SI_AC_MENU_CM_TAG_NEW then
@@ -565,20 +573,18 @@ equal(99, AutoCategory.saved.bags[21].rules[1].showpriority,
     "the neighbor is the displayed top-level Other, not the sub-level")
 AutoCategory.GetDisplayedHeaders = nil
 
--- a cramped row: the name field must never collapse to a sliver
--- (the 4.6.27 bug: the leftover fell below the guard, no width was
--- set at all and the field became unusable) - the dropdown gives
--- way first, down to its own minimum. Row 350: leftover 86 < 160,
--- dropdown 350 - 114 - 160 = 76 < 120, so dropdown 120 and the
--- field floors at 160
+-- the window's width is FIXED: it no longer derives from the
+-- framework's content width, so even a stock dialog narrower than
+-- the target gets the full 450 row - the name field keeps its
+-- room (the 160/120 floors stay in the code as a safety net for
+-- rows below 424, which the fixed width can no longer produce)
 editControl.width = 350
 assert(loadfile("AutoCategory_LevelMenu.lua"))()
 CLM = AutoCategory.CategoryLevelMenu
 CLM.OpenNewCategoryDialog(3)
-equal(160, editControl.width, "a cramped row still leaves a usable name field")
-equal(120, comboControl.width, "the dropdown shrinks to its minimum first")
--- the buttons center on the cramped row: 160 + 114 + 120 = 394,
--- so the pair starts at (394 - 240) / 2 - 35 = 42
-equal(42, button1.anchor[4], "the buttons center on the cramped row")
+equal(450, titleControl.width, "the window is widened whatever the stock width")
+equal(186, editControl.width, "the name field keeps its room on a narrow stock dialog")
+equal(150, comboControl.width, "the dropdown keeps its width")
+equal(70, button1.anchor[4], "the buttons center on the fixed row")
 
 print("CategoryCreation_test: " .. assertions .. " assertions passed")

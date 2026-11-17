@@ -38,6 +38,12 @@
   closes. A blank tag name is refused without closing the dialog;
   switching the dropdown back to an existing tag hides the row and
   clears what was typed.
+- The New Category window is a quarter wider (450 instead of the
+  stock 360): the title, the divider and the content grow together
+  so the window stays centered on screen, and the extra room goes
+  to the name field. The stock width is restored when the dialog
+  closes, so the other dialogs that use the same window are
+  unaffected.
 
 ## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
 

@@ -419,6 +419,7 @@ function AutoCat.ResetToDefaults()
 
 	AutoCat.ARW.clear()
 	ZO_DeepTableCopy(AutoCat.defaultAcctSettings.rules, AutoCat.acctRules.rules)
+	AutoCat.acctRules.predefLayouts = nil
 	AutoCat.ARW = AutoCat.RuleList:New(AutoCat.acctRules.rules)
 
     local acctSaved = AutoCat.acctSaved
@@ -650,6 +651,28 @@ function AutoCat.cacheInitialize()
     AutoCat.cacheBagInitialize()
 end
 
+
+-- keep the level/parent layout of the predefined categories in the
+-- account saved rules: the predefined definitions come from code and
+-- are never saved, so a customized layout is collected as a per-name
+-- override and applied back onto the predefined rules at every load
+function AutoCat.SyncPredefinedLayouts()
+    local acctRules = AutoCat.acctRules
+    if not acctRules then return end
+    local PL = AutoCategory.PredefinedLayouts
+    if not PL or not AutoCategory.RulesW then return end
+    acctRules.predefLayouts = PL.Collect(
+        AutoCategory.RulesW.ruleList)
+end
+
+function AutoCat.ApplyPredefinedLayouts()
+    local acctRules = AutoCat.acctRules
+    if not acctRules then return end
+    local PL = AutoCategory.PredefinedLayouts
+    if not PL or not AutoCategory.RulesW then return end
+    PL.Apply(acctRules.predefLayouts,
+        AutoCategory.RulesW.ruleList)
+end
 
 -- find and return the rule referenced by name
 function AutoCat.GetRuleByName(name)
@@ -1082,6 +1105,13 @@ function AutoCat.onPlayerActivated()
 	AutoCat.acctSaved.rules = nil	-- no longer used
 	addTableRules(AutoCat.charSaved, ".charSaved", false)
 	AutoCat.charSaved.rules = nil	-- no longer used
+
+
+	-- the level/parent layouts the user gave to the predefined
+	-- categories are kept as per-name overrides in the account saved
+	-- rules: apply them onto the freshly loaded rules before the
+	-- rules are compiled and the settings menus built
+	AutoCat.ApplyPredefinedLayouts()
 
 	if logWouldDebug() then
 		-- protects SF.GetSize execution

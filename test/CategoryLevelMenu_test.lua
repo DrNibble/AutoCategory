@@ -55,6 +55,11 @@ assert(loadfile("AutoCategory_LevelMenu.lua"))()
 local CLM = AutoCategory.CategoryLevelMenu
 local CategoryTree = AutoCategory.CategoryTree
 
+-- the level/parent layout of a predefined category is persisted as
+-- an override in the account saved rules: record the sync calls
+local syncCalls = 0
+AutoCategory.SyncPredefinedLayouts = function() syncCalls = syncCalls + 1 end
+
 -- a minimal rules world: the global rule list with a name lookup, the
 -- same shape AutoCategory.RulesW provides
 local ruleList = {}
@@ -289,7 +294,9 @@ local rD, rA, rB, rC = newRule("D", 1), newRule("A", 1),
 
 subtree = CLM.SubtreeInBag(4, "A")
 equal(true, CLM.CanIncrease(subtree), "levels 1-3 can increase")
+local syncBefore = syncCalls
 equal(true, CLM.ShiftLevels(4, subtree, 1), "increase applies")
+equal(syncBefore + 1, syncCalls, "a level shift persists the predefined layouts")
 equal(2, rA.level, "the category moves one level deeper")
 equal("D", rA.parent, "a top-level category attaches to the nearest level above")
 equal(3, rB.level, "children move one level deeper")
@@ -302,8 +309,10 @@ equal(true, CLM.CanIncrease(CLM.SubtreeInBag(4, "A")),
 rC.level = 5
 equal(false, CLM.CanIncrease(CLM.SubtreeInBag(4, "A")),
     "a level 5 category blocks the increase")
+local syncBefore2 = syncCalls
 equal(false, CLM.ShiftLevels(4, CLM.SubtreeInBag(4, "A"), 1),
     "the refused increase changes nothing")
+equal(syncBefore2, syncCalls, "a refused shift persists nothing")
 equal(2, rA.level, "levels untouched after a refused increase")
 
 -- decrease: explicit levels go down, level 1 becomes Normal
@@ -591,8 +600,10 @@ local rMid, rLeaf = newRule("Mid", 2, "TopA"), newRule("Leaf", 3, "Mid")
 local rOther = newRule("Other", 1)
 
 -- move Mid under TopB: same depth, Leaf keeps its place under Mid
+local syncBefore3 = syncCalls
 equal(true, CLM.MoveSubtreeToParent(20, "Mid", "TopB"),
     "the category moves under another category")
+equal(syncBefore3 + 1, syncCalls, "a move persists the predefined layouts")
 equal("TopB", rMid.parent, "the moved category is parented to the target")
 equal(2, rMid.level, "the moved category sits one level below the target")
 equal(3, rLeaf.level, "the children keep their depth under the category")
@@ -609,8 +620,10 @@ equal(nil, rLeaf.level, "a move to the top level makes the category Normal")
 equal(nil, rLeaf.parent, "a move to the top level clears the parent")
 
 -- refused moves
+local syncBefore4 = syncCalls
 equal(false, CLM.MoveSubtreeToParent(20, "Mid", "Mid"),
     "cannot move under itself")
+equal(syncBefore4, syncCalls, "a refused move persists nothing")
 equal(false, CLM.MoveSubtreeToParent(20, "Mid", "TopB"),
     "cannot move under the current parent")
 equal(false, CLM.MoveSubtreeToParent(20, "TopB", "Mid"),

@@ -44,6 +44,16 @@
   to the name field. The stock width is restored when the dialog
   closes, so the other dialogs that use the same window are
   unaffected.
+- The level and the parent of a predefined category can now be
+  changed in Category Settings: the Level and Parent dropdowns are
+  enabled for them (their name, tag, description, rule and deletion
+  stay protected). The change is kept as an override in the account
+  saved rules and re-applied at every load - the predefined
+  definitions themselves come from the addon code and are never
+  saved. The same persistence now covers the level and parent
+  operations of the category context menu (one level deeper or
+  shallower, move under another category), and a reset to defaults
+  clears the overrides.
 
 ## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
 

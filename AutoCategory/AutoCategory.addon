@@ -33,6 +33,7 @@ classes/BaseUI.lua
 AutoCategory.lua
 AutoCategory_LevelMenu.lua
 SavedVarsCompact.lua
+PredefinedLayouts.lua
 
 settings/UI_Utilities.lua
 settings/GeneralMenu.lua

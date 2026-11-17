@@ -299,6 +299,12 @@ function CLM.ShiftLevels(bagTypeId, subtree, delta)
     if newRootParent then
         subtree[1].rule.parent = newRootParent
     end
+    -- the level/parent layout of a predefined category is kept
+    -- as an override in the account saved rules (the definition
+    -- itself never is saved)
+    if AutoCategory.SyncPredefinedLayouts then
+        AutoCategory.SyncPredefinedLayouts()
+    end
     return true
 end
 
@@ -644,6 +650,12 @@ function CLM.MoveSubtreeToParent(bagTypeId, ruleName, newParentName)
     else
         root.level = nil
         root.parent = nil
+    end
+    -- the level/parent layout of a predefined category is kept
+    -- as an override in the account saved rules (the definition
+    -- itself never is saved)
+    if AutoCategory.SyncPredefinedLayouts then
+        AutoCategory.SyncPredefinedLayouts()
     end
     return true
 end

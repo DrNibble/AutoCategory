@@ -178,6 +178,11 @@ function AC_UI.CatSet.SetRuleLevel(rule, level)
 	end
 	CatSet_ParentDD_LAM:refresh()
 	CatSet_SyncEditRuleControls()
+	-- a predefined category keeps its level as an override in the
+	-- account saved rules (the definition itself never is saved)
+	if AutoCategory.SyncPredefinedLayouts then
+		AutoCategory.SyncPredefinedLayouts()
+	end
 	-- the level of the rule shows in the category tooltips
 	AutoCategory.cacheInitialize()
 	AC_UI.RefreshDropdownData()
@@ -314,6 +319,11 @@ function CatSet_ParentDD_LAM:setValue(value)
 	currentRule.parent = value
 	self.cvt.indexValue = value or AC_PARENT_NONE
 	self:updateControl()
+	-- a predefined category keeps its parent as an override in the
+	-- account saved rules (the definition itself never is saved)
+	if AutoCategory.SyncPredefinedLayouts then
+		AutoCategory.SyncPredefinedLayouts()
+	end
 	-- the level/parent of the rule shows in the category tooltips
 	AutoCategory.cacheInitialize()
 	AC_UI.RefreshDropdownData()
@@ -337,7 +347,9 @@ function CatSet_ParentDD_LAM:controlDef()
 			end,
 			setFunc = function(value) self:setValue(value) end,
 			disabled = function()
-				if currentRule == nil or currentRule:isPredefined() then return true end
+				if currentRule == nil then return true end
+				-- a predefined category accepts a new parent: only its
+				-- definition stays protected, its layout does not
 				return CatSet_Level_getRuleLevel(currentRule) < 2
 			end,
 			width = "half",
@@ -965,7 +977,9 @@ function AC_UI.CatSet.controlDef()
                     if not currentRule then return end
                     AC_UI.CatSet.SetRuleLevel(currentRule, value)
                 end,
-                disabled = function() return currentRule == nil or currentRule:isPredefined() end,
+                -- a predefined category accepts a new level: only its
+                -- definition stays protected, its layout does not
+                disabled = function() return currentRule == nil end,
                 width = "half",
                 reference = "AC_DROPDOWN_EDITRULE_LEVEL",
             },

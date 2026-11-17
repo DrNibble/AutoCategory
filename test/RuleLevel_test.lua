@@ -528,4 +528,61 @@ ok, name = match()
 equal(true, ok, "no-bag parent match")
 equal("Hors sac----Enfants libre", name, "a parent of no bag is still followed")
 
+-- ---------------------------------------------------------------------------
+-- Part 4: the level/parent layout of a predefined category, kept as a
+-- per-name override in the account saved rules (the predefined
+-- definitions themselves come from code and are never saved)
+-- ---------------------------------------------------------------------------
+AutoCategory = AutoCategory or {}
+assert(loadfile("PredefinedLayouts.lua"))()
+local PL = AutoCategory.PredefinedLayouts
+
+-- Collect: only the predefined categories that carry a layout
+local userRule = { name = "User", rule = "true", level = 2, parent = "P" }
+local predPlain = { name = "PredPlain", rule = "true", pred = 1 }
+local predLevel = { name = "PredLevel", rule = "true", pred = 1,
+    level = 3, parent = "PredPlain" }
+local predParent = { name = "PredParent", rule = "true", pred = 1,
+    parent = "User" }
+local overrides = PL.Collect({ userRule, predPlain, predLevel, predParent })
+equal(true, overrides ~= nil, "the collect returns a table")
+equal(nil, overrides["User"], "a user category is never collected")
+equal(nil, overrides["PredPlain"], "a predefined category without layout is not collected")
+equal(3, overrides["PredLevel"].level, "the level of a predefined category is collected")
+equal("PredPlain", overrides["PredLevel"].parent, "the parent of a predefined category is collected")
+equal(nil, overrides["PredParent"].level, "a parent-only override carries no level")
+equal("User", overrides["PredParent"].parent, "a parent-only override keeps its parent")
+equal(nil, PL.Collect({ userRule, predPlain }), "no layout means no table at all")
+equal(nil, PL.Collect(nil), "a missing rule list is a no-op")
+
+-- Collect: a cleared layout drops the entry again
+predLevel.level, predLevel.parent = nil, nil
+predParent.parent = nil
+overrides = PL.Collect({ predLevel, predParent })
+equal(nil, overrides, "a cleared layout empties the overrides")
+
+-- Apply: the overrides land on the matching predefined categories
+local a1 = { name = "PredLevel", rule = "true", pred = 1 }
+local a2 = { name = "User", rule = "true", level = 1 }
+PL.Apply({ PredLevel = { level = 2, parent = "PredPlain" } },
+    { a1, a2 })
+equal(2, a1.level, "the saved level is applied")
+equal("PredPlain", a1.parent, "the saved parent is applied")
+equal(1, a2.level, "a user category is never touched")
+PL.Apply({ User = { level = 5, parent = "X" } }, { a1, a2 })
+equal(1, a2.level, "an override never applies to a user category")
+equal(2, a1.level, "an override for another name changes nothing")
+
+-- Apply: an invalid value is skipped, the rule keeps what it has
+local a3 = { name = "Bad", rule = "true", pred = 1, level = 4 }
+PL.Apply({ Bad = { level = 0, parent = 5 } }, { a3 })
+equal(4, a3.level, "an out-of-range level is not applied")
+equal(nil, a3.parent, "a non-string parent is not applied")
+PL.Apply({ Bad = { level = 2.5 } }, { a3 })
+equal(4, a3.level, "a non-integer level is not applied")
+PL.Apply({ Bad = { level = 5.0 } }, { a3 })
+equal(5, a3.level, "an integral float level is applied")
+PL.Apply(nil, { a3 })
+equal(5, a3.level, "a nil override map is a no-op")
+
 print("PASS: " .. assertions .. " assertions (RuleLevel)")

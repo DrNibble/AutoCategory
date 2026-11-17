@@ -1,5 +1,18 @@
 # Changes
 
+## 2026-11-17: sub-level collapse entry, guild-bank ghosts, dialog proportions (4.6.28)
+
+- The right-click menu of a category header offers again a
+  "Collapse All Sub-Levels" entry (SI_CONTEXT_MENU_COLLAPSE_LEVEL_ALL,
+  "Réduire tout le sous-niveau"): it folds every sub-level of the
+  selected category at once, exactly like "Collapse All" but scoped
+  to the sub-levels of the clicked header. It is offered whenever the
+  category has at least one sub-level, and its counterpart
+  "Expand All Sub-Levels" ("Développer tout le sous-niveau") whenever
+  a sub-level (or the category itself) is folded. They replace the
+  per-level "Lower/Raise level" entries; the strings ship in all six
+  languages.
+
 ## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
 
 - The header right-click menu is reorganized: the execution priority

@@ -1426,23 +1426,22 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         )
     end
 
-    -- fold or unfold the display of the sub-levels under this category:
-    -- every lower-level header of the chain (the category itself keeps
-    -- its own items and its folded sub-headers)
+    -- "Collapse All Sub-Levels": the Collapse All operation scoped to
+    -- the sub-levels of the clicked category - every lower-level header
+    -- of the chain folds, the category itself keeps its own items and
+    -- its folded sub-headers. Offered whenever the category has
+    -- sub-levels, like Collapse All is always offered, so the entry no
+    -- longer disappears once every sub-level is already folded.
     local subLevels = subLevelNames(cateName, bagTypeId)
-    local anySubExpanded = false
     local anySubCollapsed = false
     for _, name in ipairs(subLevels) do
         if AutoCat.IsCategoryCollapsed(bagTypeId, name) then
             anySubCollapsed = true
-        else
-            anySubExpanded = true
         end
     end
-    -- fold: collapse every sub-level, the category stays expanded
-    if anySubExpanded then
+    if #subLevels > 0 then
         AddMenuItem(
-            L(SI_AC_MENU_LEVEL_LOWER),
+            L(SI_CONTEXT_MENU_COLLAPSE_LEVEL_ALL),
             function()
                 for _, name in ipairs(subLevels) do
                     setCategoryCollapsed(bagTypeId, name, true)
@@ -1451,12 +1450,12 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
             end
         )
     end
-    -- unfold: expand the category itself when folded, and every folded
-    -- sub-level with it
+    -- "Expand All Sub-Levels": expand the category itself when folded,
+    -- and every folded sub-level with it
     if anySubCollapsed
             or AutoCat.IsCategoryCollapsed(bagTypeId, cateName) then
         AddMenuItem(
-            L(SI_AC_MENU_LEVEL_RAISE),
+            L(SI_CONTEXT_MENU_EXPAND_LEVEL_ALL),
             function()
                 setCategoryCollapsed(bagTypeId, cateName, false)
                 for _, name in ipairs(subLevels) do

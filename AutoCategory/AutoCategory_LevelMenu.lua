@@ -1165,7 +1165,7 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
         ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
     if dialog then
         setupNewCategoryTagDropdown(dialog)
-        centerDialogButtons(dialog)
+        --centerDialogButtons(dialog)
     end
 end
 

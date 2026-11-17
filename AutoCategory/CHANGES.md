@@ -24,9 +24,13 @@
   cleared as soon as the category matches its first item - after
   that it is an ordinary category again, hidden when emptied. The
   orphan rules themselves are harmless and stay untouched.
-- New Category dialog: the tag dropdown is narrower (150
-  instead of 230 pixels) and the "Tag" label wider (200), so the
-  name edit box keeps more room beside the dropdown.
+- New Category dialog: the name edit box was collapsing to an
+  unusable sliver and the OK/Cancel buttons were not centered.
+  The layout is rebuilt: the name field always gets an explicit
+  width and never shrinks below 160 pixels, the tag dropdown
+  gives way first on a cramped row (down to 120), the room
+  reserved for the "Tag" label is back to 90, and the buttons
+  are centered on the width the edit box row really occupies.
 
 ## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
 

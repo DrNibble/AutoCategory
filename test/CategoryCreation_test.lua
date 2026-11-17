@@ -82,11 +82,10 @@ function comboBox:AddItem(entry) comboBoxItems[#comboBoxItems + 1] = entry end
 function comboBox:SelectItem(entry, ignoreCallback)
     if not ignoreCallback and entry.callback then entry.callback() end
 end
-local comboControl = {
-    SetWidth = function() end,
-    SetAnchor = function() end,
-    SetHidden = function() end,
-}
+local comboControl = { width = nil }
+function comboControl:SetWidth(width) self.width = width end
+function comboControl:SetAnchor() end
+function comboControl:SetHidden() end
 ZO_ComboBox_ObjectFromContainer = function() return comboBox end
 CT_LABEL = "CT_LABEL"
 RIGHT, TOPLEFT, TOPRIGHT, BOTTOMLEFT =
@@ -107,15 +106,14 @@ WINDOW_MANAGER = {
 -- the dialog's main text control: it spans the full edit box row,
 -- the reference the centered buttons are placed from
 local textControl = { GetWidth = function() return 540 end }
-local editControl = {
-    GetWidth = function() return 600 end,
-    SetWidth = function() end,
-    GetAnchor = function()
-        return true, "TOPLEFT", textControl, "BOTTOMLEFT", 0, 10
-    end,
-    ClearAnchors = function() end,
-    SetAnchor = function() end,
-}
+local editControl = { width = 600 }
+function editControl:GetWidth() return self.width end
+function editControl:SetWidth(width) self.width = width end
+function editControl:GetAnchor()
+    return true, "TOPLEFT", textControl, "BOTTOMLEFT", 0, 10
+end
+function editControl:ClearAnchors() end
+function editControl:SetAnchor() end
 -- the OK and Cancel buttons of the dialog: their anchors are
 -- recorded to check the horizontal centering. Each button hugs
 -- its name text but carries its key label and its paddings on
@@ -201,15 +199,21 @@ equal("Tag B", comboBoxItems[2].label, "second tag")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), comboBoxItems[3].label, "empty tag entry")
 equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "new tag entry")
 equal(true, tagLabel ~= nil, "the tag label is built beside the edit box")
+-- the name edit box keeps the leftover of the row: 600 - the
+-- label room (12 + 90 + 12) - the dropdown (150) = 336, above the
+-- 160 minimum, so the dropdown keeps its width
+equal(336, editControl.width, "the name edit box keeps the row's leftover width")
+equal(150, comboControl.width, "the dropdown keeps its width when the row fits")
 -- the OK and Cancel TEXTS are centered under the edit box row:
--- row 540, buttons 120 and 100 wide carrying name texts 40 and
--- 50 (5 pixels from their right edge), spacing 20 - the name
--- texts span [offX + 75, offX + 235] (button 1: 120 - 5 - 40)
--- so the pair starts at (540 - 240) / 2 - 35 = 115 from the left
+-- the row is the laid-out one (336 + 114 + 150 = 600), buttons 120
+-- and 100 wide carrying name texts 40 and 50 (5 pixels from their
+-- right edge), spacing 20 - the name texts span [offX + 75,
+-- offX + 235] (button 1: 120 - 5 - 40) so the pair starts at
+-- (600 - 240) / 2 - 35 = 145 from the left
 equal("TOPLEFT", button1.anchor[1], "the OK button is anchored from its top left")
 equal(editControl, button1.anchor[2], "the OK button sits under the edit box")
 equal("BOTTOMLEFT", button1.anchor[3], "measured from the left end of the row")
-equal(115, button1.anchor[4], "the pair of texts is centered on the row")
+equal(145, button1.anchor[4], "the pair of texts is centered on the row")
 equal(23, button1.anchor[5], "the framework's vertical offset is kept")
 equal("TOPLEFT", button2.anchor[1], "the Cancel button is anchored from its top left")
 equal(button1, button2.anchor[2], "the Cancel button sits right of the OK button")
@@ -523,5 +527,21 @@ equal(true, CLM.MoveCategoryPriority(21, "Top", -1), "Top moves down")
 equal(99, AutoCategory.saved.bags[21].rules[1].showpriority,
     "the neighbor is the displayed top-level Other, not the sub-level")
 AutoCategory.GetDisplayedHeaders = nil
+
+-- a cramped row: the name field must never collapse to a sliver
+-- (the 4.6.27 bug: the leftover fell below the guard, no width was
+-- set at all and the field became unusable) - the dropdown gives
+-- way first, down to its own minimum. Row 350: leftover 86 < 160,
+-- dropdown 350 - 114 - 160 = 76 < 120, so dropdown 120 and the
+-- field floors at 160
+editControl.width = 350
+assert(loadfile("AutoCategory_LevelMenu.lua"))()
+CLM = AutoCategory.CategoryLevelMenu
+CLM.OpenNewCategoryDialog(3)
+equal(160, editControl.width, "a cramped row still leaves a usable name field")
+equal(120, comboControl.width, "the dropdown shrinks to its minimum first")
+-- the buttons center on the cramped row: 160 + 114 + 120 = 394,
+-- so the pair starts at (394 - 240) / 2 - 35 = 42
+equal(42, button1.anchor[4], "the buttons center on the cramped row")
 
 print("CategoryCreation_test: " .. assertions .. " assertions passed")

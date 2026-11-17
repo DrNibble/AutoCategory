@@ -891,8 +891,13 @@ end
 -- control and reused; every opening refreshes the tag list and
 -- resets the selection to the empty tag (the previous default).
 local TAG_DROPDOWN_WIDTH = 150 -- the dropdown
-local TAG_LABEL_WIDTH = 200     -- room for the "Tag" label
+local TAG_DROPDOWN_MIN_WIDTH = 120 -- the dropdown never shrinks
+                                   -- below this, even on a cramped row
+local TAG_LABEL_WIDTH = 90     -- room for the "Tag" label
 local TAG_DROPDOWN_GAP = 12    -- between the edit box and the label
+local TAG_EDIT_MIN_WIDTH = 160 -- the name field never collapses
+                               -- below this (it becomes an unusable
+                               -- sliver without an explicit width)
 
 local newCategoryTagControls = nil -- { label, comboControl, comboBox }
 local newCategoryTagChoice = nil   -- the selected choice entry
@@ -942,21 +947,41 @@ local function setupNewCategoryTagDropdown(dialog)
     controls.label:SetHidden(false)
     controls.comboControl:SetHidden(false)
 
-    -- make room for the dropdown: the edit box keeps the left end
-    -- of its row and takes a fixed width, the label and the
-    -- dropdown sit at the right end (the anchors of the edit box
-    -- are set again by the dialog framework on every opening)
+    -- Make room for the dropdown on the edit box row: the edit
+    -- box keeps the left end of the row, the label and the
+    -- dropdown the right end. The dialog framework re-applies
+    -- the anchors of the edit box on every opening (a two-sided
+    -- pair that stretches it across the whole row); the single
+    -- anchor kept here plus an explicit width replaces that
+    -- stretch. The width is ALWAYS set: a leftover below the
+    -- minimum must never leave the edit box without a width -
+    -- it collapses to an unusable sliver then (the name field
+    -- of 4.6.27). The dropdown gives way first, down to its own
+    -- minimum; only then does the row overflow the framework's
+    -- width a little.
     local isValid, point, relTo, relPoint, offX, offY = edit:GetAnchor(0)
     if isValid and relTo then
         edit:ClearAnchors()
         edit:SetAnchor(point, relTo, relPoint, offX, offY)
     end
-    local editWidth = (controls.originalEditWidth or edit:GetWidth())
-        - TAG_DROPDOWN_GAP - TAG_LABEL_WIDTH
-        - TAG_DROPDOWN_GAP - TAG_DROPDOWN_WIDTH
-    if editWidth > 100 then
-        edit:SetWidth(editWidth)
+    local rowWidth = controls.originalEditWidth or edit:GetWidth()
+    local labelRoom = TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH
+        + TAG_DROPDOWN_GAP
+    local dropdownWidth = TAG_DROPDOWN_WIDTH
+    local editWidth = rowWidth - labelRoom - dropdownWidth
+    if editWidth < TAG_EDIT_MIN_WIDTH then
+        dropdownWidth = rowWidth - labelRoom - TAG_EDIT_MIN_WIDTH
+        if dropdownWidth < TAG_DROPDOWN_MIN_WIDTH then
+            dropdownWidth = TAG_DROPDOWN_MIN_WIDTH
+        end
+        editWidth = rowWidth - labelRoom - dropdownWidth
+        if editWidth < TAG_EDIT_MIN_WIDTH then
+            editWidth = TAG_EDIT_MIN_WIDTH
+        end
     end
+    controls.comboControl:SetWidth(dropdownWidth)
+    controls.dropdownWidth = dropdownWidth
+    edit:SetWidth(editWidth)
 
     comboBox:ClearItems()
     local choices = CLM.NewCategoryTagChoices()
@@ -988,18 +1013,31 @@ end
 -- vertical offset. Each button also carries its key label
 -- ([E], [ALT]) and its paddings on the left of its text, so the
 -- pair is positioned from the name labels (right-anchored inside
--- their button) instead of the button boxes. The edit box row
--- keeps its original width through the control its top anchor is
--- attached to (the main text of the dialog, spanning the full
--- row).
+-- their button) instead of the button boxes. The row the pair is
+-- centered on is the width the edit box row really occupies
+-- (edit box + label room + dropdown, as laid out by the setup
+-- above); the main text control the edit box is anchored to is
+-- only the fallback when the tag row was not built.
 local function centerDialogButtons(dialog)
     local edit = dialog:GetNamedChild("Edit")
     local b1 = dialog:GetNamedChild("Button1")
     local b2 = dialog:GetNamedChild("Button2")
     if not edit or not b1 or not b2 then return end
-    local isValid, _, relTo = edit:GetAnchor(0)
-    if not isValid or not relTo or not relTo.GetWidth then return end
-    local rowWidth = relTo:GetWidth()
+    local rowWidth = nil
+    if newCategoryTagControls and newCategoryTagControls.dropdownWidth
+        and newCategoryTagControls.dropdownWidth >= TAG_DROPDOWN_MIN_WIDTH
+        and edit.GetWidth then
+        rowWidth = edit:GetWidth() + TAG_DROPDOWN_GAP
+            + TAG_LABEL_WIDTH + TAG_DROPDOWN_GAP
+            + newCategoryTagControls.dropdownWidth
+    end
+    if not rowWidth then
+        local isValid, _, relTo = edit:GetAnchor(0)
+        if not isValid or not relTo or not relTo.GetWidth then
+            return
+        end
+        rowWidth = relTo:GetWidth()
+    end
     local spacing = 20 -- the framework's BUTTON_SPACING
     local w1, w2 = b1:GetWidth(), b2:GetWidth()
     -- the name text of each button and its inset from the

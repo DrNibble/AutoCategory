@@ -24,6 +24,9 @@
   cleared as soon as the category matches its first item - after
   that it is an ordinary category again, hidden when emptied. The
   orphan rules themselves are harmless and stay untouched.
+- New Category dialog: the tag dropdown is narrower (150
+  instead of 230 pixels) and the "Tag" label wider (200), so the
+  name edit box keeps more room beside the dropdown.
 
 ## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
 

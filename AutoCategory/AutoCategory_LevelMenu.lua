@@ -1277,6 +1277,29 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
     end
 end
 
+-- Wrap the rule text of the header context menu "Rule" submenu into
+-- single-line chunks: the context menu entries never wrap, so a long
+-- rule is cut at the last space that fits the line. The rule texts
+-- are filter expressions, so the words stay whole and the lines
+-- joined back with spaces give the rule again.
+local RULE_MENU_LINE_MAX = 75
+
+local function wrapRuleText(text)
+    local lines, cur = {}, ""
+    for word in tostring(text or ""):gmatch("%S+") do
+        if cur == "" then
+            cur = word
+        elseif #cur + 1 + #word <= RULE_MENU_LINE_MAX then
+            cur = cur .. " " .. word
+        else
+            lines[#lines + 1] = cur
+            cur = word
+        end
+    end
+    if cur ~= "" then lines[#lines + 1] = cur end
+    return lines
+end
+
 -- The AutoCategory entries of the category header context menu: the
 -- execution priority of the clicked category, its level and
 -- display-position operations in a "Level" submenu, the move of
@@ -1324,6 +1347,34 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
                 string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
                     infoBagrule.runpriority),
                 function() end, MENU_ADD_OPTION_LABEL)
+        end
+
+        -- the rule of the category (read-only information): a "Rule"
+        -- submenu right after the priority display, holding the
+        -- execution priority again and the rule text of the clicked
+        -- category - the criteria its items are sorted by, the same
+        -- text the rule editbox of the settings shows. The context
+        -- menu entries are single-line, so a long rule text is
+        -- wrapped over as many entries as needed.
+        local ruleEntries = {}
+        if infoBagrule and infoBagrule.runpriority then
+            ruleEntries[#ruleEntries + 1] = {
+                label = string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
+                    infoBagrule.runpriority),
+                callback = function() end,
+            }
+        end
+        local ruleText = rule.rule or ""
+        if ruleText ~= "" then
+            for _, line in ipairs(wrapRuleText(ruleText)) do
+                ruleEntries[#ruleEntries + 1] = {
+                    label = line,
+                    callback = function() end,
+                }
+            end
+        end
+        if #ruleEntries > 0 then
+            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_RULE), ruleEntries)
         end
 
         -- the level and display-position operations of the

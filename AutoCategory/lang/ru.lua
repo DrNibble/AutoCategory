@@ -272,6 +272,8 @@ AutoCategory_localization_strings["ru"] = {
     SI_AC_MENU_CM_COPY_SUBMENU = "Копировать в",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Переместить в",
     SI_AC_MENU_CM_MOVE_TOP = "Верхний уровень",
+    SI_AC_MENU_CM_RUN_PRIORITY = "Приоритет выполнения: %d",
+    SI_AC_MENU_CM_RULE = "Правило",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: скопировано категорий в %s: %d (уже было: %d).",
 
 }

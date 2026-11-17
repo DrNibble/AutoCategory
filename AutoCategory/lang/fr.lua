@@ -249,6 +249,7 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_MENU_CM_MOVE_SUBMENU = "Déplacer vers",
     SI_AC_MENU_CM_MOVE_TOP = "Premier niveau",
     SI_AC_MENU_CM_RUN_PRIORITY = "Priorité d'exécution : %d",
+    SI_AC_MENU_CM_RULE = "Règle",
     SI_AC_NEW_CATEGORY_EMPTY_CHILD = "(vide)",
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES = "Afficher les catégories vides",
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES_TOOLTIP = "Affiche l'en-tête de chaque catégorie du sac, même si aucun objet ne correspond à sa règle.",

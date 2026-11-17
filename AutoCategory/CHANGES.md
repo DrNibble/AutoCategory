@@ -2,6 +2,13 @@
 
 ## 2026-11-18: header Rule submenu, Parent dropdown selection (5.0.1)
 
+- The right-click menu of a category header offers a new "Rule"
+  submenu (SI_AC_MENU_CM_RULE) right after the execution priority
+  display: it holds the run priority of the category and the content
+  of its rule - the same text the rule editbox of the settings
+  shows. The context menu entries are single-line, so a long rule
+  is wrapped over as many entries as needed, cut at word
+  boundaries; the strings ship in all six languages.
 - Category Settings: the Parent dropdown lost its displayed
   selection after picking a parent - the refresh that rebuilds
   the choices (LAM's UpdateChoices clears the combobox items)

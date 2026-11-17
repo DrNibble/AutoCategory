@@ -280,6 +280,7 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_MENU_CM_MOVE_SUBMENU = "Move To",
     SI_AC_MENU_CM_MOVE_TOP = "Top Level",
     SI_AC_MENU_CM_RUN_PRIORITY = "Execution Priority: %d",
+    SI_AC_MENU_CM_RULE = "Rule",
     SI_AC_NEW_CATEGORY_EMPTY_CHILD = "(empty)",
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES = "Show Empty Categories",
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES_TOOLTIP = "Shows the header of every category of the bag, even when no item matches its rule.",

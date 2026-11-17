@@ -876,8 +876,8 @@ end
 -- follow-up context menu. The controls are built once per dialog
 -- control and reused; every opening refreshes the tag list and
 -- resets the selection to the empty tag (the previous default).
-local TAG_DROPDOWN_WIDTH = 230 -- the dropdown
-local TAG_LABEL_WIDTH = 90     -- room for the "Tag" label
+local TAG_DROPDOWN_WIDTH = 150 -- the dropdown
+local TAG_LABEL_WIDTH = 200     -- room for the "Tag" label
 local TAG_DROPDOWN_GAP = 12    -- between the edit box and the label
 
 local newCategoryTagControls = nil -- { label, comboControl, comboBox }

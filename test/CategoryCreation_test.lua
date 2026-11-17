@@ -357,6 +357,8 @@ equal(true, entries[3].showpriority > entries[4].showpriority, "bottom remains l
 equal(100, entries[1].runpriority, "run priority untouched")
 equal(otherPriority, AutoCategory.saved.bags[3].rules[1].showpriority,
     "other bag priorities are unchanged")
+equal(true, CLM.CreatedThisSession["First created"] ~= nil,
+    "created category marked for the session empty display")
 local second = assert(CLM.CreateCategory(5, "Second created"))
 equal(1000, entries[7].showpriority, "repeated creation goes to the top")
 equal(999, entries[5].showpriority, "previous new category remains directly below")

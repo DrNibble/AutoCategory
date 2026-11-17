@@ -517,4 +517,44 @@ equal("Potions", childHeader.data.AC_parentName, "child header parent")
 equal(nil, childHeader.data.AC_isParent, "child is not a parent")
 equal(nil, H.createHeaderEntry(nil), "nil catInfo")
 
+-- createdThisSession: a category created this session shows its (empty)
+-- header even when "Display empty categories" is off; the marker is
+-- cleared once items land, and an ordinary emptied category stays hidden.
+AutoCategory.saved.bags[1] = { rules = { { name = "Ma catégorie" } } }
+AutoCategory.CategoryLevelMenu = { CreatedThisSession = {} }
+local CLM = AutoCategory.CategoryLevelMenu
+CLM.CreatedThisSession["Ma catégorie"] = true
+
+local function hasHeader(entries, name)
+    for _, e in ipairs(entries) do
+        if e.typeId == CATEGORY_HEADER
+            and e.data.AC_categoryName == name then return true end
+    end
+    return false
+end
+
+-- slot 100 unmatched: the list is non-empty (bag 1 present) but the new
+-- category matched nothing
+matchMap[100] = nil
+local sessionItems = { itemEntry(100) }
+runRules(sessionItems)
+equal(true, hasHeader(H.createNewScrollData(sessionItems), "Ma catégorie"),
+    "createdThisSession shows empty header with option off")
+equal(true, CLM.CreatedThisSession["Ma catégorie"] ~= nil,
+    "marker kept while the category is still empty")
+
+-- items land: the category shows on its own and the marker is cleared
+matchMap[100] = { category = "Ma catégorie" }
+runRules(sessionItems)
+equal(true, hasHeader(H.createNewScrollData(sessionItems), "Ma catégorie"),
+    "header shown once items land")
+equal(nil, CLM.CreatedThisSession["Ma catégorie"],
+    "marker cleared once items land")
+
+-- emptied again: an ordinary emptied category stays hidden
+matchMap[100] = nil
+runRules(sessionItems)
+equal(false, hasHeader(H.createNewScrollData(sessionItems), "Ma catégorie"),
+    "emptied category hidden again after the marker is gone")
+
 print("PASS: " .. assertions .. " assertions (CategoryTree)")

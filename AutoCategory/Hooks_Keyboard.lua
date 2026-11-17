@@ -697,37 +697,38 @@ local function createNewScrollData(scrollData)
         end
     else
         -- With the option off, a category that matched no item still
-        -- shows right after its creation: the creation adds a hidden
-        -- placeholder sub-category (a "false" rule nested under the
-        -- new category, see CLM.CreateCategory) that never matches
-        -- anything. The placeholder keeps the new category a parent
-        -- of nested rules, so its header displays (empty) until
-        -- items land in it - and only then: an ordinary emptied
-        -- category stays hidden.
-        -- the categories that carry a placeholder child rule
-        local markedParents = {}
-        local ruleList = AutoCategory.RulesW
-            and AutoCategory.RulesW.ruleList or {}
-        for r = 1, #ruleList do
-            local rule = ruleList[r]
-            if rule and type(rule.parent) == "string"
-                    and rule.parent ~= ""
-                    and rule.rule == "false" then
-                markedParents[rule.parent] = true
-            end
-        end
-        for bagTypeId in pairs(bagTypeIdsInList()) do
-            local savedBag = AutoCategory.saved.bags[bagTypeId]
-            local bagRules = savedBag and savedBag.rules
-            if bagRules then
-                for i = 1, #bagRules do
-                    local bagrule = bagRules[i]
-                    if bagrule and type(bagrule.name) == "string"
-                            and bagrule.name ~= ""
-                            and not bagrule.isHidden
-                            and markedParents[bagrule.name]
-                            and cnsd_categoryList[bagrule.name] == nil then
-                        addEmptyCategoryHeader(bagTypeId, bagrule)
+        -- shows right after its creation, and only then: an ordinary
+        -- emptied category stays hidden. The marker is the session
+        -- table of the categories created since the UI loaded
+        -- (CLM.CreatedThisSession, see CLM.CreateCategory): an orphan
+        -- "false" rule left over from an earlier session (an old
+        -- "new sub-level", a leftover placeholder) no longer keeps a
+        -- category visible as a zero-count header forever - the
+        -- guild-bank "PvP [0]" / "Commandes scellées [0]" ghosts.
+        -- Once the category has matched its first item the marker is
+        -- cleared: after that it is an ordinary category and hides
+        -- when emptied again.
+        local CLM = AutoCategory.CategoryLevelMenu
+        local createdThisSession = CLM and CLM.CreatedThisSession
+        if createdThisSession then
+            for bagTypeId in pairs(bagTypeIdsInList()) do
+                local savedBag = AutoCategory.saved.bags[bagTypeId]
+                local bagRules = savedBag and savedBag.rules
+                if bagRules then
+                    for i = 1, #bagRules do
+                        local bagrule = bagRules[i]
+                        if bagrule and type(bagrule.name) == "string"
+                                and bagrule.name ~= ""
+                                and not bagrule.isHidden
+                                and createdThisSession[bagrule.name] then
+                            if cnsd_categoryList[bagrule.name] then
+                                -- items landed: the category shows on
+                                -- its own, the marker's job is done
+                                createdThisSession[bagrule.name] = nil
+                            else
+                                addEmptyCategoryHeader(bagTypeId, bagrule)
+                            end
+                        end
                     end
                 end
             end

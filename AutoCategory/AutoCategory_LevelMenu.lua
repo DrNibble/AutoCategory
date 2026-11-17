@@ -24,6 +24,15 @@ local CategoryTree = AutoCategory.CategoryTree
 local CLM = {}
 AutoCategory.CategoryLevelMenu = CLM
 
+-- The categories created during this session: they display a zero-count
+-- header right after creation, even with the Show Empty Categories
+-- option off, until their first items land (see createNewScrollData).
+-- The marker is deliberately NOT persisted: an orphan "false" rule
+-- left over from an earlier session (an old "new sub-level", a
+-- leftover placeholder) must not keep a category visible as an empty
+-- header forever - the [0] ghosts seen in the guild bank.
+CLM.CreatedThisSession = {}
+
 -- The sub-menu level of a rule for the level logic: the Level dropdown
 -- value when it is a whole number 1-5, and 1 for everything else (the
 -- same effective level as MatchCategoryRules: a Normal category counts
@@ -458,14 +467,14 @@ function CLM.CreateCategory(bagTypeId, name, tag)
     savedBag.rules[#savedBag.rules + 1] = entry
 
     -- An empty category is invisible while nothing matches its rule
-    -- (the inventory only builds headers from matching items). Give
-    -- every new category a hidden placeholder sub-category: its rule
-    -- is false, so it never matches anything and never displays, but
-    -- its parent link keeps the new category a structural parent, so
-    -- the new category's header shows (empty) until items land in it
-    -- - even with the empty-category display option off (see
-    -- createNewScrollData). The placeholder is an ordinary category:
-    -- it can be edited (drop items in it) or deleted like any other.
+    -- (the inventory only builds headers from matching items). The
+    -- zero-count header right after creation comes from the session
+    -- marker (CLM.CreatedThisSession), not from a persisted marker:
+    -- give every new category a hidden placeholder sub-category only
+    -- to keep it a structural parent of nested rules. Its rule is
+    -- false, so it never matches anything and never displays. The
+    -- placeholder is an ordinary category: it can be edited (drop
+    -- items in it) or deleted like any other.
     local childName = AutoCategory.GetUsableRuleName(
         newName .. " " .. GetString(SI_AC_NEW_CATEGORY_EMPTY_CHILD))
     local childRule = AutoCategory.CreateRule(childName, newRule.tag)
@@ -481,6 +490,11 @@ function CLM.CreateCategory(bagTypeId, name, tag)
         AutoCategory.cache.AddRule(childRule)
         savedBag.rules[#savedBag.rules + 1] = childEntry
     end
+
+    -- Show the new category right away, even with the Show Empty
+    -- Categories option off: the session marker above drives the
+    -- zero-count header of createNewScrollData.
+    CLM.CreatedThisSession[newName] = true
     return newRule
 end
 

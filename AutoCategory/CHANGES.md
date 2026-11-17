@@ -12,6 +12,18 @@
   a sub-level (or the category itself) is folded. They replace the
   per-level "Lower/Raise level" entries; the strings ship in all six
   languages.
+- The guild bank showed permanent zero-count headers ("PvP [0]",
+  "Commandes scellées [0]") in every bag: orphan "false" rules
+  left over from earlier sessions (an abandoned "new sub-level"
+  placeholder) kept their parent categories marked as parents of
+  a never-matching rule, and the empty-category display showed
+  them everywhere. The empty display no longer scans the rules:
+  a category created since the UI loaded (CLM.CreatedThisSession,
+  set by the New Category dialog) shows right after its creation
+  even when "Display empty categories" is off, and the marker is
+  cleared as soon as the category matches its first item - after
+  that it is an ordinary category again, hidden when emptied. The
+  orphan rules themselves are harmless and stay untouched.
 
 ## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
 

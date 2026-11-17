@@ -843,9 +843,7 @@ local function refreshAfterChange()
 end
 
 local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
-local NEW_TAG_DIALOG = "AUTO_CATEGORY_NEW_TAG"
 local newCategoryDialogRegistered = false
-local newTagDialogRegistered = false
 
 -- Create the new category in the captured bag with the chosen tag.
 -- The name was already validated when the tag was chosen; creation can
@@ -862,10 +860,10 @@ end
 
 -- The tag choices of the New Category dialog dropdown: the existing
 -- tags (sorted), the empty tag (the previous default) and an entry
--- that opens the name dialog of a brand new tag. The value is the
+-- for a brand new tag. The value is the
 -- tag the new category gets (nil keeps the empty tag); the new-tag
--- entry is marked with isNew and defers the creation to the tag
--- dialog.
+-- entry is marked with isNew and shows the tag name input row
+-- inside the same dialog.
 function CLM.NewCategoryTagChoices()
     local RulesW = AutoCategory.RulesW
     local tags = RulesW and RulesW.tags or {}
@@ -887,9 +885,10 @@ end
 
 -- The tag dropdown of the New Category dialog, directly beside the
 -- edit box: the name and the tag are chosen in the same dialog, no
--- follow-up context menu. The controls are built once per dialog
--- control and reused; every opening refreshes the tag list and
--- resets the selection to the empty tag (the previous default).
+-- follow-up dialog or context menu. The controls are built once
+-- per dialog control and reused; every opening refreshes the tag
+-- list and resets the selection to the empty tag (the previous
+-- default).
 local TAG_DROPDOWN_WIDTH = 150 -- the dropdown
 local TAG_DROPDOWN_MIN_WIDTH = 120 -- the dropdown never shrinks
                                    -- below this, even on a cramped row
@@ -899,8 +898,13 @@ local TAG_EDIT_MIN_WIDTH = 160 -- the name field never collapses
                                -- below this (it becomes an unusable
                                -- sliver without an explicit width)
 
-local newCategoryTagControls = nil -- { label, comboControl, comboBox }
+local newCategoryTagControls = nil -- { label, comboControl, comboBox,
+                                   --   tagNameLabel, tagEdit, tagEditBox }
 local newCategoryTagChoice = nil   -- the selected choice entry
+local newTagRowShown = false       -- the tag name input row is visible
+local centerDialogButtons = nil    -- forward declaration: showing and
+                                   -- hiding the tag name row re-centers
+                                   -- the OK and Cancel buttons under it
 
 -- The choice currently selected in the dropdown of the open dialog
 -- (the empty tag before the user picks one).
@@ -908,11 +912,47 @@ function CLM.GetNewCategoryTagChoice()
     return newCategoryTagChoice
 end
 
+-- The tag name input row, below the edit box row of the same dialog:
+-- shown while "New Tag..." is selected in the dropdown, hidden
+-- for every other choice (and its text is cleared, so the next
+-- opening starts fresh). Selecting the entry gives the field the
+-- focus: the name is typed right away, in the field that just
+-- appeared.
+local function showNewTagNameRow()
+    local controls = newCategoryTagControls
+    if not controls then return end
+    controls.tagNameLabel:SetHidden(false)
+    controls.tagEdit:SetHidden(false)
+    newTagRowShown = true
+    local box = controls.tagEditBox
+    if box and box.TakeFocus then box:TakeFocus() end
+    if centerDialogButtons and ZO_Dialogs_FindDialog then
+        local dialog = ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
+        if dialog then centerDialogButtons(dialog) end
+    end
+end
+
+local function hideNewTagNameRow()
+    newTagRowShown = false
+    local controls = newCategoryTagControls
+    if not controls then return end
+    controls.tagNameLabel:SetHidden(true)
+    controls.tagEdit:SetHidden(true)
+    -- clear the typed name: a hidden field must not keep it
+    local box = controls.tagEditBox
+    if box and box.SetText then box:SetText("") end
+    if centerDialogButtons and ZO_Dialogs_FindDialog then
+        local dialog = ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
+        if dialog then centerDialogButtons(dialog) end
+    end
+end
+
 local function hideNewCategoryTagDropdown()
     if newCategoryTagControls then
         newCategoryTagControls.label:SetHidden(true)
         newCategoryTagControls.comboControl:SetHidden(true)
     end
+    hideNewTagNameRow()
 end
 
 local function setupNewCategoryTagDropdown(dialog)
@@ -933,12 +973,36 @@ local function setupNewCategoryTagDropdown(dialog)
         label:SetAnchor(RIGHT, comboControl, LEFT, -TAG_DROPDOWN_GAP, 2)
         comboControl:SetAnchor(TOPLEFT, edit, TOPRIGHT,
             TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH + TAG_DROPDOWN_GAP, 2)
+        -- the tag name input row, below the edit box row: the
+        -- label starts the row, the input field takes the rest
+        -- of the row after it (its width is set per opening,
+        -- from the row width minus the label)
+        local tagNameLabel = WINDOW_MANAGER:CreateControl(
+            "$(parent)ACTagNameLabel", dialog, CT_LABEL)
+        tagNameLabel:SetFont("ZoFontGame")
+        tagNameLabel:SetText(GetString(SI_AC_DIALOG_TAG_NAME_FIELD))
+        local tagEdit = CreateControlFromVirtual(
+            "$(parent)ACTagEdit", dialog,
+            "ZO_SingleLineEditBackdrop_Keyboard")
+        local tagEditBox = CreateControlFromVirtual(
+            "$(parent)ACTagEditBox", tagEdit,
+            "ZO_DefaultEditForBackdrop")
+        tagNameLabel:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, 0, 13)
+        tagEdit:SetAnchor(TOPLEFT, tagNameLabel, TOPRIGHT,
+            TAG_DROPDOWN_GAP, -3)
+        tagNameLabel:SetHidden(true)
+        tagEdit:SetHidden(true)
         newCategoryTagControls = {
             label = label,
             comboControl = comboControl,
             comboBox = ZO_ComboBox_ObjectFromContainer(comboControl),
+            tagNameLabel = tagNameLabel,
+            tagEdit = tagEdit,
+            tagEditBox = tagEditBox,
         }
         newCategoryTagControls.originalEditWidth = edit:GetWidth()
+        newCategoryTagControls.tagNameLabelWidth =
+            tagNameLabel:GetWidth()
     end
 
     local controls = newCategoryTagControls
@@ -982,6 +1046,10 @@ local function setupNewCategoryTagDropdown(dialog)
     controls.comboControl:SetWidth(dropdownWidth)
     controls.dropdownWidth = dropdownWidth
     edit:SetWidth(editWidth)
+    -- the tag name input row spans the same row width: the
+    -- label at its left, the input field after it
+    controls.tagEdit:SetWidth(rowWidth
+        - (controls.tagNameLabelWidth or 120) - TAG_DROPDOWN_GAP)
 
     comboBox:ClearItems()
     local choices = CLM.NewCategoryTagChoices()
@@ -990,6 +1058,11 @@ local function setupNewCategoryTagDropdown(dialog)
         local choice = choices[i]
         local entry = comboBox:CreateItemEntry(choice.label, function()
             newCategoryTagChoice = choice
+            if choice.isNew then
+                showNewTagNameRow()
+            else
+                hideNewTagNameRow()
+            end
         end)
         comboBox:AddItem(entry)
         if choice.value == nil and not choice.isNew then
@@ -997,8 +1070,10 @@ local function setupNewCategoryTagDropdown(dialog)
         end
     end
     -- reset the selection to the empty tag without firing its
-    -- callback
+    -- callback, and hide the tag name input row of the
+    -- "New Tag..." entry until it is selected again
     newCategoryTagChoice = nil
+    hideNewTagNameRow()
     if defaultEntry then
         comboBox:SelectItem(defaultEntry, true)
     end
@@ -1018,11 +1093,19 @@ end
 -- (edit box + label room + dropdown, as laid out by the setup
 -- above); the main text control the edit box is anchored to is
 -- only the fallback when the tag row was not built.
-local function centerDialogButtons(dialog)
+centerDialogButtons = function(dialog)
     local edit = dialog:GetNamedChild("Edit")
     local b1 = dialog:GetNamedChild("Button1")
     local b2 = dialog:GetNamedChild("Button2")
     if not edit or not b1 or not b2 then return end
+    -- the row the buttons sit under: the tag name input row
+    -- while it is shown (it spans the full row width), the
+    -- edit box row otherwise
+    local anchorTo = edit
+    if newTagRowShown and newCategoryTagControls
+        and newCategoryTagControls.tagEdit then
+        anchorTo = newCategoryTagControls.tagEdit
+    end
     local rowWidth = nil
     if newCategoryTagControls and newCategoryTagControls.dropdownWidth
         and newCategoryTagControls.dropdownWidth >= TAG_DROPDOWN_MIN_WIDTH
@@ -1061,55 +1144,16 @@ local function centerDialogButtons(dialog)
     b1:ClearAnchors()
     b2:ClearAnchors()
     if b2:IsHidden() then
-        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT,
+        b1:SetAnchor(TOPLEFT, anchorTo, BOTTOMLEFT,
             (rowWidth - t1) / 2 - (w1 - t1 - r1), 23)
     else
         -- offset so that the pair of texts is centered on the
         -- row (the buttons keep the framework's spacing)
         local offX = (rowWidth - (w1 + spacing + w2)) / 2
             + (r1 + r2 + t1 - w1) / 2
-        b1:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, offX, 23)
+        b1:SetAnchor(TOPLEFT, anchorTo, BOTTOMLEFT, offX, 23)
         b2:SetAnchor(TOPLEFT, b1, TOPRIGHT, spacing, 0)
     end
-end
-
-function CLM.OpenNewTagDialog(bagTypeId, name)
-    if not newTagDialogRegistered then
-        ZO_Dialogs_RegisterCustomDialog(NEW_TAG_DIALOG, {
-            title = { text = SI_AC_MENU_CM_TAG_NEW },
-            mainText = { text = SI_AC_DIALOG_TAG_NAME_PROMPT },
-            editBox = { defaultText = "", maxInputCharacters = 128 },
-            buttons = {
-                {
-                    text = SI_OK,
-                    noReleaseOnClick = true,
-                    callback = function(dialog)
-                        local tag = ZO_Dialogs_GetEditBoxText(dialog)
-                        tag = type(tag) == "string"
-                            and tag:match("^%s*(.-)%s*$") or ""
-                        if tag == "" then
-                            ZO_Dialogs_UpdateDialogMainText(dialog,
-                                { text = GetString(
-                                    SI_AC_DIALOG_TAG_NAME_EMPTY) })
-                            return
-                        end
-                        -- native dialogs clear their state on
-                        -- release: capture the dialog data first
-                        local data = dialog.data
-                        ZO_Dialogs_ReleaseDialog(NEW_TAG_DIALOG)
-                        if data and data.bagTypeId and data.name then
-                            createCategoryWithTag(data.bagTypeId,
-                                data.name, tag)
-                        end
-                    end,
-                },
-                { text = SI_DIALOG_CANCEL },
-            },
-        })
-        newTagDialogRegistered = true
-    end
-    ZO_Dialogs_ShowDialog(NEW_TAG_DIALOG,
-        { bagTypeId = bagTypeId, name = name })
 end
 
 function CLM.OpenNewCategoryDialog(bagTypeId)
@@ -1138,18 +1182,31 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
                                 { text = GetString(err) })
                             return
                         end
-                        ZO_Dialogs_ReleaseDialog(NEW_CATEGORY_DIALOG)
                         -- then apply the tag chosen in the dropdown
                         -- beside the edit box: the empty tag (the
-                        -- previous default), an existing tag, or the
-                        -- new-tag dialog before creating anything
+                        -- previous default), an existing tag, or a
+                        -- brand new one typed in the input row
+                        -- below, in the same dialog (that row is
+                        -- shown while "New Tag..." is selected). A
+                        -- blank tag name keeps the dialog open too
                         local choice = CLM.GetNewCategoryTagChoice()
+                        local newTag = nil
                         if choice and choice.isNew then
-                            CLM.OpenNewTagDialog(bagTypeId, newName)
-                        else
-                            createCategoryWithTag(bagTypeId, newName,
-                                choice and choice.value or nil)
+                            local text = newCategoryTagControls
+                                and newCategoryTagControls.tagEditBox
+                                    :GetText()
+                            newTag = type(text) == "string"
+                                and text:match("^%s*(.-)%s*$") or ""
+                            if newTag == "" then
+                                ZO_Dialogs_UpdateDialogMainText(dialog,
+                                    { text = GetString(
+                                        SI_AC_DIALOG_TAG_NAME_EMPTY) })
+                                return
+                            end
                         end
+                        ZO_Dialogs_ReleaseDialog(NEW_CATEGORY_DIALOG)
+                        createCategoryWithTag(bagTypeId, newName,
+                            newTag or (choice and choice.value or nil))
                     end,
                 },
                 { text = SI_DIALOG_CANCEL },

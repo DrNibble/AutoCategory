@@ -31,6 +31,13 @@
   gives way first on a cramped row (down to 120), the room
   reserved for the "Tag" label is back to 90, and the buttons
   are centered on the width the edit box row really occupies.
+- The tag of a new category is now chosen in the same dialog: picking
+  "New Tag..." in the dropdown shows a tag name input row below
+  the category name field (the OK and Cancel buttons move under
+  it), instead of opening a second dialog after the first one
+  closes. A blank tag name is refused without closing the dialog;
+  switching the dropdown back to an existing tag hides the row and
+  clears what was typed.
 
 ## 2026-11-16: header menu rework, tag dropdown, predefined rules, collapse all (4.6.27)
 

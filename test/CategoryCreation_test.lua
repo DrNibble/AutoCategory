@@ -11,7 +11,7 @@ for _, key in ipairs({
     "SI_AC_MENU_CM_NEW_CATEGORY", "SI_AC_DEFAULT_NAME_EMPTY_TAG",
     "SI_AC_DIALOG_CATEGORY_NAME_PROMPT", "SI_AC_DIALOG_CATEGORY_NAME_EMPTY",
     "SI_AC_DIALOG_CATEGORY_NAME_EXISTS", "SI_AC_DIALOG_CATEGORY_CREATE_FAILED",
-    "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_PROMPT",
+    "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_FIELD",
     "SI_AC_DIALOG_TAG_NAME_EMPTY", "SI_AC_MENU_CS_DROPDOWN_TAG",
     "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
     "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
@@ -90,10 +90,39 @@ ZO_ComboBox_ObjectFromContainer = function() return comboBox end
 CT_LABEL = "CT_LABEL"
 RIGHT, TOPLEFT, TOPRIGHT, BOTTOMLEFT =
     "RIGHT", "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT"
-CreateControlFromVirtual = function(name, parent, virtual) return comboControl end
+-- the tag name input row of the "New Tag..." entry: the backdrop,
+-- the edit box inside it
+local tagEdit = { width = nil, hidden = true }
+function tagEdit:SetWidth(width) self.width = width end
+function tagEdit:SetAnchor() end
+function tagEdit:SetHidden(hidden) self.hidden = hidden end
+local tagEditBox = { text = "" }
+function tagEditBox:SetAnchor() end
+function tagEditBox:SetText(text) self.text = text end
+function tagEditBox:GetText() return self.text end
+function tagEditBox:TakeFocus() end
+CreateControlFromVirtual = function(name, parent, virtual)
+    if virtual == "ZO_ComboBox" then return comboControl end
+    if virtual == "ZO_SingleLineEditBackdrop_Keyboard" then
+        return tagEdit
+    end
+    if virtual == "ZO_DefaultEditForBackdrop" then return tagEditBox end
+    return comboControl
+end
 local tagLabel = nil
+local tagNameLabel = {
+    width = 150,
+    SetFont = function() end,
+    SetText = function() end,
+    SetAnchor = function() end,
+    SetHidden = function(self, hidden) self.hidden = hidden end,
+    GetWidth = function() return 150 end,
+}
 WINDOW_MANAGER = {
     CreateControl = function(self, name, parent, controlType)
+        if name == "$(parent)ACTagNameLabel" then
+            return tagNameLabel
+        end
         tagLabel = {
             SetFont = function() end,
             SetText = function(self, text) self.text = text end,
@@ -285,10 +314,13 @@ local count = #AutoCategory.RulesW.ruleList
 equal(nil, CLM.CreateCategory(99, "Missing bag"), "unknown bag refused")
 equal(count, #AutoCategory.RulesW.ruleList, "unknown bag leaves no orphan rule")
 
--- New Tag... entry of the dropdown: the name dialog closes, the tag
--- dialog opens; blank refused, valid tag creates the category.
+-- New Tag... entry of the dropdown: the tag name input row appears
+-- IN THE SAME dialog, below the edit box row; blank refused (the
+-- dialog stays open), valid tag creates the category.
 AutoCategory.saved.bags[8] = { rules = {} }
 CLM.OpenNewCategoryDialog(8)
+equal(true, tagEdit.hidden, "the tag name input row is hidden by default")
+equal(438, tagEdit.width, "the tag name input spans the row after its label")
 local newTagEntry = nil
 for i = 1, #comboBoxItems do
     if comboBoxItems[i].label == SI_AC_MENU_CM_TAG_NEW then
@@ -297,12 +329,17 @@ for i = 1, #comboBoxItems do
 end
 equal(true, newTagEntry ~= nil, "the dropdown offers New Tag")
 newTagEntry.callback()
+equal(false, tagEdit.hidden, "the tag name input row appears in the same dialog")
+-- the OK and Cancel buttons moved below the tag name row
+equal(tagEdit, button1.anchor[2], "the OK button sits under the tag name row")
+local releasesBefore = releases
 submit("Étiquetée")
-submit("  ")
 equal(SI_AC_DIALOG_TAG_NAME_EMPTY, displayed.errorText, "blank tag refused")
+equal(0, releases - releasesBefore, "blank tag keeps the dialog open")
 equal(0, #AutoCategory.saved.bags[8].rules, "blank tag creates nothing")
-submit("  Ma nouvelle étiquette  ")
-equal(4, releases, "tag dialog closes on success")
+tagEditBox:SetText("  Ma nouvelle étiquette  ")
+submit("Étiquetée")
+equal(1, releases - releasesBefore, "the dialog closes on success")
 equal("Ma nouvelle étiquette",
     AutoCategory.GetRuleByName("Étiquetée").tag, "typed tag is applied")
 equal(2, #AutoCategory.saved.bags[8].rules, "category created in captured bag")

@@ -93,6 +93,7 @@ AutoCategory_localization_strings["es"] = {
 
     SI_AC_MENU_SUBMENU_CATEGORY_SETTING = "|c0066FF[Configuración de categoría]|r",
 	SI_AC_MENU_CS_DROPDOWN_TAG = "Etiqueta",
+	SI_AC_DIALOG_TAG_NAME_FIELD = "Nombre de la nueva etiqueta:",
     SI_AC_MENU_CS_DROPDOWN_TAG_TOOLTIP = "Etiquete la categoría y organícelas.",
     SI_AC_MENU_CS_DROPDOWN_CATEGORY = "Categoría",
 

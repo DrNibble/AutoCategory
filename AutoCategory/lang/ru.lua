@@ -101,6 +101,7 @@ AutoCategory_localization_strings["ru"] = {
     -- Category Settings strings
     SI_AC_MENU_SUBMENU_CATEGORY_SETTING = "|c0066FF[Настройка категории]|r",
     SI_AC_MENU_CS_DROPDOWN_TAG = "Тег",
+    SI_AC_DIALOG_TAG_NAME_FIELD = "Имя нового тега:",
     SI_AC_MENU_CS_DROPDOWN_TAG_TOOLTIP = "Тег позволяет группировать категории.",
     SI_AC_MENU_CS_DROPDOWN_CATEGORY = "Категория",
     SI_AC_MENU_CS_CATEGORY_DESC = "Выберите существующую категорию:",

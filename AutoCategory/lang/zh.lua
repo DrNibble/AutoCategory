@@ -88,6 +88,7 @@ AutoCategory_localization_strings["zh"] = {
 
     SI_AC_MENU_SUBMENU_CATEGORY_SETTING = "|c0066FF[分类设置]|r",
     SI_AC_MENU_CS_DROPDOWN_TAG = "选择标签",
+    SI_AC_DIALOG_TAG_NAME_FIELD = "新标签名称：",
     SI_AC_MENU_CS_DROPDOWN_TAG_TOOLTIP = "为分类添加标签以方便搜索",
     SI_AC_MENU_CS_DROPDOWN_CATEGORY = "选择分类",
 

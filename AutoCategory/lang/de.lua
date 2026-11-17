@@ -77,6 +77,7 @@ AutoCategory_localization_strings["de"] = {
     SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS_TOOLTIP = "Dies wird alle Inventar Einstellungen mit den aktuell gewählten Inventar Einstellungen überschreiben!",   
     SI_AC_MENU_SUBMENU_CATEGORY_SETTING = "|c0066FF[Kategorie Einstellungen]|r",
     SI_AC_MENU_CS_DROPDOWN_TAG = "Markierung",
+    SI_AC_DIALOG_TAG_NAME_FIELD = "Name der neuen Markierung:",
     SI_AC_MENU_CS_DROPDOWN_TAG_TOOLTIP = "Markiere die Kategorie und organisiere sie dadurch besser.",
     SI_AC_MENU_CS_DROPDOWN_CATEGORY = "Kategorie",
     SI_AC_MENU_HEADER_EDIT_CATEGORY = "Ändere Kategorie",

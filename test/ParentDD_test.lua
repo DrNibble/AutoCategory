@@ -54,6 +54,7 @@ AutoCategory = {
 -- fake LAM dropdown control (what WINDOW_MANAGER:GetControlByName returns)
 local fakeCtrl
 local lastUpdateChoices, lastChoicesValues, lastUpdateValue, lastUpdateTooltips
+local updateValueCalls = {}
 fakeCtrl = {
     UpdateChoices = function(self, choices, values, tooltips)
         lastUpdateChoices = choices
@@ -62,6 +63,8 @@ fakeCtrl = {
     end,
     UpdateValue = function(self, forceDefault, value)
         lastUpdateValue = value
+        -- tostring: a nil value must still count as a recorded call
+        updateValueCalls[#updateValueCalls + 1] = tostring(value)
     end,
 }
 
@@ -118,8 +121,42 @@ equal(3, #dd.cvt.choices, "mismatched uses: choices unchanged")
 dd:updateControl()
 equal("(none)", lastUpdateChoices[1], "updateControl: choices pushed")
 equal("Beta", lastChoicesValues[3], "updateControl: values pushed")
-equal("Beta", lastUpdateValue, "updateControl: value pushed via UpdateValue")
+equal("Beta", updateValueCalls[1], "updateControl: value pushed via UpdateValue")
 equal(nil, dd.cvt.dirty, "updateControl: dirty cleared")
 equal(nil, lastUpdateTooltips, "updateControl: no tooltips (USE_VALUES only)")
+
+-- ---------------------------------------------------------------------------
+-- Part 4: updateControl restores the displayed selection that
+-- UpdateChoices cleared (the Parent dropdown of the category settings
+-- lost its displayed selection after every refresh: LAM's value-holding
+-- UpdateValue only runs setFunc and never resets the displayed text)
+-- ---------------------------------------------------------------------------
+
+-- fresh choices to rebuild: the dirty path clears the displayed
+-- selection, so updateControl must follow the value call with a
+-- display-only one (no value, no setFunc)
+updateValueCalls = {}
+local tbl3 = CVT:New(nil, nil, CVT.USE_VALUES)
+tbl3.choices = { "(none)", "Gamma" }
+tbl3.choicesValues = { "", "Gamma" }
+tbl3.indexValue = "Gamma"
+dd:assign(tbl3)
+equal(true, dd.cvt.dirty, "assign marks the lists dirty again")
+dd:updateControl()
+equal(2, #updateValueCalls,
+    "updateControl: a value call then a display-only call after a rebuild")
+equal("Gamma", updateValueCalls[1],
+    "updateControl: the value call carries the selection to setFunc")
+equal("nil", updateValueCalls[2],
+    "updateControl: the display restore passes no value (display only)")
+
+-- with the lists unchanged there is no display restore - updateControl
+-- must not add a refresh round when nothing was cleared
+updateValueCalls = {}
+dd:updateControl()
+equal(1, #updateValueCalls,
+    "updateControl: no choices rebuild, no display-only call")
+equal("Gamma", updateValueCalls[1],
+    "updateControl: the value call alone when the lists are unchanged")
 
 print("PASS: " .. assertions .. " assertions (ParentDD CVT mechanics)")

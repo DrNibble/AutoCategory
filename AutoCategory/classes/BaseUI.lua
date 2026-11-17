@@ -83,6 +83,8 @@ function AutoCategory.BaseDD:updateControl()
         return
     end
 
+	local refreshDisplay = false
+
 	if self.cvt.dirty == true then		-- only do this if cvt lists have been modified
 		logDebug("[AC_Classes] updateControl: dropdown lists changed - updating ", self.cvt.controlName)
 		-- only update the choices if we know that the lists contents changed
@@ -96,6 +98,9 @@ function AutoCategory.BaseDD:updateControl()
             " #choicesTooltips=", numtt)
 		dropdownCtrl:UpdateChoices(self.cvt.choices, self.cvt.choicesValues,
 			self.cvt.choicesTooltips)
+			-- UpdateChoices cleared the displayed selection (the
+			-- combobox ClearItems wipes it): remember to restore it below
+			refreshDisplay = true
 	end
 
 	if self.cvt.indexValue ~= nil then
@@ -103,6 +108,16 @@ function AutoCategory.BaseDD:updateControl()
 		dropdownCtrl:UpdateValue(false, self.cvt.indexValue)
 	end
 
+	-- restore the displayed selection that UpdateChoices cleared
+	-- above: a value-holding UpdateValue only runs setFunc - it never
+	-- resets the displayed text - and the value-less call re-reads
+	-- getFunc and resets the displayed text without calling setFunc
+	-- again, so it triggers no extra refresh round. Without this the
+	-- dropdowns (the Parent dropdown of the category settings)
+	-- showed an empty selection after every refresh.
+	if refreshDisplay then
+		dropdownCtrl:UpdateValue()
+	end
 end
 
 function AutoCategory.BaseDD:size()

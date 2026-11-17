@@ -1,5 +1,18 @@
 # Changes
 
+## 2026-11-18: header Rule submenu, Parent dropdown selection (5.0.1)
+
+- Category Settings: the Parent dropdown lost its displayed
+  selection after picking a parent - the refresh that rebuilds
+  the choices (LAM's UpdateChoices clears the combobox items)
+  never restored the displayed text, because a value-holding
+  UpdateValue only runs setFunc and never touches the display.
+  BaseDD:updateControl now follows the choices rebuild with a
+  display-only UpdateValue (no value, no setFunc - no extra
+  refresh round), and the redundant updateControl call inside
+  CatSet_ParentDD_LAM:setValue is gone: the LAM callback of the
+  very selection had already run it.
+
 ## 2026-11-17: sub-level collapse entry, guild-bank ghosts, dialog proportions (4.6.28)
 
 - The right-click menu of a category header offers again a

@@ -318,7 +318,12 @@ function CatSet_ParentDD_LAM:setValue(value)
 
 	currentRule.parent = value
 	self.cvt.indexValue = value or AC_PARENT_NONE
-	self:updateControl()
+	-- no updateControl here: the LAM callback of this very selection
+	-- already displayed the picked entry, and updateControl would
+	-- only call setFunc again (the guarded no-op above) plus LAM's
+	-- refresh check - an unnecessary refresh round. The refresh below
+	-- rebuilds the choices; the displayed selection now survives it
+	-- through the display-only restore of BaseDD:updateControl.
 	-- a predefined category keeps its parent as an override in the
 	-- account saved rules (the definition itself never is saved)
 	if AutoCategory.SyncPredefinedLayouts then

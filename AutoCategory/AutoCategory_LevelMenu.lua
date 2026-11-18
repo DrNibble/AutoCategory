@@ -1320,7 +1320,7 @@ end
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
-function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
+function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSubMenu)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
@@ -1498,8 +1498,8 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
             end
         end
         if #moveEntries > 0 then
-            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_MOVE_SUBMENU),
-                moveEntries)
+            local addSubMenu = addMoveSubMenu or AddCustomSubMenuItem
+            addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries)
         end
 
         -- copy the category and the categories nested under it to another

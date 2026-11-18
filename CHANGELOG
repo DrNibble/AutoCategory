@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Scrollable Move To menu (2026-11-19)[/COLOR]:
+[LIST]
+[*] With LibScrollableMenu installed, the category header's Move To entry opens a scrollable list of up to 15 visible rows. The same destinations are offered in the same order. Without the library the original submenu is retained. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Scrollable inventory item categories (2026-11-18)[/COLOR]:
 [LIST]
 [*] On keyboard, right-click an inventory item and select AutoCategory to open a scrollable list of the clicked bag's editable categories, in display order.

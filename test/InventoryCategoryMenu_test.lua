@@ -90,6 +90,7 @@ assert(loadstring(table.concat({
     "local LCM = LibCustomMenu",
     extract("local function BagRuleShowKey("),
     extract("function AutoCat.SortBagRulesByDisplay("),
+    extract("local function addScrollableContextSubMenu("),
     extract("local function setupContextMenu()"),
     "setupContextMenu()",
 }, "\n")))()

@@ -50,6 +50,7 @@ local chunkSource = table.concat({
     extractBlock("local function getBagTypeId(header)"),
     extractBlock("local function subLevelNames(fullName, bagTypeId)"),
     extractBlock("local function bagCategoryNames(bagTypeId)"),
+    extractBlock("local function addScrollableContextSubMenu("),
     extractBlock("function AC_ItemRowHeader_OnShowContextMenu(header)"),
 }, "\n")
 
@@ -241,5 +242,57 @@ equal(false, hasLabel("COLLAPSE_ALL_SUBLEVELS"),
     "no Collapse All Sub-Levels without sub-levels")
 equal(false, hasLabel("EXPAND_ALL_SUBLEVELS"),
     "no Expand All Sub-Levels without sub-levels")
+
+--------------------------------------------------------------------
+-- The real header handler supplies the Move To renderer. Verify the
+-- fallback plus the 15-row viewport without truncating destinations.
+--------------------------------------------------------------------
+local moveTitle = "Déplacer vers"
+local destinations, chosen = {}
+for index = 1, 18 do
+    local label = ("Destination %02d"):format(19 - index)
+    destinations[index] = { label = label, callback = function() chosen = label end }
+end
+AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, addMoveSubMenu)
+    equal("Solo", name, "Move To receives the clicked category")
+    equal(GUILDBANK, bagId, "Move To receives the clicked bag")
+    addMoveSubMenu(moveTitle, destinations)
+end
+local fallbackTitle, fallbackEntries
+function AddCustomSubMenuItem(title, entries)
+    fallbackTitle, fallbackEntries = title, entries
+end
+AddCustomMenuItem = AddMenuItem
+local clickedHeader = header("Solo")
+M.OnShowContextMenu(clickedHeader)
+equal(moveTitle, fallbackTitle, "fallback uses the localized menu title")
+equal(destinations, fallbackEntries, "fallback retains all destinations")
+equal(false, hasLabel(moveTitle), "fallback does not add a launcher")
+
+local pending, scrolled, shownAt, options
+LibScrollableMenu = {}
+function zo_callLater(callback, delay)
+    equal(0, delay, "open after the native click")
+    pending = callback
+end
+function ClearCustomScrollableMenu() scrolled = {} end
+function AddCustomScrollableMenuEntry(label, callback)
+    scrolled[#scrolled + 1] = { label = label, callback = callback }
+end
+function ShowCustomScrollableMenu(anchor, opts) shownAt, options = anchor, opts end
+fallbackTitle = nil
+M.OnShowContextMenu(clickedHeader)
+equal(true, hasLabel("COLLAPSE"), "other header options stay native")
+equal(nil, fallbackTitle, "no duplicate native Move To submenu with LSM")
+equal(true, click(moveTitle), "click the localized Move To launcher")
+equal(nil, shownAt, "the scrollable menu waits for the native menu to finish")
+pending()
+equal(clickedHeader, shownAt, "scrollable menu belongs to the clicked header")
+equal(15, options.visibleRowsDropdown, "Move To shows up to fifteen rows")
+equal(false, options.sortEntries, "preserve destination order")
+equal(18, #scrolled, "destinations past the viewport are still present")
+equal("Destination 18", scrolled[1].label, "first destination stays first")
+scrolled[18].callback()
+equal("Destination 01", chosen, "destination past row fifteen remains actionable")
 
 print("PASS: " .. assertions .. " assertions (HeaderFoldMenu)")

@@ -709,9 +709,24 @@ equal("TopA", moveMenu[2].label)
 equal("Leaf", moveMenu[3].label)
 equal("Other", moveMenu[4].label)
 
+-- A custom renderer gets exactly the eligible destinations of the
+-- native Move To submenu; the other submenus remain native.
+capturedSubmenus = {}
+local renderedMoveMenu
+AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, function(title, entries)
+    equal(SI_AC_MENU_CM_MOVE_SUBMENU, title, "custom renderer uses the localized Move To title")
+    renderedMoveMenu = entries
+end)
+equal(#moveMenu, #renderedMoveMenu, "custom renderer receives the same number of destinations")
+for i, entry in ipairs(moveMenu) do
+    equal(entry.label, renderedMoveMenu[i].label, "destination in the same order at row " .. i)
+end
+equal(3, #capturedSubmenus, "only the Move To submenu switches renderers")
+equal("Copy To", capturedSubmenus[3].text, "Copy To stays a native submenu")
+
 -- the move callback moves and refreshes
 refreshCalls.cacheInitialize = 0
-moveMenu[2].callback()
+renderedMoveMenu[2].callback()
 equal("TopA", rMid.parent, "the move callback parents to the target")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 

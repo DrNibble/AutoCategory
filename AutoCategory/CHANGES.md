@@ -1,5 +1,13 @@
 # Changes
 
+## 2026-11-19: scrollable Move To menu
+
+- The category header's "Move To" entry opens a scrollable list of up to
+  15 visible rows when LibScrollableMenu is installed. Destination
+  eligibility and order are unchanged, including the "Top Level" entry.
+  With no LibScrollableMenu, the original submenu remains available.
+  No changes to translations or other menus. Not tested in ESO.
+
 ## 2026-11-18: scrollable inventory item categories
 
 - On keyboard, right-click an inventory item and select "AutoCategory" to

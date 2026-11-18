@@ -741,6 +741,37 @@ function AutoCat.cache.AddRule(rule)
 	rule:compile()
 end
 
+-- Keep the native context menu intact; open only this list with LSM.
+local function addScrollableContextSubMenu(title, entries, anchor, visibleRows)
+	if #entries == 0 then return end
+
+	if not LibScrollableMenu
+		or type(ClearCustomScrollableMenu) ~= "function"
+		or type(AddCustomScrollableMenuEntry) ~= "function"
+		or type(ShowCustomScrollableMenu) ~= "function" then
+		AddCustomSubMenuItem(title, entries)
+		return
+	end
+
+	AddCustomMenuItem(title, function()
+		-- Let the native menu finish handling the click before opening
+		-- a menu that also listens for the global mouse-up event.
+		zo_callLater(function()
+			ClearCustomScrollableMenu()
+			for _, entry in ipairs(entries) do
+				-- LSM treats its divider token as a separator, not a category.
+				local label = entry.label
+				if label == LibScrollableMenu.DIVIDER then label = " " .. label end
+				AddCustomScrollableMenuEntry(label, entry.callback)
+			end
+			ShowCustomScrollableMenu(anchor, {
+				sortEntries = false,
+				visibleRowsDropdown = visibleRows,
+			})
+		end, 0)
+	end, MENU_ADD_OPTION_LABEL)
+end
+
 -- Set up the context menu item for AutoCategory
 local LCM = LibCustomMenu
 local function setupContextMenu()
@@ -801,34 +832,7 @@ local function setupContextMenu()
 				}
 			end
 		end
-		if #entries == 0 then return end
-
-		if not LibScrollableMenu
-			or type(ClearCustomScrollableMenu) ~= "function"
-			or type(AddCustomScrollableMenuEntry) ~= "function"
-			or type(ShowCustomScrollableMenu) ~= "function" then
-			AddCustomSubMenuItem("AutoCategory", entries)
-			return
-		end
-
-		-- Keep ESO's item menu intact; only the AutoCategory list uses LSM.
-		AddCustomMenuItem("AutoCategory", function()
-			-- Let the native menu finish handling the click before opening
-			-- a menu that also listens for the global mouse-up event.
-			zo_callLater(function()
-				ClearCustomScrollableMenu()
-				for _, entry in ipairs(entries) do
-					-- LSM treats its divider token as a separator, not a category.
-					local label = entry.label
-					if label == LibScrollableMenu.DIVIDER then label = " " .. label end
-					AddCustomScrollableMenuEntry(label, entry.callback)
-				end
-				ShowCustomScrollableMenu(rowControl, {
-					sortEntries = false,
-					visibleRowsDropdown = 12,
-				})
-			end, 0)
-		end, MENU_ADD_OPTION_LABEL)
+		addScrollableContextSubMenu("AutoCategory", entries, rowControl, 12)
 	end
 
 	local function AC_AddMenuItem(rowControl, slotActions)
@@ -1551,7 +1555,9 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     -- creation and the removal from the bag (a no-op for headers
     -- with no operable backing rule, except for New Category)
     if AutoCategory.AddCategoryLevelMenuEntries then
-        AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId)
+        AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, function(title, entries)
+            addScrollableContextSubMenu(title, entries, header, 15)
+        end)
     end
     ShowMenu()
 end

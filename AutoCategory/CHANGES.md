@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-11-18: scrollable inventory item categories
+
+- On keyboard, right-click an inventory item and select "AutoCategory" to
+  open a scrollable category list with LibScrollableMenu. The list keeps the
+  clicked bag's display order, level indentation and editable categories.
+- LibScrollableMenu is optional: without it, the original submenu is
+  retained. The regular item actions and category header menus are unchanged.
+  No new translation strings. Not tested in ESO.
+
 ## 2026-11-18: header Rule submenu, Parent dropdown selection (5.0.1)
 
 - The right-click menu of a category header offers a new "Rule"

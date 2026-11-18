@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Scrollable inventory item categories (2026-11-18)[/COLOR]:
+[LIST]
+[*] On keyboard, right-click an inventory item and select AutoCategory to open a scrollable list of the clicked bag's editable categories, in display order.
+[*] LibScrollableMenu is optional. Without it, the original submenu is retained. Standard item actions and category header menus are unchanged. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.27 (167), header menu rework, tag dropdown, predefined rules, collapse all (2026-11-16)[/COLOR]:
 [LIST]
 [*] Header right-click menu reworked: execution priority first, a "Level" submenu (move up / nest deeper / un-nest / move down, each within its existing limits), then Move To, Copy To, "Remove from display" and New Category last (removes the category from the clicked bag's list only; the global rule stays and its children move up one level - not hiding, not deleting the rule).

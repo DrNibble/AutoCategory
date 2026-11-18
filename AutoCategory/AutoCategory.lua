@@ -801,9 +801,34 @@ local function setupContextMenu()
 				}
 			end
 		end
-		if #entries > 0 then
+		if #entries == 0 then return end
+
+		if not LibScrollableMenu
+			or type(ClearCustomScrollableMenu) ~= "function"
+			or type(AddCustomScrollableMenuEntry) ~= "function"
+			or type(ShowCustomScrollableMenu) ~= "function" then
 			AddCustomSubMenuItem("AutoCategory", entries)
+			return
 		end
+
+		-- Keep ESO's item menu intact; only the AutoCategory list uses LSM.
+		AddCustomMenuItem("AutoCategory", function()
+			-- Let the native menu finish handling the click before opening
+			-- a menu that also listens for the global mouse-up event.
+			zo_callLater(function()
+				ClearCustomScrollableMenu()
+				for _, entry in ipairs(entries) do
+					-- LSM treats its divider token as a separator, not a category.
+					local label = entry.label
+					if label == LibScrollableMenu.DIVIDER then label = " " .. label end
+					AddCustomScrollableMenuEntry(label, entry.callback)
+				end
+				ShowCustomScrollableMenu(rowControl, {
+					sortEntries = false,
+					visibleRowsDropdown = 12,
+				})
+			end, 0)
+		end, MENU_ADD_OPTION_LABEL)
 	end
 
 	local function AC_AddMenuItem(rowControl, slotActions)

@@ -246,6 +246,8 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_MENU_CM_MOVE_DOWN = "Descendre la catégorie",
     SI_AC_MENU_CM_REMOVE_DISPLAY = "Supprimer l'affichage de la catégorie",
     SI_AC_MENU_CM_COPY_SUBMENU = "Copier vers",
+    SI_AC_MENU_CM_COPY_SELECTED = "Copier la sélection",
+    SI_AC_TIP_CM_COPY_OVERWRITE = "déjà existant, sélectionner pour écraser",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Déplacer vers",
     SI_AC_MENU_CM_MOVE_TOP = "Premier niveau",
     SI_AC_MENU_CM_RUN_PRIORITY = "Priorité d'exécution : %d",
@@ -254,5 +256,6 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES = "Afficher les catégories vides",
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES_TOOLTIP = "Affiche l'en-tête de chaque catégorie du sac, même si aucun objet ne correspond à sa règle.",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory : %d catégories copiées vers %s (%d déjà présentes).",
+    SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory : %d catégories ajoutées à %s (%d écrasées).",
 
 }

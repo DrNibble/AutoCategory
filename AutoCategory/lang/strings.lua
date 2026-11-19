@@ -277,6 +277,8 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_MENU_CM_MOVE_DOWN = "Move Category Down",
     SI_AC_MENU_CM_REMOVE_DISPLAY = "Remove from display",
     SI_AC_MENU_CM_COPY_SUBMENU = "Copy To",
+    SI_AC_MENU_CM_COPY_SELECTED = "Copy selected bags",
+    SI_AC_TIP_CM_COPY_OVERWRITE = "Already exists, select to overwrite",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Move To",
     SI_AC_MENU_CM_MOVE_TOP = "Top Level",
     SI_AC_MENU_CM_RUN_PRIORITY = "Execution Priority: %d",
@@ -285,6 +287,7 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES = "Show Empty Categories",
     SI_AC_MENU_GS_CHECKBOX_SHOW_EMPTY_CATEGORIES_TOOLTIP = "Shows the header of every category of the bag, even when no item matches its rule.",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there).",
+    SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categories added to %s (%d overwritten).",
 
 }
 

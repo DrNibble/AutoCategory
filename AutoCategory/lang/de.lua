@@ -218,10 +218,13 @@ AutoCategory_localization_strings["de"] = {
     SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Die Kategorie kann in dieser Tasche nicht erstellt werden.",
     SI_AC_MENU_CM_REMOVE_DISPLAY = "Aus der Anzeige entfernen",
     SI_AC_MENU_CM_COPY_SUBMENU = "Kopieren nach",
+    SI_AC_MENU_CM_COPY_SELECTED = "In ausgewählte Inventare kopieren",
+    SI_AC_TIP_CM_COPY_OVERWRITE = "Bereits vorhanden. Zum Überschreiben auswählen.",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Verschieben nach",
     SI_AC_MENU_CM_MOVE_TOP = "Oberste Ebene",
     SI_AC_MENU_CM_RUN_PRIORITY = "Ausführungspriorität: %d",
     SI_AC_MENU_CM_RULE = "Regel",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d Kategorien nach %s kopiert (%d bereits vorhanden).",
+    SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d Kategorien zu %s hinzugefügt (%d überschrieben).",
 
 }

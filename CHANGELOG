@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Select multiple bags in Copy To (2026-11-19)[/COLOR]:
+[LIST]
+[*] With LibScrollableMenu, select one or more destination bags and apply the selection once. Red bags already contain the category and can be selected to overwrite matching per-bag entries. The native fallback still skips existing entries.
+[*] Updated all six languages. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Parent items before subcategories (2026-11-19)[/COLOR]:
 [LIST]
 [*] In categorized bags, a parent header is followed by its own items, then each subcategory and its items. Display priority still orders siblings, and rule matching is unchanged. Not tested in ESO.

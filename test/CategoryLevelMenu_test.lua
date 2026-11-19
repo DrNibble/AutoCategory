@@ -26,9 +26,11 @@ SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Empty name"
 SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Duplicate name"
 SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Invalid bag"
 SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
+SI_AC_TIP_CM_COPY_OVERWRITE = "Already exists, select to overwrite"
 SI_AC_MENU_CM_MOVE_SUBMENU = "Move To"
 SI_AC_MENU_CM_MOVE_TOP = "Top Level"
 SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there)."
+SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categories added to %s (%d overwritten)."
 SI_AC_DEFAULT_NAME_NEW_CATEGORY = "NewCategory"
 SI_AC_DEFAULT_NAME_EMPTY_TAG = "<Empty>"
 SI_AC_NEW_CATEGORY_EMPTY_CHILD = "(empty)"
@@ -746,5 +748,69 @@ equal(rKid.rule, table.concat(joined, " "),
 for i = 2, #longMenu do
     equal(true, #longMenu[i].label <= 75, "each wrapped line fits the menu width")
 end
+
+-- Copy To multiselect: matching root, descendant-only overlap, and a
+-- conflicting destination that is deselected before applying.
+AutoCategory.cache.bags_cvt = {
+    choices = { "Source", "Matching root", "Descendant only", "Deselected" },
+    choicesValues = { 5, 6, 7, 8 },
+}
+newRule("Destination only", 3, "M")
+local sourceM, sourceS = bags[5].rules[2], bags[5].rules[3]
+sourceS.isHidden = true
+local existingAncestor = { name = "P", runpriority = 2, showpriority = 3 }
+local existingM = { name = "M", runpriority = 1, showpriority = 2, isHidden = true }
+local existingS = { name = "S", runpriority = 3, showpriority = 4 }
+local destOnly = { name = "Destination only", runpriority = 6, showpriority = 7 }
+local descendantOnly = { name = "S", runpriority = 500, showpriority = 501 }
+local deselected = { name = "M", runpriority = 600, showpriority = 601 }
+setBag(6, { existingAncestor, existingM, existingS, destOnly })
+setBag(7, { descendantOnly })
+setBag(8, { deselected })
+
+local destinations, apply
+AutoCategory.AddCategoryLevelMenuEntries("P----M", 5, nil, nil, function(title, entries, callback)
+    equal("Copy To", title)
+    destinations, apply = entries, callback
+end)
+equal(3, #destinations, "the source bag is excluded")
+equal("Matching root", destinations[1].label)
+equal(SI_AC_TIP_CM_COPY_OVERWRITE, destinations[1].overwriteTooltip, "the matching root is marked")
+equal(nil, destinations[2].overwriteTooltip, "a descendant alone does not mark the bag")
+equal(SI_AC_TIP_CM_COPY_OVERWRITE, destinations[3].overwriteTooltip, "both matching bags are marked")
+
+local messageCount, refreshCount = #chatMessages, refreshCalls.cacheInitialize
+apply()
+equal(messageCount, #chatMessages, "an empty selection does not copy")
+equal(refreshCount, refreshCalls.cacheInitialize, "an empty selection does not refresh")
+destinations[1].onChecked(nil, nil, nil, true)
+destinations[2].onChecked(nil, nil, nil, true)
+destinations[3].onChecked(nil, nil, nil, true)
+destinations[3].onChecked(nil, nil, nil, false)
+equal(1, existingM.runpriority, "checking a bag alone does not overwrite")
+equal("S", table.concat(bagNames(7), ","), "copy only happens on apply")
+apply()
+equal(refreshCount + 1, refreshCalls.cacheInitialize, "the whole batch refreshes once")
+equal(messageCount + 2, #chatMessages, "only selected bags report results")
+equal("AutoCategory: 0 categories added to Matching root (2 overwritten).", chatMessages[messageCount + 1])
+equal("AutoCategory: 2 categories copied to Descendant only (1 already there).", chatMessages[messageCount + 2])
+equal("P,M,S,Destination only", table.concat(bagNames(6), ","), "no duplicates or loss")
+equal(sourceM.runpriority, existingM.runpriority, "root execution priority is copied")
+equal(sourceM.showpriority, existingM.showpriority, "root display priority is copied")
+equal(nil, existingM.isHidden, "a visible source entry clears the hidden flag")
+equal(sourceS.runpriority, existingS.runpriority, "existing descendants are overwritten in a red bag")
+equal(true, existingS.isHidden, "a hidden source entry copies its hidden flag")
+equal(500, descendantOnly.runpriority, "unmarked destinations do not overwrite descendants")
+equal("S,P,M", table.concat(bagNames(7), ","), "missing ancestors and the root are added")
+equal(2, existingAncestor.runpriority, "an existing ancestor is not overwritten")
+equal(6, destOnly.runpriority, "unrelated destination entries are untouched")
+equal(600, deselected.runpriority, "a deselected red bag is not overwritten")
+equal("M", AutoCategory.GetRuleByName("S").parent, "global hierarchy is unchanged")
+apply()
+equal(messageCount + 2, #chatMessages, "applying again does not repeat the batch")
+
+-- The native callback continues to skip duplicates even on a marked entry.
+destinations[3].callback()
+equal(600, deselected.runpriority, "native fallback does not authorize overwriting")
 
 print("CategoryLevelMenu_test: " .. assertions .. " assertions passed")

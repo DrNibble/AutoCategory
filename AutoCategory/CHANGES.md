@@ -1,5 +1,16 @@
 # Changes
 
+## 2026-11-19: select multiple bags in Copy To
+
+- With LibScrollableMenu, check the destination bags and use the copy
+  action to apply the selection together. A bag that already contains
+  the chosen category is red and has an overwrite tooltip.
+- Selecting a marked bag replaces the matching entries' per-bag
+  priorities and visibility in the copied subtree. Shared definitions,
+  existing ancestors and destination-only entries are not changed.
+  The native fallback still copies to one bag and skips existing entries.
+  Updated all six languages. Not tested in ESO.
+
 ## 2026-11-19: execution priority slider in Rule
 
 - The category header's "Rule" menu uses a LibScrollableMenu slider for

@@ -230,10 +230,13 @@ AutoCategory_localization_strings["zh"] = {
     SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "无法在当前背包中创建分类。",
     SI_AC_MENU_CM_REMOVE_DISPLAY = "移除显示",
     SI_AC_MENU_CM_COPY_SUBMENU = "复制到",
+    SI_AC_MENU_CM_COPY_SELECTED = "复制到所选背包",
+    SI_AC_TIP_CM_COPY_OVERWRITE = "已存在，勾选即可覆盖",
     SI_AC_MENU_CM_MOVE_SUBMENU = "移动到",
     SI_AC_MENU_CM_MOVE_TOP = "顶层",
     SI_AC_MENU_CM_RUN_PRIORITY = "执行优先级：%d",
     SI_AC_MENU_CM_RULE = "规则",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory：已复制 %d 个分类到 %s（%d 个已存在）。",
+    SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory：已添加 %d 个分类到 %s（覆盖了 %d 个）。",
 
 }

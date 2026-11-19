@@ -270,10 +270,13 @@ AutoCategory_localization_strings["ru"] = {
     SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Невозможно создать категорию в этой сумке.",
     SI_AC_MENU_CM_REMOVE_DISPLAY = "Убрать из отображения",
     SI_AC_MENU_CM_COPY_SUBMENU = "Копировать в",
+    SI_AC_MENU_CM_COPY_SELECTED = "Копировать в выбранные хранилища",
+    SI_AC_TIP_CM_COPY_OVERWRITE = "Уже существует. Выберите, чтобы перезаписать.",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Переместить в",
     SI_AC_MENU_CM_MOVE_TOP = "Верхний уровень",
     SI_AC_MENU_CM_RUN_PRIORITY = "Приоритет выполнения: %d",
     SI_AC_MENU_CM_RULE = "Правило",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: скопировано категорий в %s: %d (уже было: %d).",
+    SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: добавлено категорий: %d. Хранилище: %s (перезаписано: %d).",
 
 }

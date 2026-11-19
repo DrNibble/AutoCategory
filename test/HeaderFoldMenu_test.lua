@@ -296,4 +296,48 @@ equal("Destination 18", scrolled[1].label, "first destination stays first")
 scrolled[18].callback()
 equal("Destination 01", chosen, "destination past row fifteen remains actionable")
 
+-- Copy To uses the same launcher, but only if LSM supports checkboxes.
+SI_AC_MENU_CM_COPY_SELECTED = "Copier la sélection"
+GetString = L
+local copyTitle = "Copier vers"
+local tip = "déjà existant, sélectionner pour écraser"
+local checked, applied
+local copyEntries = {
+    { label = "Banque", overwriteTooltip = tip,
+        onChecked = function(_, _, _, state) checked = state end },
+    { label = "Banque de guilde", onChecked = function() end },
+}
+AutoCategory.AddCategoryLevelMenuEntries = function(_, _, _, _, addCopySubMenu)
+    addCopySubMenu(copyTitle, copyEntries, function() applied = true end)
+end
+M.OnShowContextMenu(clickedHeader)
+equal(copyTitle, fallbackTitle, "missing checkbox API leaves the native submenu")
+equal(copyEntries, fallbackEntries, "native fallback retains the destinations")
+equal(false, hasLabel(copyTitle), "incompatible LSM does not add a launcher")
+
+function AddCustomScrollableMenuCheckbox(label, callback, isChecked, data)
+    scrolled[#scrolled + 1] = { label = label, callback = callback, checked = isChecked, data = data }
+end
+fallbackTitle, pending, shownAt = nil, nil, nil
+M.OnShowContextMenu(clickedHeader)
+equal(nil, fallbackTitle, "compatible LSM does not add a native copy submenu")
+equal(true, click(copyTitle), "click the localized Copy To launcher")
+equal(nil, shownAt, "the launcher waits for the native menu to close")
+pending()
+equal(clickedHeader, shownAt, "the copy list is anchored to the same header")
+equal(3, #scrolled, "two destinations followed by the copy action")
+equal("|cFF5555Banque|r", scrolled[1].label, "existing destination has a red label")
+equal(tip, scrolled[1].data.tooltip, "existing destination has the overwrite tooltip")
+equal(false, scrolled[1].checked, "existing destination is not preselected")
+equal(false, scrolled[1].data.closeOnSelect, "checking a row does not close the menu")
+equal("Banque de guilde", scrolled[2].label, "non-existing destination uses a normal label")
+equal(nil, scrolled[2].data.tooltip, "non-existing destination has no overwrite tooltip")
+equal(false, scrolled[2].checked, "non-existing destination is not preselected")
+equal("Copier la sélection", scrolled[3].label, "the list ends with the localized apply action")
+scrolled[1].callback(nil, nil, nil, true)
+equal(true, checked, "the checkbox supplies the LSM checked argument")
+equal(nil, applied, "selecting is separate from applying")
+scrolled[3].callback()
+equal(true, applied, "the final action applies the selection")
+
 print("PASS: " .. assertions .. " assertions (HeaderFoldMenu)")

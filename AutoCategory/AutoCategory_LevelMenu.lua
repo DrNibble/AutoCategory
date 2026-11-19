@@ -12,8 +12,9 @@
 -- Levels and parents are properties of the global rules, shared by every
 -- bag: re-levelling a category here re-levels it in every bag that shows
 -- it. Copying to another bag reuses the global rules (like the "Export
--- all" button) - it only adds bag rules to the destination bag, and the
--- categories already present there are skipped. Deleting removes the
+-- all" button) - it only adds or overwrites destination bag rules.
+-- Existing categories are skipped unless explicitly selected for overwrite.
+-- Deleting removes the
 -- category from the clicked bag only (like the Remove Category button);
 -- the global rule stays.
 
@@ -311,30 +312,28 @@ end
 -- Copy the category and the categories nested under it to another bag.
 -- The rules are global and shared: the copy reuses them, exactly like
 -- the "Export all" button of Bag Settings - editing the category in
--- one bag changes it everywhere. Categories already present in the
--- destination bag are skipped. The ancestors of the category are copied
+-- one bag changes it everywhere. Existing destination entries in the
+-- subtree are skipped unless overwrite is requested. Ancestors are copied
 -- with it when they are not categories of the destination bag yet, so
 -- the category keeps its place in the level hierarchy there (without
 -- them a level 2-5 category displays flat in that bag).
--- Returns copied, skipped: the number of categories added to the
--- destination bag, and the number of the subtree categories that were
--- already present there.
-function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId)
-    local copied, skipped = 0, 0
-    if srcBagTypeId == destBagTypeId then return copied, skipped end
+-- Returns the number of categories added, skipped, and overwritten.
+function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId, overwrite)
+    local copied, skipped, overwritten = 0, 0, 0
+    if srcBagTypeId == destBagTypeId then return copied, skipped, overwritten end
 
     local subtree = CLM.SubtreeInBag(srcBagTypeId, ruleName)
-    if not subtree then return copied, skipped end
+    if not subtree then return copied, skipped, overwritten end
 
     local saved = AutoCategory.saved
     local destBag = saved and saved.bags and saved.bags[destBagTypeId]
-    if not destBag or not destBag.rules then return copied, skipped end
+    if not destBag or not destBag.rules then return copied, skipped, overwritten end
 
     local present = {}
     for i = 1, #destBag.rules do
         local bagrule = destBag.rules[i]
         if bagrule and bagrule.name then
-            present[bagrule.name] = true
+            present[bagrule.name] = bagrule
         end
     end
 
@@ -353,44 +352,40 @@ function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId)
         crule = prule
     end
 
-    -- what to add: the missing ancestors, then the missing categories
-    -- of the subtree; the priorities of each category come from its own
-    -- bag rule of the source bag, else from the copied category's
     local rootBagrule = subtree[1].bagrule
-    local toAdd = {}
-    local function queueCopy(rule)
-        local srcBagrule = findBagrule(srcBagTypeId, rule.name)
-        toAdd[#toAdd + 1] = {
-            name = rule.name,
-            runpriority = (srcBagrule and srcBagrule.runpriority)
-                or rootBagrule.runpriority,
-            showpriority = (srcBagrule and srcBagrule.showpriority)
-                or rootBagrule.showpriority,
-        }
-    end
-    for i = 1, #chain do
-        if not present[chain[i].name] then
-            queueCopy(chain[i])
-        end
-    end
-    for i = 1, #subtree do
-        if present[subtree[i].rule.name] then
-            skipped = skipped + 1
-        else
-            queueCopy(subtree[i].rule)
-        end
-    end
-
-    for i = 1, #toAdd do
-        local item = toAdd[i]
-        local entry = AutoCategory.CreateBagRule(item.name,
-            item.runpriority, item.showpriority)
+    local function addMissing(name, srcBagrule)
+        local entry = AutoCategory.CreateBagRule(name,
+            (srcBagrule and srcBagrule.runpriority) or rootBagrule.runpriority,
+            (srcBagrule and srcBagrule.showpriority) or rootBagrule.showpriority)
         if entry then
             destBag.rules[#destBag.rules + 1] = entry
+            present[name] = entry
             copied = copied + 1
         end
     end
-    return copied, skipped
+    for i = 1, #chain do
+        local name = chain[i].name
+        if not present[name] then
+            addMissing(name, findBagrule(srcBagTypeId, name))
+        end
+    end
+    for i = 1, #subtree do
+        local name, srcBagrule = subtree[i].rule.name, subtree[i].bagrule
+        local existing = present[name]
+        if not existing then
+            addMissing(name, srcBagrule)
+        elseif overwrite then
+            -- Keep the destination entry in place and copy only per-bag
+            -- settings. Neither the shared rule nor other entries change.
+            existing.runpriority = srcBagrule.runpriority
+            existing.showpriority = srcBagrule.showpriority
+            existing.isHidden = srcBagrule.isHidden or nil
+            overwritten = overwritten + 1
+        else
+            skipped = skipped + 1
+        end
+    end
+    return copied, skipped, overwritten
 end
 
 -- Names are global, even though the new bag entry belongs only to the
@@ -1320,7 +1315,7 @@ end
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
-function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSubMenu, addRuleSubMenu)
+function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSubMenu, addRuleSubMenu, addCopySubMenu)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
@@ -1516,35 +1511,68 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
             addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries)
         end
 
-        -- copy the category and the categories nested under it to another
-        -- bag: every other bag of the addon in a "Copy To" submenu (the
-        -- rules are shared; the categories already present in the
-        -- destination bag are skipped)
+        -- The native fallback copies to one bag without overwriting.
+        -- LSM stages multiple destinations; only a marked bag can overwrite.
         local copyEntries = {}
+        local function copyToBag(bagId, bagName, overwrite)
+            local copied, skipped, overwritten = CLM.CopySubtreeToBag(
+                bagTypeId, rule.name, bagId, overwrite)
+            local message
+            if overwritten > 0 then
+                message = string.format(GetString(SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE),
+                    copied, bagName, overwritten)
+            else
+                message = string.format(GetString(SI_AC_MESSAGE_CM_COPY_DONE),
+                    copied, bagName, skipped)
+            end
+            CHAT_ROUTER:AddSystemMessage(message)
+            return copied > 0 or overwritten > 0
+        end
         local bags_cvt = AutoCategory.cache and AutoCategory.cache.bags_cvt
         if bags_cvt and bags_cvt.choices and bags_cvt.choicesValues then
             for i = 1, #bags_cvt.choicesValues do
                 local bagId = bags_cvt.choicesValues[i]
                 local bagName = bags_cvt.choices[i]
                 if bagId ~= bagTypeId and bagName then
-                    copyEntries[#copyEntries + 1] = {
+                    local entry = {
                         label = bagName,
                         callback = function()
-                            local copied, skipped = CLM.CopySubtreeToBag(
-                                bagTypeId, rule.name, bagId)
-                            CHAT_ROUTER:AddSystemMessage(string.format(
-                                GetString(SI_AC_MESSAGE_CM_COPY_DONE),
-                                copied, bagName, skipped))
-                            refreshAfterChange()
+                            if copyToBag(bagId, bagName, false) then
+                                refreshAfterChange()
+                            end
                         end,
                     }
+                    if addCopySubMenu then
+                        local overwrite = findBagrule(bagId, rule.name) ~= nil
+                        entry.overwriteTooltip = overwrite and GetString(SI_AC_TIP_CM_COPY_OVERWRITE) or nil
+                        entry.onChecked = function(_, _, _, checked)
+                            entry.selected = checked == true
+                        end
+                        entry.copySelected = function()
+                            return copyToBag(bagId, bagName, overwrite)
+                        end
+                    end
+                    copyEntries[#copyEntries + 1] = entry
                 end
             end
         end
-            if #copyEntries > 0 then
-                AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_COPY_SUBMENU),
-                    copyEntries)
+        if #copyEntries > 0 then
+            local title = GetString(SI_AC_MENU_CM_COPY_SUBMENU)
+            if addCopySubMenu then
+                addCopySubMenu(title, copyEntries, function()
+                    local changed = false
+                    for _, entry in ipairs(copyEntries) do
+                        if entry.selected then
+                            entry.selected = false
+                            if entry.copySelected() then changed = true end
+                        end
+                    end
+                    if changed then refreshAfterChange() end
+                end)
+            else
+                AddCustomSubMenuItem(title, copyEntries)
             end
+        end
     end
 
     -- the removal of the category from the inventory list of the

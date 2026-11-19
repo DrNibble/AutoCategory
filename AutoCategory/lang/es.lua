@@ -248,11 +248,14 @@ AutoCategory_localization_strings["es"] = {
     SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "No se puede crear la categoría en esta bolsa.",
     SI_AC_MENU_CM_REMOVE_DISPLAY = "Quitar de la vista",
     SI_AC_MENU_CM_COPY_SUBMENU = "Copiar a",
+    SI_AC_MENU_CM_COPY_SELECTED = "Copiar la selección",
+    SI_AC_TIP_CM_COPY_OVERWRITE = "Ya existe. Selecciona para sobrescribir.",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Mover a",
     SI_AC_MENU_CM_MOVE_TOP = "Nivel superior",
     SI_AC_MENU_CM_RUN_PRIORITY = "Prioridad de ejecución: %d",
     SI_AC_MENU_CM_RULE = "Regla",
     SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categorías copiadas a %s (%d ya presentes).",
+    SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categorías añadidas a %s (%d sobrescritas).",
 
 }
 

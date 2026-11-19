@@ -742,7 +742,7 @@ function AutoCat.cache.AddRule(rule)
 end
 
 -- Keep the native context menu intact; open only this list with LSM.
-local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, enableFilter)
+local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, enableFilter, copyAction)
 	if #entries == 0 then return end
 
 	local hasSlider = entries[1].slider ~= nil
@@ -750,7 +750,8 @@ local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, 
 		or type(ClearCustomScrollableMenu) ~= "function"
 		or type(AddCustomScrollableMenuEntry) ~= "function"
 		or type(ShowCustomScrollableMenu) ~= "function"
-		or (hasSlider and type(AddCustomScrollableMenuSlider) ~= "function") then
+		or (hasSlider and type(AddCustomScrollableMenuSlider) ~= "function")
+		or (copyAction and type(AddCustomScrollableMenuCheckbox) ~= "function") then
 		AddCustomSubMenuItem(title, entries)
 		return
 	end
@@ -769,8 +770,18 @@ local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, 
 					-- LSM treats its divider token as a separator, not a category.
 					local label = entry.label
 					if label == LibScrollableMenu.DIVIDER then label = " " .. label end
-					AddCustomScrollableMenuEntry(label, entry.callback)
+					if copyAction then
+						if entry.overwriteTooltip then label = "|cFF5555" .. label .. "|r" end
+						AddCustomScrollableMenuCheckbox(label, entry.onChecked, false,
+							{ tooltip = entry.overwriteTooltip, closeOnSelect = false })
+					else
+						AddCustomScrollableMenuEntry(label, entry.callback)
+					end
 				end
+			end
+			if copyAction then
+				AddCustomScrollableMenuEntry(GetString(SI_AC_MENU_CM_COPY_SELECTED),
+					copyAction, nil, nil, { closeOnSelect = true })
 			end
 			ShowCustomScrollableMenu(anchor, {
 				sortEntries = false,
@@ -1569,6 +1580,8 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
             addScrollableContextSubMenu(title, entries, header, 15, true)
         end, function(title, entries)
             addScrollableContextSubMenu(title, entries, header, 12)
+        end, function(title, entries, copyAction)
+            addScrollableContextSubMenu(title, entries, header, 12, false, copyAction)
         end)
     end
     ShowMenu()

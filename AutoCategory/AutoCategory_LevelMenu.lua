@@ -1273,7 +1273,7 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
         ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
     if dialog then
         setupNewCategoryTagDropdown(dialog)
-        --centerDialogButtons(dialog)
+        centerDialogButtons(dialog)
     end
 end
 
@@ -1342,12 +1342,12 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
         -- information): the runpriority of its bag rule in this bag,
         -- the order the rules run in (not the display order)
         local infoBagrule = subtree[1].bagrule
-        if infoBagrule and infoBagrule.runpriority then
-            AddCustomMenuItem(
-                string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
-                    infoBagrule.runpriority),
-                function() end, MENU_ADD_OPTION_LABEL)
-        end
+        -- if infoBagrule and infoBagrule.runpriority then
+            -- AddCustomMenuItem(
+                -- string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
+                    -- infoBagrule.runpriority),
+                -- function() end, MENU_ADD_OPTION_LABEL)
+        -- end
 
         -- the rule of the category (read-only information): a "Rule"
         -- submenu right after the priority display, holding the

@@ -1,3 +1,98 @@
+[COLOR="DeepSkyBlue"] Create categories from Manage Categories (2026-11-24)[/COLOR]:
+[LIST]
+[*] Open New Category from below the left column for the selected inventory. Apply or cancel pending edits before creating. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Sort the New Category parent dropdown by name (2026-11-24)[/COLOR]:
+[LIST]
+[*] List eligible parents alphabetically with None first, without changing inventory priorities. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Manage category branches from the list (2026-11-23)[/COLOR]:
+[LIST]
+[*] Add space under the inventory dropdown and display the selection’s level between the horizontal arrows.
+[*] Moving a branch in Display Priority keeps its descendants with it. Right-click the selection to copy it to other inventories, remove it from this inventory, or attach it to a named parent.
+[*] Changes and queued copies are saved with Apply. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Simplify display-priority labels (2026-11-23)[/COLOR]:
+[LIST]
+[*] Hide the numeric prefixes in Display Priority. Execution Priority still shows its numbers. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Switch inventories in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] The inventory dropdown starts on the inventory that opened the window and lets you manage any supported inventory.
+[*] Apply or cancel unsaved changes before switching inventories. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Match inventory display order in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] Display Priority uses the inventory's category order, keeping parents above their subcategories.
+[*] Reorder siblings without changing parent links or execution priorities. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Select multiple categories in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] Ctrl+click toggles a row, Shift+click selects a range, and Ctrl+Shift+click adds a range. The arrows now operate on the selection.
+[*] Switch between execution and display priority above the list. Horizontal arrows shift each selected branch only once. Changes remain in the draft until Apply. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Filter and change levels in Manage Categories (2026-11-22)[/COLOR]:
+[LIST]
+[*] The right list has its own name filter and uses three spaces of indentation per nested level. It stays sorted by execution priority.
+[*] Categories with no header in the inventory list that opened the manager are grey. Categories marked hidden are red.
+[*] The left and right arrows below the list raise or lower the selected category and its same-inventory subtree. Changes only take effect when you apply them. Levels are shared across inventories that use the same categories. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Shared inventory move destinations (2026-11-22)[/COLOR]:
+[LIST]
+[*] The header's Move To and the item's Move to Category show the same searchable category list, including empty and collapsed categories but not hidden ones. Subheaders use three spaces per level. Invalid destinations are dimmed.
+[*] Move to Category opens as a scrollable side submenu in the native item menu. Updated all six languages. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Choose a parent when creating an inventory category (2026-11-22)[/COLOR]:
+[LIST]
+[*] New Category preselects the clicked category if it can host a child. Select another category from this inventory or select no parent to create a Normal category as before.
+[*] A category created at level 5 has no hidden placeholder child. Updated all six languages. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Manage inventory categories (2026-11-20)[/COLOR]:
+[LIST]
+[*] The inventory header menu opens a persistent category manager with two 15-row scrollable lists. Search and add from the left; reorder on the right with arrows or dragging, or right-click to remove. Apply commits the draft for that inventory only.
+[*] The four reorder buttons use native ESO arrow textures in place of text glyphs.
+[*] No LibScrollableMenu dependency. Both category lists and the context menus use internal Lua/XML controls. Move To keeps its own filter. The tag selector uses ESO's native scrollable combo box. Not tested in ESO.
+[*] The game's System Menu and Inventory shortcuts close Manage Categories and discard the draft, just like Cancel.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Search only in Move To and category title in Rule (2026-11-19)[/COLOR]:
+[LIST]
+[*] Move To filters only its own destinations, keeping their order and indentation.
+[*] Rule displays the clicked category's name above its execution-priority slider.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] New Category dialog and required LibScrollableMenu (2026-11-19)[/COLOR]:
+[LIST]
+[*] LibScrollableMenu 2.44 or newer is required. Removed native menu fallbacks.
+[*] New Category uses a dedicated dialog with a name field and a scrollable dropdown for no tag, an existing tag, or a new tag. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Hover submenus for category headers (2026-11-19)[/COLOR]:
+[LIST]
+[*] Rule, Level, Move To and Copy To open as side submenus with LibScrollableMenu. Added a divider before Rule and another after its execution-priority slider. Move To indents destinations by two spaces per nested level. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Select multiple bags in Copy To (2026-11-19)[/COLOR]:
+[LIST]
+[*] With LibScrollableMenu, select one or more destination bags and apply the selection once. Red bags already contain the category and can be selected to overwrite matching per-bag entries. The native fallback still skips existing entries.
+[*] Updated all six languages. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Parent items before subcategories (2026-11-19)[/COLOR]:
+[LIST]
+[*] In categorized bags, a parent header is followed by its own items, then each subcategory and its items. Display priority still orders siblings, and rule matching is unchanged. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Search in Move To (2026-11-19)[/COLOR]:
 [LIST]
 [*] The Move To list uses LibScrollableMenu's search box to filter destinations by name as you type. The 15-row limit and original fallback submenu are unchanged. Not tested in ESO.

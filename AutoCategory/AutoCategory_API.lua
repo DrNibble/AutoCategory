@@ -145,6 +145,122 @@ local function adjustName(selfie, name, enhancement)
 	return name .. " (" .. enhancement .. ")"
 end
 
+-- A Normal category counts as level 1.
+local function effectiveRuleLevel(rule)
+	local level = rule.level
+	if type(level) == "number" and level >= 1 and level <= 5
+		and level == math.floor(level) then
+		return level
+	end
+	return 1
+end
+
+local function bagCategoryLookups(bagTypeId, bag, bags)
+	local localRules, crossBagNames = {}, {}
+	for otherBagId, otherBag in pairs(bags or AutoCategory.saved.bags) do
+		if otherBagId ~= bagTypeId and otherBag and otherBag.rules then
+			for _, entry in ipairs(otherBag.rules) do
+				if entry.name then crossBagNames[entry.name] = true end
+			end
+		end
+	end
+	for _, entry in ipairs(bag.rules) do
+		if entry.name then
+			localRules[entry.name] = entry
+			crossBagNames[entry.name] = nil
+		end
+	end
+	return localRules, crossBagNames
+end
+
+local function prependCategoryParents(chain, rule, crossBagNames, getRule)
+	local visited = { [rule.name] = true }
+	while effectiveRuleLevel(rule) > 1 and type(rule.parent) == "string"
+		and rule.parent ~= "" do
+		local parent = getRule(rule.parent)
+		if not parent or visited[parent.name] or crossBagNames[parent.name] then break end
+		table.insert(chain, 1, parent.name)
+		visited[parent.name] = true
+		rule = parent
+	end
+end
+
+local function configuredCategoryPath(entry, crossBagNames, getRule)
+	local rule = getRule(entry.name)
+	local chain = { rule and rule.name or entry.name }
+	if rule then prependCategoryParents(chain, rule, crossBagNames, getRule) end
+	return AutoCategory.CategoryTree.JoinName(chain)
+end
+
+local function displayPriority(entry)
+	return entry.showpriority or entry.runpriority or 0
+end
+
+local function makeCategorySortKeyResolver(localRules, crossBagNames, getRule)
+	local tree = AutoCategory.CategoryTree
+	local configured, descendant
+	local function indexPaths()
+		if configured then return end
+		configured, descendant = {}, {}
+		for _, candidate in pairs(localRules) do
+			local levels = tree.Levels(configuredCategoryPath(candidate, crossBagNames, getRule))
+			local priority = displayPriority(candidate)
+			for i = 1, #levels do
+				local prefix = table.concat(levels, tree.SEPARATOR, 1, i)
+				local byPath = i == #levels and configured or descendant
+				if byPath[prefix] == nil or priority > byPath[prefix] then
+					byPath[prefix] = priority
+				end
+			end
+		end
+	end
+
+	return function(categoryName, entry, sortName)
+		local path = tree.Levels(categoryName)
+		if #path == 1 then
+			if sortName and sortName ~= categoryName then
+				indexPaths()
+				-- A real parent must use the same prefix as its descendants.
+				-- A standalone plugin category still keeps its custom key.
+				if descendant[path[1]] ~= nil then sortName = nil end
+			end
+			return tree.BuildSortKey(displayPriority(entry), categoryName, sortName)
+		end
+
+		local priorities = {}
+		for i = 1, #path do
+			local prefix = table.concat(path, tree.SEPARATOR, 1, i)
+			local ruleEntry = localRules[prefix] or localRules[path[i]]
+			if ruleEntry and configuredCategoryPath(ruleEntry, crossBagNames, getRule) == prefix then
+				priorities[i] = displayPriority(ruleEntry)
+			else
+				-- A parent with no bag rule takes its best configured branch
+				-- priority, regardless of which items happen to be visible.
+				indexPaths()
+				priorities[i] = configured[prefix] or descendant[prefix]
+					or priorities[i - 1] or displayPriority(entry)
+			end
+		end
+		return tree.BuildSortKey(priorities[1], categoryName, nil, priorities)
+	end
+end
+
+-- Empty keyboard headers and draft previews use the same path and sort key
+-- as items. A preview supplies its own entries and rule layouts.
+function AutoCategory.MakeBagRuleDisplayResolver(bagTypeId, rules, getRule, bags)
+	bags = bags or AutoCategory.saved.bags
+	getRule = getRule or AutoCategory.GetRuleByName
+	local bag = rules and { rules = rules } or bags[bagTypeId]
+	local localRules, crossBagNames = bagCategoryLookups(bagTypeId, bag, bags)
+	local sortKey = makeCategorySortKeyResolver(localRules, crossBagNames, getRule)
+	local tree = AutoCategory.CategoryTree
+	return function(entry)
+		local name = tree.JoinName(tree.Levels(configuredCategoryPath(entry, crossBagNames, getRule)))
+		local sortName = AutoCategory.GetCategorySortName(name)
+		return name, sortKey(name, entry, sortName)
+	end
+end
+
 --[[ see if we find a category rule match for the item passed in.
 	    i.e. execute the rule on the specific inventory item
 	runs all the rules assigned to the specific bag type against
@@ -157,6 +273,7 @@ end
 		number -  show priority of rule
 		enum    - bag type id
 		boolean - is entry hidden?
+		string  - inventory sort key (on a match)
 --]]
 function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	local bag_type_id = convert2BagTypeId(bagId, specialType)
@@ -181,24 +298,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	-- displays under its own name instead of nesting under a category
 	-- that does not exist in this bag. A parent that is a category of
 	-- no bag at all is still followed: it is only a display path.
-	local crossBagCategoryNames = {}
-	local savedBags = AutoCategory.saved.bags
-	for otherBagId, otherBag in pairs(savedBags) do
-		if otherBagId ~= bag_type_id and otherBag and otherBag.rules then
-			for i = 1, #otherBag.rules do
-				local e = otherBag.rules[i]
-				if e.name then
-					crossBagCategoryNames[e.name] = true
-				end
-			end
-		end
-	end
-	for i = 1, #bag.rules do
-		local e = bag.rules[i]
-		if e.name then
-			crossBagCategoryNames[e.name] = nil
-		end
-	end
+	local localRules, crossBagCategoryNames = bagCategoryLookups(bag_type_id, bag)
 
 
 	-- localized aliases
@@ -223,20 +323,6 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	local recordedPath = nil
 	local recordedEntry = nil
 	local recordedSortName = nil
-
-	-- The sub-menu level of a rule for the path logic: the Level
-	-- dropdown value when it is a whole number 1-5, and 1 for
-	-- everything else. A Normal category (no level set, or an
-	-- out-of-range value) is a top-level category: it counts as
-	-- level 1, exactly like a category set to level 1 explicitly.
-	local function effectiveRuleLevel(rule)
-		local lv = rule.level
-		if type(lv) == "number" and lv >= 1 and lv <= 5
-			and lv == math.floor(lv) then
-			return lv
-		end
-		return 1
-	end
 
 	-- True when chain extends base: base is nil, or base is a proper
 	-- prefix of chain (the new chain names the same family one or more
@@ -312,18 +398,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 								else
 									chain = { entry.name }
 								end
-								local visited = { [entry.name] = true }
-								local crule = rule
-								while effectiveRuleLevel(crule) > 1
-									and type(crule.parent) == "string"
-									and crule.parent ~= "" do
-									local prule = getRuleByName(crule.parent)
-									if not prule or visited[prule.name] then break end
-									if crossBagCategoryNames[prule.name] then break end
-									table.insert(chain, 1, prule.name)
-									visited[prule.name] = true
-									crule = prule
-								end
+								prependCategoryParents(chain, rule, crossBagCategoryNames, getRuleByName)
 							end
 							if chainExtends(recordedPath, chain) then
 								recordedPath = chain
@@ -354,6 +429,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	if recordedPath ~= nil then
 		local entry = recordedEntry
 		local catname = categoryTree.JoinName(recordedPath)
+		local sortKey = makeCategorySortKeyResolver(localRules, crossBagCategoryNames, getRuleByName)
 		setCategoryCollapsed(bag_type_id, catname,
 			isCategoryCollapsed(bag_type_id, catname))
 		if #recordedPath == 1 then
@@ -369,8 +445,9 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 			entry.runpriority,
 			entry.showpriority,
 			bag_type_id,
-			entry.isHidden
+			entry.isHidden,
+			sortKey(catname, entry, recordedSortName)
 	end
 
 	return false, "", 0, 0, bag_type_id, false
-end 
+end

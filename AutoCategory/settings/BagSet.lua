@@ -404,7 +404,7 @@ end
 -- customization of BaseUI for BagSet_RunPriority_LAM
 -- ------------------------------------------------
 BagSet_RunPriority_LAM.maxVal = 1000
-BagSet_RunPriority_LAM.minVal = 2
+BagSet_RunPriority_LAM.minVal = 0
 
 function BagSet_RunPriority_LAM:getValue()
 	local bag = getCurrentBagId()

@@ -8,16 +8,16 @@ local function equal(expected, actual, message)
 end
 
 for _, key in ipairs({
-    "SI_AC_MENU_CM_NEW_CATEGORY", "SI_AC_DEFAULT_NAME_EMPTY_TAG",
+    "SI_AC_MENU_CM_NEW_CATEGORY", "SI_AC_MENU_CM_MANAGE_CATEGORIES", "SI_AC_DEFAULT_NAME_EMPTY_TAG",
     "SI_AC_DIALOG_CATEGORY_NAME_PROMPT", "SI_AC_DIALOG_CATEGORY_NAME_EMPTY",
     "SI_AC_DIALOG_CATEGORY_NAME_EXISTS", "SI_AC_DIALOG_CATEGORY_CREATE_FAILED",
+    "SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE", "SI_AC_MENU_EC_DROPDOWN_PARENT_NONE",
     "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_FIELD",
     "SI_AC_DIALOG_TAG_NAME_EMPTY", "SI_AC_MENU_CS_DROPDOWN_TAG",
-    "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
-    "SI_AC_MENU_CM_MOVE_UP", "SI_AC_MENU_CM_MOVE_DOWN",
-    "SI_AC_NEW_CATEGORY_EMPTY_CHILD", "SI_AC_MENU_CM_RUN_PRIORITY",
+    "SI_AC_NEW_CATEGORY_EMPTY_CHILD",
     "SI_OK", "SI_DIALOG_CANCEL",
 }) do _G[key] = key end
+SI_AC_TIP_LEVEL = "Level: %d"
 function GetString(key) return key end
 LocaleAwareToLower = string.lower
 zo_loadstring = loadstring
@@ -35,9 +35,11 @@ assert(loadfile("classes/BagRuleApi.lua"))()
 assert(loadfile("classes/RuleList.lua"))()
 AutoCategory.ARW = AutoCategory.RuleList:New({})
 AutoCategory.RulesW = AutoCategory.RuleList:New({})
+AutoCategory.RulesW.tags = {}
 function AutoCategory.GetRuleByName(name)
     return AutoCategory.RuleList.getRuleByName(AutoCategory.RulesW, name)
 end
+function AutoCategory.GetCategorySortName(name) return name end -- No dynamic plugin categories.
 local cacheAdds, refreshes = 0, 0
 AutoCategory.cache = { AddRule = function(rule)
     equal(rule, AutoCategory.ARW:getRuleByName(rule.name), "saved rules updated first")
@@ -54,164 +56,98 @@ AutoCategory.dspWin = {
     SetHidden = function() windowOpens = windowOpens + 1 end,
 }
 
+local function mockControl(children)
+    local control = { children = children, hidden = false, text = "" }
+    function control:GetNamedChild(name) return assert(self.children[name], "missing " .. name) end
+    function control:SetHidden(hidden) self.hidden = hidden end
+    function control:SetText(text) self.text = text end
+    function control:GetText() return self.text end
+    function control:SetMaxInputChars(max) self.maxInputChars = max end
+    function control:TakeFocus() self.hasFocus = true end
+    return control
+end
+
+local nameEditBox = mockControl()
+local tagEditBox = mockControl()
+local newTagRow = mockControl({ Backdrop = mockControl({ Edit = tagEditBox }) })
+local comboControl, parentControl, confirm, cancel = mockControl(), mockControl(), mockControl(), mockControl()
+AC_NewCategoryDialog = mockControl({
+    CategoryName = mockControl({ Edit = nameEditBox }),
+    NewTag = newTagRow, Tag = comboControl, Parent = parentControl, Confirm = confirm, Cancel = cancel,
+})
+
+local comboBox = {}
+function comboBox:ClearItems()
+    for i = #self.items, 1, -1 do self.items[i] = nil end
+    self.selected = nil
+end
+function comboBox:CreateItemEntry(label, callback) return { label = label, callback = callback } end
+function comboBox:AddItem(entry) self.items[#self.items + 1] = entry end
+function comboBox:SelectItem(entry, ignoreCallback)
+    self.selected = entry
+    if not ignoreCallback then entry.callback() end
+end
+function comboBox:HideDropdown() self.open = false end
+function comboBox:SetSortsItems(sort)
+    equal(false, sort, "native combo box preserves the order of special choices")
+end
+local comboBoxItems = {}
+local tagCombo = setmetatable({ items = comboBoxItems }, { __index = comboBox })
+local parentCombo = setmetatable({ items = {} }, { __index = comboBox })
+local comboInitializations = 0
+function ZO_ComboBox_ObjectFromContainer(control)
+    comboInitializations = comboInitializations + 1
+    return assert(({ [comboControl] = tagCombo, [parentControl] = parentCombo })[control],
+        "get the native selectors from the dialog")
+end
+
 local registered, registrations, displayed, releases = {}, 0, nil, 0
 function ZO_Dialogs_RegisterCustomDialog(name, info)
     registrations = registrations + 1
     registered[name] = info
 end
 function ZO_Dialogs_ShowDialog(name, data)
-    displayed = { name = name, data = data, info = registered[name], text = "" }
+    if displayed then return end
+    local info = assert(registered[name])
+    displayed = assert(info.customControl, "expected a dedicated dialog")
+    displayed.name, displayed.data, displayed.info = name, data, info
+    displayed.errorText = info.mainText.text
+    info.setup(displayed)
+    return displayed
 end
-function ZO_Dialogs_GetEditBoxText(dialog) return dialog.text end
 function ZO_Dialogs_UpdateDialogMainText(dialog, text) dialog.errorText = text.text end
-function ZO_Dialogs_ReleaseDialog(name)
-    equal(displayed.name, name, "release the correct popup")
+function ZO_Dialogs_ReleaseDialog(dialog)
+    equal(displayed, dialog, "release the correct popup")
     releases = releases + 1
-    -- Native dialogs clear their state on release: capture the bag first.
-    displayed.data = nil
+    displayed = nil
+    dialog.info.finishedCallback(dialog)
 end
--- the tag dropdown beside the edit box: the dialog control, the edit
--- box it anchors to and the combo box API the dropdown uses
-local comboBoxItems = {}
-local comboBox = {}
-function comboBox:ClearItems() comboBoxItems = {} end
-function comboBox:CreateItemEntry(label, callback)
-    return { label = label, callback = callback }
-end
-function comboBox:AddItem(entry) comboBoxItems[#comboBoxItems + 1] = entry end
-function comboBox:SelectItem(entry, ignoreCallback)
-    if not ignoreCallback and entry.callback then entry.callback() end
-end
-local comboControl = { width = nil }
-function comboControl:SetWidth(width) self.width = width end
-function comboControl:SetAnchor() end
-function comboControl:SetHidden() end
-ZO_ComboBox_ObjectFromContainer = function() return comboBox end
-CT_LABEL = "CT_LABEL"
-RIGHT, TOPLEFT, TOPRIGHT, BOTTOMLEFT =
-    "RIGHT", "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT"
--- the tag name input row of the "New Tag..." entry: the backdrop,
--- the edit box inside it
-local tagEdit = { width = nil, hidden = true }
-function tagEdit:SetWidth(width) self.width = width end
-function tagEdit:SetAnchor() end
-function tagEdit:SetHidden(hidden) self.hidden = hidden end
-local tagEditBox = { text = "" }
-function tagEditBox:SetAnchor() end
-function tagEditBox:SetText(text) self.text = text end
-function tagEditBox:GetText() return self.text end
-function tagEditBox:TakeFocus() end
-CreateControlFromVirtual = function(name, parent, virtual)
-    if virtual == "ZO_ComboBox" then return comboControl end
-    if virtual == "ZO_SingleLineEditBackdrop_Keyboard" then
-        return tagEdit
-    end
-    if virtual == "ZO_DefaultEditForBackdrop" then return tagEditBox end
-    return comboControl
-end
-local tagLabel = nil
-local tagNameLabel = {
-    width = 150,
-    SetFont = function() end,
-    SetText = function() end,
-    SetAnchor = function() end,
-    SetHidden = function(self, hidden) self.hidden = hidden end,
-    GetWidth = function() return 150 end,
-}
-WINDOW_MANAGER = {
-    CreateControl = function(self, name, parent, controlType)
-        if name == "$(parent)ACTagNameLabel" then
-            return tagNameLabel
-        end
-        tagLabel = {
-            SetFont = function() end,
-            SetText = function(self, text) self.text = text end,
-            SetAnchor = function() end,
-            SetHidden = function(self, hidden) self.hidden = hidden end,
-        }
-        return tagLabel
-    end,
-}
--- the dialog's main text control: it spans the full edit box row,
--- the reference the centered buttons are placed from
-local textControl = { GetWidth = function() return 540 end }
-local editControl = { width = 600 }
-function editControl:GetWidth() return self.width end
-function editControl:SetWidth(width) self.width = width end
-function editControl:GetAnchor()
-    return true, "TOPLEFT", textControl, "BOTTOMLEFT", 0, 10
-end
-function editControl:ClearAnchors() end
-function editControl:SetAnchor() end
--- the OK and Cancel buttons of the dialog: their anchors are
--- recorded to check the horizontal centering. Each button hugs
--- its name text but carries its key label and its paddings on
--- the left of the text, so the name label is right-anchored
--- inside its button (5 pixels from the right edge)
-local button1, button2 = nil, nil
-local function newButton(width, textWidth)
-    local b = { GetWidth = function() return width end }
-    local label = { GetWidth = function() return textWidth end }
-    function b:ClearAnchors() b.anchor = nil end
-    function b:SetAnchor(point, relTo, relPoint, offX, offY)
-        b.anchor = { point, relTo, relPoint, offX, offY }
-    end
-    function b:IsHidden() return false end
-    function b:GetNamedChild(name)
-        if name == "NameLabel" then return label end
-    end
-    function label:GetAnchor()
-        return true, "RIGHT", b, "RIGHT", -5, 0
-    end
-    return b
-end
-button1, button2 = newButton(120, 40), newButton(100, 50)
-local titleControl = { width = 360 }
-function titleControl:GetWidth() return self.width end
-function titleControl:SetWidth(width) self.width = width end
-local dialogControl = {
-    GetNamedChild = function(self, name)
-        if name == "Edit" then return editControl end
-        if name == "Title" then return titleControl end
-        if name == "Button1" then return button1 end
-        if name == "Button2" then return button2 end
-    end,
-}
-function ZO_Dialogs_FindDialog(name)
-    if displayed and displayed.name == name then return dialogControl end
-end
+ZO_Dialogs_ReleaseDialogOnButtonPress = ZO_Dialogs_ReleaseDialog
+
 local items = {}
-function ClearMenu() items = {} end
-function ShowMenu() shownMenu = true end
-shownMenu = false
-function AddCustomMenuItem(label, callback)
+local menu = { addItem = function(label, callback)
     items[#items + 1] = { label = label, callback = callback }
-end
-local chatMessages = {}
-CHAT_ROUTER = { AddSystemMessage = function(_, msg)
-    chatMessages[#chatMessages + 1] = msg end }
-MENU_ADD_OPTION_LABEL = "option"
-local function menuItem(label)
-    for i = 1, #items do
-        if items[i].label == label then return items[i] end
-    end
-    error("no menu item " .. tostring(label))
-end
+end }
+
 assert(loadfile("AutoCategory_Tree.lua"))()
 assert(loadfile("AutoCategory_LevelMenu.lua"))()
+assert(loadfile("AutoCategory_API.lua"))()
 local CLM = AutoCategory.CategoryLevelMenu
 local function submit(text)
-    displayed.text = text
+    nameEditBox:SetText(text)
     displayed.info.buttons[1].callback(displayed)
 end
 
-AutoCategory.AddCategoryLevelMenuEntries("Others", 3)
-equal(1, #items, "creation available on header without backing rule")
+AutoCategory.AddCategoryLevelMenuEntries("Others", 3, menu)
+equal(2, #items, "creation and management available on header without backing rule")
 equal(SI_AC_MENU_CM_NEW_CATEGORY, items[1].label, "new label")
 items[1].callback()
 equal(1, registrations, "popup registered once")
+equal(128, nameEditBox.maxInputChars, "category name length is unchanged")
 equal(3, displayed.data.bagTypeId, "popup captures clicked bag")
 equal(0, #AutoCategory.RulesW.ruleList, "opening does not create anything")
+equal(confirm, displayed.info.buttons[1].control, "confirm uses the XML button")
+equal(cancel, displayed.info.buttons[2].control, "cancel uses the XML button")
 equal(true, displayed.info.buttons[1].noReleaseOnClick, "invalid input stays editable")
 equal(nil, displayed.info.buttons[2].callback, "cancel has no mutation callback")
 submit(" \t ")
@@ -219,53 +155,26 @@ equal(SI_AC_DIALOG_CATEGORY_NAME_EMPTY, displayed.errorText, "blank error is vis
 equal(0, releases, "blank name keeps popup open")
 equal(0, #AutoCategory.RulesW.ruleList, "blank name does not create a rule")
 
--- The tag dropdown sits directly beside the edit box: its choices
--- are the existing tags (sorted), the empty tag and the New Tag
--- entry. Reopening the dialog refreshes the list.
-selectedBag = 1
-AutoCategory.RulesW.tags = { "Tag B", GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), "Tag A" }
-CLM.OpenNewCategoryDialog(3)
-equal(1, registrations, "popup definition reused")
-equal(4, #comboBoxItems, "dropdown: two tags, the empty tag and New Tag")
-equal("Tag A", comboBoxItems[1].label, "tags are sorted")
-equal("Tag B", comboBoxItems[2].label, "second tag")
-equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), comboBoxItems[3].label, "empty tag entry")
-equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "new tag entry")
-equal(true, tagLabel ~= nil, "the tag label is built beside the edit box")
--- the window is widened to a fixed 450 (a quarter past the
--- framework's 360): the name edit box keeps the leftover of the
--- row, 450 - the label room (12 + 90 + 12) - the dropdown (150)
--- = 186, above the 160 minimum, so the dropdown keeps its width
-equal(450, titleControl.width, "the window is a quarter wider than the stock one")
-equal(186, editControl.width, "the name edit box keeps the row's leftover width")
-equal(150, comboControl.width, "the dropdown keeps its width when the row fits")
--- the OK and Cancel TEXTS are centered under the edit box row:
--- the row is the fixed 450 (186 + 114 + 150), buttons 120
--- and 100 wide carrying name texts 40 and 50 (5 pixels from their
--- right edge), spacing 20 - the name texts span [offX + 75,
--- offX + 235] (button 1: 120 - 5 - 40) so the pair starts at
--- (450 - 240) / 2 - 35 = 70 from the left
-equal("TOPLEFT", button1.anchor[1], "the OK button is anchored from its top left")
-equal(editControl, button1.anchor[2], "the OK button sits under the edit box")
-equal("BOTTOMLEFT", button1.anchor[3], "measured from the left end of the row")
-equal(70, button1.anchor[4], "the pair of texts is centered on the row")
-equal(23, button1.anchor[5], "the framework's vertical offset is kept")
-equal("TOPLEFT", button2.anchor[1], "the Cancel button is anchored from its top left")
-equal(button1, button2.anchor[2], "the Cancel button sits right of the OK button")
-equal("TOPRIGHT", button2.anchor[3], "measured from the right end of the OK button")
-equal(20, button2.anchor[4], "the framework's button spacing is kept")
--- releasing the dialog hides the dropdown until the next opening
-displayed.info.finishedCallback()
-equal(true, tagLabel.hidden, "the tag label hides on release")
-equal(360, titleControl.width, "the stock window width is restored on release")
--- the default selection is the empty tag: a plain submit creates
--- directly, without the follow-up context menu
-CLM.OpenNewCategoryDialog(3)
-equal(false, tagLabel.hidden, "the dropdown is shown again on the next opening")
-equal(450, titleControl.width, "the widened width is re-applied on each opening")
+-- Another opening attempt must not overwrite the current bag or draft.
+AutoCategory.RulesW.tags = { "Tag B", SI_AC_DEFAULT_NAME_EMPTY_TAG, "Tag A" }
+CLM.OpenNewCategoryDialog(1)
+equal(3, displayed.data.bagTypeId, "second request cannot retarget the open form")
+equal(" \t ", nameEditBox:GetText(), "second request leaves the draft untouched")
+equal(2, #comboBoxItems, "second request did not rebuild the open list")
 submit("  Ma catégorie  ")
-equal(1, releases, "valid name closes the popup")
-equal(false, shownMenu, "no tag context menu anymore")
+equal(1, releases, "valid name closes the first popup")
+CLM.OpenNewCategoryDialog(1)
+equal(2, comboInitializations, "both native combo boxes are reused")
+equal(1, displayed.data.bagTypeId, "reopened form captures its own bag")
+equal("", nameEditBox:GetText(), "new form clears the previous name")
+equal(SI_AC_DIALOG_CATEGORY_NAME_PROMPT, displayed.errorText, "new form restores the prompt")
+equal(4, #comboBoxItems, "dropdown refreshes with two tags and two special entries")
+equal("Tag A", comboBoxItems[1].label, "existing tags are sorted")
+equal("Tag B", comboBoxItems[2].label, "second tag")
+equal(SI_AC_DEFAULT_NAME_EMPTY_TAG, comboBoxItems[3].label, "empty tag is offered")
+equal(comboBoxItems[3], tagCombo.selected, "empty tag is selected by default")
+equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "create a new tag")
+
 local created = AutoCategory.GetRuleByName("Ma catégorie")
 equal(true, created ~= nil, "trimmed name is registered")
 equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG), created.tag, "the default empty tag is applied")
@@ -293,7 +202,6 @@ equal(1, releases, "success closes popup")
 equal(1, selectedBag, "creation does not change settings bag selection")
 equal(0, windowOpens, "ordering window is not opened")
 
-CLM.OpenNewCategoryDialog(1)
 equal(1, registrations, "popup definition reused")
 submit("Ma catégorie")
 equal(SI_AC_DIALOG_CATEGORY_NAME_EXISTS, displayed.errorText, "cross-bag duplicate refused")
@@ -303,11 +211,11 @@ equal(2, #AutoCategory.RulesW.ruleList, "duplicate not suffixed or overwritten")
 submit("MA CATéGORIE")
 equal(SI_AC_DIALOG_CATEGORY_NAME_EXISTS, displayed.errorText, "case-insensitive duplicate")
 equal(1, releases, "duplicate keeps popup open")
+tagCombo:SelectItem(comboBoxItems[2])
 submit("Unique")
 equal(2, releases, "corrected input closes popup")
 equal(2, #AutoCategory.saved.bags[1].rules, "corrected input creates in captured bag")
-equal(GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG),
-    AutoCategory.GetRuleByName("Unique").tag, "empty tag entry keeps the default")
+equal("Tag B", AutoCategory.GetRuleByName("Unique").tag, "existing tag is applied")
 
 -- An existing global rule need not belong to this bag; predefined names
 -- and orphan saved bag names must not be reused either.
@@ -327,19 +235,18 @@ equal(count, #AutoCategory.RulesW.ruleList, "unknown bag leaves no orphan rule")
 -- dialog stays open), valid tag creates the category.
 AutoCategory.saved.bags[8] = { rules = {} }
 CLM.OpenNewCategoryDialog(8)
-equal(true, tagEdit.hidden, "the tag name input row is hidden by default")
-equal(288, tagEdit.width, "the tag name input spans the row after its label")
-local newTagEntry = nil
-for i = 1, #comboBoxItems do
-    if comboBoxItems[i].label == SI_AC_MENU_CM_TAG_NEW then
-        newTagEntry = comboBoxItems[i]
-    end
-end
-equal(true, newTagEntry ~= nil, "the dropdown offers New Tag")
-newTagEntry.callback()
-equal(false, tagEdit.hidden, "the tag name input row appears in the same dialog")
--- the OK and Cancel buttons moved below the tag name row
-equal(tagEdit, button1.anchor[2], "the OK button sits under the tag name row")
+equal(true, newTagRow.hidden, "the tag name input row is hidden by default")
+local newTagEntry = comboBoxItems[#comboBoxItems]
+equal(SI_AC_MENU_CM_TAG_NEW, newTagEntry.label, "the dropdown offers New Tag")
+tagCombo:SelectItem(newTagEntry)
+equal(false, newTagRow.hidden, "the tag name input row appears in the same dialog")
+equal(true, tagEditBox.hasFocus, "the revealed input takes focus")
+tagEditBox:SetText("Do not retain this tag")
+tagCombo:SelectItem(comboBoxItems[#comboBoxItems - 1])
+equal(true, newTagRow.hidden, "switching away hides the input")
+equal("", tagEditBox:GetText(), "switching away clears the draft")
+tagCombo:SelectItem(newTagEntry)
+tagEditBox:SetText(" \t ")
 local releasesBefore = releases
 submit("Étiquetée")
 equal(SI_AC_DIALOG_TAG_NAME_EMPTY, displayed.errorText, "blank tag refused")
@@ -375,17 +282,37 @@ AutoCategory.CreateBagRule = factory
 
 -- Cancellation and a bag removed while a popup is open do not mutate state.
 CLM.OpenNewCategoryDialog(1)
-ZO_Dialogs_ReleaseDialog(displayed.name)
+tagCombo:SelectItem(comboBoxItems[#comboBoxItems])
+tagEditBox:SetText("Cancelled tag")
+nameEditBox:SetText("Cancelled name")
+tagCombo.open = true
+parentCombo.open = true
+ZO_Dialogs_ReleaseDialog(displayed)
 equal(count, #AutoCategory.RulesW.ruleList, "cancel does not create")
+equal(false, tagCombo.open, "cancel closes the native tag dropdown")
+equal(false, parentCombo.open, "cancel closes the native parent dropdown")
 CLM.OpenNewCategoryDialog(3)
+equal("", nameEditBox:GetText(), "reopening drops the cancelled name")
+equal("", tagEditBox:GetText(), "reopening drops the cancelled tag")
+equal(true, newTagRow.hidden, "reopening returns to no tag")
 local bag = AutoCategory.saved.bags[3]
 AutoCategory.saved.bags[3] = nil
 local releasedBefore = releases
 submit("After removal")
-equal(releasedBefore + 1, releases, "name validation releases the popup")
-equal(1, #chatMessages, "stale bag failure is reported in chat")
+equal(releasedBefore, releases, "stale bag keeps the popup open")
+equal(SI_AC_DIALOG_CATEGORY_CREATE_FAILED, displayed.errorText, "stale bag explained inline")
 equal(count, #AutoCategory.RulesW.ruleList, "stale bag leaves no orphan rule")
 AutoCategory.saved.bags[3] = bag
+ZO_Dialogs_ReleaseDialog(displayed)
+
+-- A single hyphen remains selectable, without altering its label.
+AutoCategory.RulesW.tags = { "-" }
+AutoCategory.saved.bags[9] = { rules = {} }
+CLM.OpenNewCategoryDialog(9)
+equal("-", comboBoxItems[1].label, "hyphen tag has a literal label")
+tagCombo:SelectItem(comboBoxItems[1])
+submit("Divider tag")
+equal("-", AutoCategory.GetRuleByName("Divider tag").tag, "original tag value is preserved")
 
 -- Highest display priority is strict, including when the old maximum
 -- already equals the supported 1000. Preserve old ties and run priorities.
@@ -573,18 +500,152 @@ equal(99, AutoCategory.saved.bags[21].rules[1].showpriority,
     "the neighbor is the displayed top-level Other, not the sub-level")
 AutoCategory.GetDisplayedHeaders = nil
 
--- the window's width is FIXED: it no longer derives from the
--- framework's content width, so even a stock dialog narrower than
--- the target gets the full 450 row - the name field keeps its
--- room (the 160/120 floors stay in the code as a safety net for
--- rows below 424, which the fixed width can no longer produce)
-editControl.width = 350
-assert(loadfile("AutoCategory_LevelMenu.lua"))()
-CLM = AutoCategory.CategoryLevelMenu
-CLM.OpenNewCategoryDialog(3)
-equal(450, titleControl.width, "the window is widened whatever the stock width")
-equal(186, editControl.width, "the name field keeps its room on a narrow stock dialog")
-equal(150, comboControl.width, "the dropdown keeps its width")
-equal(70, button1.anchor[4], "the buttons center on the fixed row")
+-- Right-click creation remembers the specific header, allows another
+-- parent, and keeps the old behavior when the selection is cleared.
+local nestedBag = { rules = {} }
+AutoCategory.saved.bags[12] = nestedBag
+local function addParentFixture(name, level, parent, priority, hidden)
+    local rule = AutoCategory.CreateRule(name, "")
+    rule.level, rule.parent = level, parent
+    AutoCategory.ARW:AddRule(rule)
+    AutoCategory.RulesW:AddRule(rule)
+    local bagrule = AutoCategory.CreateBagRule(rule, 10, priority)
+    bagrule.isHidden = hidden
+    nestedBag.rules[#nestedBag.rules + 1] = bagrule
+    return rule
+end
+local root = addParentFixture("Branch", nil, nil, 900)
+addParentFixture("Branch mid", 2, "Branch", 800)
+addParentFixture("Branch deep", 3, "Branch mid", 700)
+local fourth = addParentFixture("Branch fourth", 4, "Branch deep", 600)
+addParentFixture("Branch fifth", 5, "Branch fourth", 500)
+addParentFixture("Hidden", 2, "Branch", 400, true)
+addParentFixture("Legacy----Header", nil, nil, 300)
+nestedBag.rules[#nestedBag.rules + 1] = { name = "Missing rule", showpriority = 200 }
+addParentFixture("alpha", nil, nil, 100)
+
+local function openFromHeader(header)
+    items = {}
+    AutoCategory.AddCategoryLevelMenuEntries(header, 12, {
+        addItem = menu.addItem,
+        addSubMenu = function() end,
+        addDivider = function() end,
+    })
+    for _, item in ipairs(items) do
+        if item.label == SI_AC_MENU_CM_NEW_CATEGORY then
+            item.callback()
+            return
+        end
+    end
+    error("missing New Category option")
+end
+local midHeader = "Branch----Branch mid"
+openFromHeader(midHeader)
+equal("Branch mid", displayed.data.clickedParent.name, "right click captures the rule name, not the path")
+equal(2, displayed.data.clickedParent.level, "right click captures the level")
+equal(6, #parentCombo.items, "only none and the five eligible same-bag parents are offered")
+equal(SI_AC_MENU_EC_DROPDOWN_PARENT_NONE, parentCombo.items[1].label, "none is the first option")
+equal("alpha (Level: 1)", parentCombo.items[2].label, "parent names sort without regard to case or priority")
+equal("Branch (Level: 1)", parentCombo.items[3].label, "Normal counts as level one")
+equal("Branch mid (Level: 2)", parentCombo.selected.label, "the clicked category is preselected")
+equal("Branch deep (Level: 3)", parentCombo.items[4].label, "level-3 parent sorts by name, not by depth")
+equal("Branch fourth (Level: 4)", parentCombo.items[5].label, "level-4 parent sorts by name, not by depth")
+equal(parentCombo.items[6], parentCombo.selected, "preselection follows the entry after sorting")
+equal("Branch mid", nestedBag.rules[2].name, "the dropdown does not reorder saved bag rules")
+local otherBagCount = #AutoCategory.saved.bags[1].rules
+submit("Attached to clicked")
+local nested = AutoCategory.GetRuleByName("Attached to clicked")
+equal("Branch mid", nested.parent, "default creates a child of the clicked header")
+equal(3, nested.level, "new category is one level below its parent")
+local resolveDisplay = AutoCategory.MakeBagRuleDisplayResolver(12)
+equal("Branch----Branch mid----Attached to clicked", (resolveDisplay(nestedBag.rules[#nestedBag.rules - 1])),
+    "the inventory's display resolver places the new header under the chosen parent")
+local placeholder = AutoCategory.GetRuleByName("Attached to clicked " .. SI_AC_NEW_CATEGORY_EMPTY_CHILD)
+equal(4, placeholder.level, "the hidden placeholder is one level deeper")
+equal("Attached to clicked", placeholder.parent, "the placeholder is under the newly created rule")
+equal(true, nestedBag.rules[#nestedBag.rules].isHidden, "placeholder is not offered as an existing header")
+equal(true, CLM.CreatedThisSession[nested.name], "the attached category can display immediately")
+equal(otherBagCount, #AutoCategory.saved.bags[1].rules, "only the clicked bag changes")
+equal(nil, root.level, "the existing parent hierarchy is not modified")
+
+local fourthHeader = "Branch----Branch mid----Branch deep----Branch fourth"
+openFromHeader(midHeader)
+for _, entry in ipairs(parentCombo.items) do
+    if entry.label == "Branch fourth (Level: 4)" then parentCombo:SelectItem(entry) end
+end
+local beforeLeaf = #nestedBag.rules
+submit("Deepest child")
+local deepest = AutoCategory.GetRuleByName("Deepest child")
+equal("Branch fourth", deepest.parent, "a different parent overrides the clicked header")
+equal(5, deepest.level, "level 5 is a permitted child")
+equal(beforeLeaf + 1, #nestedBag.rules, "level 5 gets no level-6 placeholder")
+equal(fourthHeader .. "----Deepest child", (resolveDisplay(nestedBag.rules[#nestedBag.rules])),
+    "the inventory's display resolver places the level-five leaf")
+
+openFromHeader(fourthHeader .. "----Branch fifth")
+equal(5, displayed.data.clickedParent.level, "level-5 header context is captured")
+equal(parentCombo.items[1], parentCombo.selected, "a level-5 header is not preselected")
+openFromHeader(midHeader)
+equal(parentCombo.items[1], parentCombo.selected, "a second request does not change the open dialog")
+ZO_Dialogs_ReleaseDialog(displayed)
+openFromHeader(midHeader)
+parentCombo:SelectItem(parentCombo.items[1])
+submit("Explicitly standalone")
+local standalone = AutoCategory.GetRuleByName("Explicitly standalone")
+equal(nil, standalone.parent, "clearing a preselected parent keeps the old behavior")
+equal(nil, standalone.level, "clearing a preselected parent creates a Normal category")
+
+openFromHeader(fourthHeader)
+fourth.level = 3
+local beforeStale = #nestedBag.rules
+submit("Stale choice")
+equal(SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE, displayed.errorText, "changed parent level is refused inline")
+equal(beforeStale, #nestedBag.rules, "validation happens before changing the bag")
+equal(nil, AutoCategory.GetRuleByName("Stale choice"), "invalid parent creates no rule")
+fourth.level = 4
+parentCombo:SelectItem(parentCombo.items[1])
+submit("Stale choice")
+equal(nil, AutoCategory.GetRuleByName("Stale choice").parent, "the player can correct an invalid parent")
+
+openFromHeader("Legacy----Header")
+equal(parentCombo.items[1], parentCombo.selected, "legacy hierarchy is not silently used as parent")
+ZO_Dialogs_ReleaseDialog(displayed)
+openFromHeader("Unknown----Branch")
+equal(parentCombo.items[1], parentCombo.selected, "synthetic header does not select a rule with the same suffix")
+ZO_Dialogs_ReleaseDialog(displayed)
+
+local invalidBagCount = #nestedBag.rules
+for _, parent in ipairs({ { name = "Unique", level = 1 },
+    { name = "Branch fifth", level = 5 }, { name = "Hidden", level = 2 } }) do
+    local invalid, err = CLM.CreateCategory(12, "Not created", nil, parent)
+    equal(nil, invalid, "invalid parent cannot bypass the dropdown")
+    equal(SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE, err, "invalid parent is explained")
+end
+equal(invalidBagCount, #nestedBag.rules, "invalid parents do not change the bag")
+
+do
+    local results = {}
+    local function onFinished(created)
+        equal(nil, displayed, "notify after the dialog closes")
+        results[#results + 1] = { created = created, refreshes = refreshes }
+    end
+    local before = refreshes
+    equal(AC_NewCategoryDialog, CLM.OpenNewCategoryDialog(12, nil, onFinished),
+        "the caller knows whether ESO opened the dialog")
+    submit("")
+    equal(0, #results, "validation failure must not notify the caller")
+    ZO_Dialogs_ReleaseDialog(displayed)
+    equal(false, results[1].created, "dismissal notifies the caller of cancellation")
+    equal(before, results[1].refreshes, "cancellation does not refresh saved categories")
+
+    CLM.OpenNewCategoryDialog(12, nil, onFinished)
+    submit("Created with callback")
+    equal(true, results[2].created, "confirmation notifies the caller of successful creation")
+    equal(before + 1, results[2].refreshes, "refresh saved categories before notifying the caller")
+    equal(nil, AC_NewCategoryDialog.data.onFinished, "the finished dialog releases its callback")
+    CLM.OpenNewCategoryDialog(12)
+    ZO_Dialogs_ReleaseDialog(displayed)
+    equal(2, #results, "a normal inventory dialog never reuses the previous callback")
+end
 
 print("CategoryCreation_test: " .. assertions .. " assertions passed")

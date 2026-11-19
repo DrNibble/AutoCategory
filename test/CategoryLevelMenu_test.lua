@@ -22,17 +22,21 @@ SI_AC_MENU_CM_LEVEL_SHALLOWER = "Decrease Level ←"
 SI_AC_MENU_CM_LEVEL_MOVE_DOWN = "Move Down ↓"
 SI_AC_MENU_CM_REMOVE_DISPLAY = "Remove from display"
 SI_AC_MENU_CM_NEW_CATEGORY = "New Category"
+SI_AC_MENU_CM_MANAGE_CATEGORIES = "Manage Categories"
 SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Empty name"
 SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Duplicate name"
 SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Invalid bag"
 SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
+SI_AC_TIP_CM_COPY_OVERWRITE = "Already exists, select to overwrite"
 SI_AC_MENU_CM_MOVE_SUBMENU = "Move To"
 SI_AC_MENU_CM_MOVE_TOP = "Top Level"
 SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there)."
+SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categories added to %s (%d overwritten)."
 SI_AC_DEFAULT_NAME_NEW_CATEGORY = "NewCategory"
 SI_AC_DEFAULT_NAME_EMPTY_TAG = "<Empty>"
 SI_AC_NEW_CATEGORY_EMPTY_CHILD = "(empty)"
-SI_AC_MENU_CM_RUN_PRIORITY = "Execution Priority: %d"
+SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY = "Execution Priority"
+SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY_TOOLTIP = "Execution priority tooltip"
 SI_AC_MENU_CM_RULE = "Rule"
 
 function GetString(si)
@@ -52,6 +56,8 @@ AutoCategory = {}
 -- CategoryLevelMenu.lua (never copies of them)
 assert(loadfile("AutoCategory_Tree.lua"))()
 assert(loadfile("AutoCategory_LevelMenu.lua"))()
+assert(loadfile("AutoCategory_API.lua"))()
+function AutoCategory.GetCategorySortName(name) return name end
 
 local CLM = AutoCategory.CategoryLevelMenu
 local CategoryTree = AutoCategory.CategoryTree
@@ -169,15 +175,19 @@ CHAT_ROUTER = {
 -- context menu capture
 local capturedSubmenus = {}
 local capturedItems = {}
-function AddCustomSubMenuItem(text, entries)
-    capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries }
-end
-function AddCustomMenuItem(text, callback)
-    capturedItems[#capturedItems + 1] = { label = text, callback = callback }
-end
-function AddMenuItem() end
-function ClearMenu() end
-function ShowMenu() end
+local capturedOrder = {}
+local testMenu = {
+    addItem = function(text, callback)
+        capturedOrder[#capturedOrder + 1] = text
+        capturedItems[#capturedItems + 1] = { label = text, callback = callback }
+    end,
+    addDivider = function() capturedOrder[#capturedOrder + 1] = "-" end,
+    addSubMenu = function(text, entries, options)
+        capturedOrder[#capturedOrder + 1] = text
+        capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries,
+            apply = options and options.copyAction, searchable = options and options.searchable }
+    end,
+}
 
 -- ---------------------------------------------------------------------------
 -- Part 1: EffectiveLevel and HeaderRule
@@ -455,32 +465,59 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 -- Part 7: the context menu itself
 -- ---------------------------------------------------------------------------
 
--- a header of a category of the bag gets the run priority, the Level
--- submenu and the Copy To submenu (Kid is Normal and alone in the
--- bag here: no Decrease entry, no move entries; three copy entries
+-- a header of a category of the bag gets the Rule submenu, the Level
+-- submenu, Move To and Copy To (Kid is Normal and alone in the
+-- bag here: no Decrease entry, a disabled self destination; three copy entries
 -- for the three bags of the stub other than the clicked one)
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(3, #capturedItems, "priority, creation and removal entries for an operable header")
-equal("Execution Priority: 5", capturedItems[1].label,
-    "the header menu shows the category's execution priority")
-equal("Remove from display", capturedItems[2].label, "the removal entry comes after the operations")
-equal("New Category", capturedItems[3].label, "creation comes last")
-equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
+capturedOrder = {}
+local sourceList = {}
+AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu, "Nom affiché", sourceList)
+equal("-", capturedOrder[1], "divider comes immediately before Rule")
+equal("Rule", capturedOrder[2], "Rule follows the divider")
+equal(3, #capturedItems, "removal, creation and management for an operable header")
+equal("Remove from display", capturedItems[1].label, "the removal entry comes after the operations")
+equal("New Category", capturedItems[2].label)
+equal("Manage Categories", capturedItems[3].label, "management comes last")
+local openedBag
+AutoCategory.CategoryManagement = { Open = function(bagId, refresh, list)
+    openedBag = bagId
+    equal("function", type(refresh), "refresh callback is passed to the manager")
+    equal(sourceList, list, "manager receives the clicked scroll list")
+end }
+capturedItems[3].callback()
+equal(12, openedBag, "manager uses the clicked bag")
+equal(4, #capturedSubmenus, "Rule, Level, Move To and Copy To")
 equal("Rule", capturedSubmenus[1].text,
-    "the rule submenu comes right after the priority display")
+    "the rule submenu comes first")
 local ruleMenu = capturedSubmenus[1].entries
-equal(2, #ruleMenu, "the rule submenu holds the priority and the rule text")
-equal("Execution Priority: 5", ruleMenu[1].label,
-    "the rule submenu repeats the execution priority")
-equal("true", ruleMenu[2].label, "the rule submenu shows the rule text")
+equal(3, #ruleMenu, "the rule submenu holds the title, priority and rule text")
+equal(true, ruleMenu[1].isHeader, "the title is a header row")
+equal("Nom affiché", ruleMenu[1].label, "use the actual display name, not the synthetic path")
+equal(nil, ruleMenu[1].callback, "the category title isn't clickable")
+local slider = ruleMenu[2].slider
+equal("Execution Priority", slider.label, "the rule submenu shows the priority slider")
+equal(5, slider.data.value(), "the slider starts at the bag rule's execution priority")
+equal(0, slider.data.min, "the slider starts at zero")
+equal(1000, slider.data.max, "the slider is bounded by 1000")
+local callsBefore = refreshCalls.cacheInitialize
+slider.callback(5)
+equal(callsBefore, refreshCalls.cacheInitialize, "initial value does not refresh")
+slider.callback(9.6)
+equal(10, bags[12].rules[1].runpriority, "the slider rounds valid input")
+equal(5, bags[12].rules[1].showpriority, "display priority is untouched")
+equal(callsBefore + 1, refreshCalls.cacheInitialize, "the changed slider refreshes once")
+equal("true", ruleMenu[3].label, "the rule submenu shows the rule text")
 equal("Level", capturedSubmenus[2].text, "the level operations sit in their own submenu")
 local levelMenu = capturedSubmenus[2].entries
-equal(1, #levelMenu, "Kid is Normal and alone: no Decrease entry, no move entries")
+equal(1, #levelMenu, "Kid is Normal and alone: no Decrease entry")
 equal("Increase Level →", levelMenu[1].label)
-equal("Copy To", capturedSubmenus[3].text, "the third submenu is the Copy To menu")
-menu = capturedSubmenus[3].entries
+equal("Move To", capturedSubmenus[3].text)
+equal("Kid", capturedSubmenus[3].entries[1].label, "show the sole category even if no move is possible")
+equal(nil, capturedSubmenus[3].entries[1].callback, "cannot move under self")
+equal("Copy To", capturedSubmenus[4].text)
+menu = capturedSubmenus[4].entries
 equal(3, #menu, "the copy entries list the other bags")
 equal("Backpack", menu[1].label)
 equal("Bank", menu[2].label)
@@ -495,16 +532,16 @@ equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 -- the removal callback removes the category from the inventory
 -- list of the clicked bag only: the global rule stays
 refreshCalls.cacheInitialize = 0
-capturedItems[2].callback()
+capturedItems[1].callback()
 equal(1, refreshCalls.cacheInitialize, "the removal callback refreshes the caches")
 equal(0, #AutoCategory.saved.bags[12].rules, "the category leaves the bag list")
 equal(true, rKid ~= nil, "the global rule is kept")
 
--- A header with no backing rule only gets category creation.
+-- A header with no backing rule still gets category creation and management.
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Others", 12)
-equal(1, #capturedItems, "creation is offered on ungrouped headers")
+AutoCategory.AddCategoryLevelMenuEntries("Others", 12, testMenu)
+equal(2, #capturedItems, "creation and management are offered on ungrouped headers")
 equal(0, #capturedSubmenus, "no submenu for a category without a rule")
 
 -- a predefined (protected) rule: its level and its priorities can be
@@ -515,27 +552,26 @@ ruleList[ruleNames["Pred"]].pred = 1
 setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Pred", 13)
-equal(3, #capturedItems, "priority, removal and creation for a predefined rule")
-equal("Execution Priority: 1", capturedItems[1].label)
-equal("Remove from display", capturedItems[2].label,
+AutoCategory.AddCategoryLevelMenuEntries("Pred", 13, testMenu)
+equal(3, #capturedItems, "removal, creation and management for a predefined rule")
+equal("Remove from display", capturedItems[1].label,
     "a predefined rule is offered the removal")
-equal("New Category", capturedItems[3].label)
-equal(3, #capturedSubmenus,
-    "a Rule, a Level and a Copy To submenu for a predefined rule")
+equal("New Category", capturedItems[2].label)
+equal(4, #capturedSubmenus,
+    "Rule, Level, Move To and Copy To for a predefined rule")
 equal("Rule", capturedSubmenus[1].text, "the predefined rule text shows too")
 equal("Level", capturedSubmenus[2].text)
 equal(2, #capturedSubmenus[2].entries, "alone in the bag: no move entries")
 equal("Increase Level →", capturedSubmenus[2].entries[1].label)
 equal("Decrease Level ←", capturedSubmenus[2].entries[2].label,
     "an explicit level 1 can go back to Normal")
-equal("Copy To", capturedSubmenus[3].text)
-equal(3, #capturedSubmenus[3].entries, "the copy entries are offered for a predefined rule")
+equal("Copy To", capturedSubmenus[4].text)
+equal(3, #capturedSubmenus[4].entries, "the copy entries are offered for a predefined rule")
 
 -- the removal of a predefined category only takes it out of the
 -- inventory list of the clicked bag: the protected rule is kept
 refreshCalls.cacheInitialize = 0
-capturedItems[2].callback()
+capturedItems[1].callback()
 equal(1, refreshCalls.cacheInitialize, "the removal callback refreshes the caches")
 equal(0, #AutoCategory.saved.bags[13].rules, "the predefined category leaves the bag list")
 equal(true, ruleList[ruleNames["Pred"]] ~= nil, "the protected rule is kept")
@@ -543,8 +579,8 @@ equal(true, ruleList[ruleNames["Pred"]] ~= nil, "the protected rule is kept")
 -- A category outside the clicked bag has no level operations.
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root", 13)
-equal(1, #capturedItems, "creation only needs the captured bag")
+AutoCategory.AddCategoryLevelMenuEntries("Root", 13, testMenu)
+equal(2, #capturedItems, "creation and management only need the captured bag")
 equal(0, #capturedSubmenus, "no submenu outside the bag of the header")
 
 -- At level 5 only increase is left out; creation is independent.
@@ -552,20 +588,21 @@ newRule("Deep", 5)
 setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
-equal(3, #capturedItems, "priority, creation and removal at level 5")
-equal("Execution Priority: 1", capturedItems[1].label)
-equal("Remove from display", capturedItems[2].label)
-equal("New Category", capturedItems[3].label)
+AutoCategory.AddCategoryLevelMenuEntries("Deep", 14, testMenu)
+equal(3, #capturedItems, "removal, creation and management at level 5")
+equal("Remove from display", capturedItems[1].label)
+equal("New Category", capturedItems[2].label)
 equal(4, #capturedSubmenus, "Rule, Level, Move To and Copy To submenus at level 5")
 equal("Rule", capturedSubmenus[1].text)
 equal("Level", capturedSubmenus[2].text)
 equal(1, #capturedSubmenus[2].entries, "no Increase at level 5, no neighbor to move to")
 equal("Decrease Level ←", capturedSubmenus[2].entries[1].label)
 equal("Move To", capturedSubmenus[3].text)
-equal(1, #capturedSubmenus[3].entries,
-    "only the top level entry: no other category in the bag")
+equal(2, #capturedSubmenus[3].entries,
+    "the top level action and the disabled sole category")
 equal("Top Level", capturedSubmenus[3].entries[1].label)
+equal("Deep", capturedSubmenus[3].entries[2].label)
+equal(nil, capturedSubmenus[3].entries[2].callback)
 menu = capturedSubmenus[4].entries
 equal(3, #menu, "the copy entries are still offered at level 5")
 equal("Backpack", menu[1].label)
@@ -575,12 +612,12 @@ setBag(15, { { name = "CopyMe", runpriority = 7, showpriority = 7 } })
 newRule("CopyMe", 1)
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("CopyMe", 15)
-equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
+AutoCategory.AddCategoryLevelMenuEntries("CopyMe", 15, testMenu)
+equal(4, #capturedSubmenus, "Rule, Level, Move To and Copy To")
 equal("Rule", capturedSubmenus[1].text)
 equal("Level", capturedSubmenus[2].text)
-equal("Copy To", capturedSubmenus[3].text)
-menu = capturedSubmenus[3].entries
+equal("Copy To", capturedSubmenus[4].text)
+menu = capturedSubmenus[4].entries
 local copyEntry = nil
 for i = 1, #menu do
     if menu[i].label == "Backpack" then
@@ -589,7 +626,8 @@ for i = 1, #menu do
 end
 equal(true, copyEntry ~= nil, "the copy entries list the other bags")
 chatMessages = {}
-copyEntry.callback()
+copyEntry.onChecked(true)
+capturedSubmenus[4].apply()
 equal("CopyMe", bagNames(1)[#bagNames(1)],
     "the copy target bag received the category")
 equal("AutoCategory: 1 categories copied to Backpack (0 already there).",
@@ -672,15 +710,14 @@ equal("X", rD.parent)
 equal(3, rE.level, "the children shift with the category")
 equal("D", rE.parent, "the children keep their parent")
 
--- the Move To submenu: the candidates of the bag in display order,
--- never the category itself, its children or its current parent
+-- Move To follows inventory display order, including visible but
+-- disabled rows for the source, current parent and descendants.
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Mid", 20)
-equal(3, #capturedItems, "priority, creation and removal entries")
-equal("Execution Priority: 30", capturedItems[1].label)
-equal("Remove from display", capturedItems[2].label)
-equal("New Category", capturedItems[3].label)
+AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, testMenu)
+equal(3, #capturedItems, "removal, creation and management entries")
+equal("Remove from display", capturedItems[1].label)
+equal("New Category", capturedItems[2].label)
 equal(4, #capturedSubmenus, "a Rule, a Level, a Move To and a Copy To submenu")
 equal("Level", capturedSubmenus[2].text)
 equal(4, #capturedSubmenus[2].entries, "all four level operations for a mid-level category")
@@ -703,30 +740,19 @@ equal(39, AutoCategory.saved.bags[20].rules[3].showpriority,
 equal("Move To", capturedSubmenus[3].text)
 equal("Copy To", capturedSubmenus[4].text)
 local moveMenu = capturedSubmenus[3].entries
-equal(4, #moveMenu, "top level, then the candidates in display order")
+equal(6, #moveMenu, "top level, then all configured destinations in display order")
 equal("Top Level", moveMenu[1].label)
 equal("TopA", moveMenu[2].label)
-equal("Leaf", moveMenu[3].label)
-equal("Other", moveMenu[4].label)
-
--- A custom renderer gets exactly the eligible destinations of the
--- native Move To submenu; the other submenus remain native.
-capturedSubmenus = {}
-local renderedMoveMenu
-AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, function(title, entries)
-    equal(SI_AC_MENU_CM_MOVE_SUBMENU, title, "custom renderer uses the localized Move To title")
-    renderedMoveMenu = entries
-end)
-equal(#moveMenu, #renderedMoveMenu, "custom renderer receives the same number of destinations")
-for i, entry in ipairs(moveMenu) do
-    equal(entry.label, renderedMoveMenu[i].label, "destination in the same order at row " .. i)
-end
-equal(3, #capturedSubmenus, "only the Move To submenu switches renderers")
-equal("Copy To", capturedSubmenus[3].text, "Copy To stays a native submenu")
+equal("TopB", moveMenu[3].label)
+equal(nil, moveMenu[3].callback, "current parent remains visible but disabled")
+equal("   Mid", moveMenu[4].label)
+equal(nil, moveMenu[4].callback, "source remains visible but disabled")
+equal("Leaf", moveMenu[5].label)
+equal("Other", moveMenu[6].label)
 
 -- the move callback moves and refreshes
 refreshCalls.cacheInitialize = 0
-renderedMoveMenu[2].callback()
+moveMenu[2].callback()
 equal("TopA", rMid.parent, "the move callback parents to the target")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 
@@ -740,16 +766,271 @@ rKid.parent = nil
 rKid.rule = "type(2) and quality(2) and (isSetOf(1) or isSetOf(2)) and not (bound() or stolen()) and level() >= 50 and (trait(1) or trait(2) or trait(3)) and (enchant() or poisen()) and (stolen() and fencePrice() > 100 or not stolen()) and (bagId() == 1 or bagId() == 2) and (isJunk() or isUsable()) and (potency() or aspect()) and (essence() or style()) and (hasEnchant() or hasPoisen() or hasCharge()) and (isImproved() or isRetraitable()) and (isInHouse() or isTreasure() or isOrnate()) and (isStackable() or isCrafted() or isRefined())"
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(3, #capturedSubmenus, "the rule submenu is there for a long rule too")
+AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu)
+equal(4, #capturedSubmenus, "the rule submenu is there for a long rule too")
 local longMenu = capturedSubmenus[1].entries
-equal(true, #longMenu > 3, "a long rule is wrapped over several entries")
+equal(true, #longMenu > 4, "a long rule is wrapped over several entries")
 local joined = {}
-for i = 2, #longMenu do joined[#joined + 1] = longMenu[i].label end
+for i = 3, #longMenu do joined[#joined + 1] = longMenu[i].label end
 equal(rKid.rule, table.concat(joined, " "),
     "the wrapped entries joined back give the rule again")
-for i = 2, #longMenu do
+for i = 3, #longMenu do
     equal(true, #longMenu[i].label <= 75, "each wrapped line fits the menu width")
 end
+
+-- Copy To multiselect: matching root, descendant-only overlap, and a
+-- conflicting destination that is deselected before applying.
+AutoCategory.cache.bags_cvt = {
+    choices = { "Source", "Matching root", "Descendant only", "Deselected" },
+    choicesValues = { 5, 6, 7, 8 },
+}
+newRule("Destination only", 3, "M")
+local sourceM, sourceS = bags[5].rules[2], bags[5].rules[3]
+sourceS.isHidden = true
+local existingAncestor = { name = "P", runpriority = 2, showpriority = 3 }
+local existingM = { name = "M", runpriority = 1, showpriority = 2, isHidden = true }
+local existingS = { name = "S", runpriority = 3, showpriority = 4 }
+local destOnly = { name = "Destination only", runpriority = 6, showpriority = 7 }
+local descendantOnly = { name = "S", runpriority = 500, showpriority = 501 }
+local deselected = { name = "M", runpriority = 600, showpriority = 601 }
+setBag(6, { existingAncestor, existingM, existingS, destOnly })
+setBag(7, { descendantOnly })
+setBag(8, { deselected })
+
+capturedSubmenus = {}
+AutoCategory.AddCategoryLevelMenuEntries("P----M", 5, testMenu)
+local copyMenu = capturedSubmenus[#capturedSubmenus]
+equal("Copy To", copyMenu.text, "copy is the final submenu")
+local destinations, apply = copyMenu.entries, copyMenu.apply
+equal(3, #destinations, "the source bag is excluded")
+equal("Matching root", destinations[1].label)
+equal(SI_AC_TIP_CM_COPY_OVERWRITE, destinations[1].overwriteTooltip, "the matching root is marked")
+equal(nil, destinations[2].overwriteTooltip, "a descendant alone does not mark the bag")
+equal(SI_AC_TIP_CM_COPY_OVERWRITE, destinations[3].overwriteTooltip, "both matching bags are marked")
+
+local messageCount, refreshCount = #chatMessages, refreshCalls.cacheInitialize
+apply()
+equal(messageCount, #chatMessages, "an empty selection does not copy")
+equal(refreshCount, refreshCalls.cacheInitialize, "an empty selection does not refresh")
+destinations[1].onChecked(true)
+destinations[2].onChecked(true)
+destinations[3].onChecked(true)
+destinations[3].onChecked(false)
+equal(1, existingM.runpriority, "checking a bag alone does not overwrite")
+equal("S", table.concat(bagNames(7), ","), "copy only happens on apply")
+apply()
+equal(refreshCount + 1, refreshCalls.cacheInitialize, "the whole batch refreshes once")
+equal(messageCount + 2, #chatMessages, "only selected bags report results")
+equal("AutoCategory: 0 categories added to Matching root (2 overwritten).", chatMessages[messageCount + 1])
+equal("AutoCategory: 2 categories copied to Descendant only (1 already there).", chatMessages[messageCount + 2])
+equal("P,M,S,Destination only", table.concat(bagNames(6), ","), "no duplicates or loss")
+equal(sourceM.runpriority, existingM.runpriority, "root execution priority is copied")
+equal(sourceM.showpriority, existingM.showpriority, "root display priority is copied")
+equal(nil, existingM.isHidden, "a visible source entry clears the hidden flag")
+equal(sourceS.runpriority, existingS.runpriority, "existing descendants are overwritten in a red bag")
+equal(true, existingS.isHidden, "a hidden source entry copies its hidden flag")
+equal(500, descendantOnly.runpriority, "unmarked destinations do not overwrite descendants")
+equal("S,P,M", table.concat(bagNames(7), ","), "missing ancestors and the root are added")
+equal(2, existingAncestor.runpriority, "an existing ancestor is not overwritten")
+equal(6, destOnly.runpriority, "unrelated destination entries are untouched")
+equal(600, deselected.runpriority, "a deselected red bag is not overwritten")
+equal("M", AutoCategory.GetRuleByName("S").parent, "global hierarchy is unchanged")
+apply()
+equal(messageCount + 2, #chatMessages, "applying again does not repeat the batch")
+
+-- Indent by three literal spaces per nested level. The indent is display
+-- only: the action must still resolve the destination by its real name.
+newRule("Indent source")
+newRule("Indent L1", 1)
+newRule("Indent L2", 2, "Indent L1")
+newRule("Indent L3", 3, "Indent L2")
+newRule("Indent L4", 4, "Indent L3")
+newRule("Indent L5", 5, "Indent L4")
+newRule("Indent hidden", 1)
+setBag(23, {
+    { name = "Indent source", runpriority = 60, showpriority = 60 },
+    { name = "Indent L1", runpriority = 50, showpriority = 50 },
+    { name = "Indent L2", runpriority = 40, showpriority = 40 },
+    { name = "Indent L3", runpriority = 30, showpriority = 30 },
+    { name = "Indent L4", runpriority = 20, showpriority = 20 },
+    { name = "Indent L5", runpriority = 10, showpriority = 10 },
+    { name = "Indent hidden", runpriority = 70, showpriority = 70, isHidden = true },
+})
+capturedSubmenus = {}
+AutoCategory.AddCategoryLevelMenuEntries("Indent source", 23, testMenu)
+local indentEntries
+for _, submenu in ipairs(capturedSubmenus) do
+    if submenu.text == "Move To" then
+        indentEntries = submenu.entries
+        equal(true, submenu.searchable, "the Move To renderer is asked to provide a search field")
+    else
+        equal(nil, submenu.searchable, "sibling submenus are not searchable")
+        if submenu.text == "Rule" then
+            equal("Indent source", submenu.entries[1].label, "fall back to the rule name when needed")
+        end
+    end
+end
+equal(6, #indentEntries, "show all destinations except the hidden category")
+equal("Indent source", indentEntries[1].label)
+equal("Indent L1", indentEntries[2].label)
+equal("   Indent L2", indentEntries[3].label)
+equal("      Indent L3", indentEntries[4].label)
+equal("         Indent L4", indentEntries[5].label)
+equal("            Indent L5", indentEntries[6].label)
+equal(nil, indentEntries[6].callback, "level five is shown but cannot receive a child")
+indentEntries[5].callback()
+equal("Indent L4", AutoCategory.GetRuleByName("Indent source").parent, "move resolves the unindented name")
+equal(5, AutoCategory.GetRuleByName("Indent source").level, "move still nests under the selected level")
+capturedSubmenus = {}
+AutoCategory.AddCategoryLevelMenuEntries("Indent L3", 23, testMenu)
+for _, submenu in ipairs(capturedSubmenus) do
+    if submenu.text == "Move To" then
+        for _, entry in ipairs(submenu.entries) do
+            if entry.label == "         Indent L4" then
+                equal(nil, entry.callback, "a descendant cannot receive its own ancestor")
+            end
+        end
+    end
+end
+
+-- Run the shipped XML handlers and header input code against the real
+-- level move, substituting only the ESO UI controls and event dispatch.
+local function readFile(path)
+    local file = assert(io.open(path, "r"))
+    local text = file:read("*a")
+    file:close()
+    return (text:gsub("\r\n", "\n"))
+end
+local inventory = readFile("AutoCategory.lua")
+local first = assert(inventory:find("local function getBagTypeId(header)", 1, true))
+local last = assert(inventory:find("-- The names of the sub-levels displayed", first, true))
+assert(loadstring("local AutoCat = AutoCategory\n" .. inventory:sub(first, last - 1)))()
+local headerXml = assert(readFile("XML/AutoCategory.xml"):match(
+    '<Control name="AC_InventoryItemRowHeader"[^>]*>(.-)<Controls>'))
+local onDragStart = assert(loadstring("local self, button = ...\n"
+    .. assert(headerXml:match("<OnDragStart>(.-)</OnDragStart>"))))
+local onMouseUp = assert(loadstring("local self, button, upInside = ...\n"
+    .. assert(headerXml:match("<OnMouseUp>(.-)</OnMouseUp>"))))
+
+local function control(parent, slot)
+    return {
+        slot = slot, hidden = false,
+        GetParent = function() return parent end,
+        IsControlHidden = function(self) return self.hidden or (parent and parent:IsControlHidden()) end,
+    }
+end
+local contents, otherContents = control(), control()
+local function header(path, bag, parent)
+    return control(parent or contents, { dataEntry = { data = {
+        AC_isHeader = true, AC_categoryName = path, AC_bagTypeId = bag or 20,
+        AC_displayName = CategoryTree.DisplayName(path),
+    } } })
+end
+rMid.parent, rMid.level = "TopB", 2
+rLeaf.parent, rLeaf.level = nil, nil
+local mid = header("TopB----Mid")
+local topA, topB = header("TopA"), header("TopB")
+local leaf = header("Leaf")
+
+MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
+EVENT_GLOBAL_MOUSE_UP = 3
+local mouseOver, globalUp, deferred, dragText
+WINDOW_MANAGER = { GetMouseOverControl = function() return mouseOver end }
+EVENT_MANAGER = {
+    RegisterForEvent = function(_, name, event, handler)
+        equal("AutoCategory_InventoryHeaderDrag", name)
+        equal(EVENT_GLOBAL_MOUSE_UP, event)
+        equal(nil, globalUp, "one listener per gesture")
+        globalUp = handler
+    end,
+    UnregisterForEvent = function() globalUp = nil end,
+}
+function zo_callLater(handler) deferred = handler end
+AutoCategory.OrderList = {
+    ShowDragLabel = function(value) dragText = value end,
+    HideDragLabel = function() dragText = nil end,
+}
+AutoCategory.ScrollMenu = { Hide = function() end }
+local folds, menus = 0, 0
+function AC_ItemRowHeader_OnMouseClicked() folds = folds + 1 end
+function AC_ItemRowHeader_OnShowContextMenu() menus = menus + 1 end
+local function release(source, target, globalFirst)
+    mouseOver = target
+    if globalFirst then globalUp(nil, MOUSE_BUTTON_INDEX_LEFT) end
+    onMouseUp(source, MOUSE_BUTTON_INDEX_LEFT, true)
+    if not globalFirst then globalUp(nil, MOUSE_BUTTON_INDEX_LEFT) end
+    equal(nil, globalUp, "mouse listener removed on release")
+    equal(nil, dragText, "drag label hidden on release")
+end
+local function finish() local work = deferred; deferred = nil; work() end
+local function drop(source, target)
+    onDragStart(source, MOUSE_BUTTON_INDEX_LEFT)
+    release(source, target, false)
+    finish()
+end
+onMouseUp(mid, MOUSE_BUTTON_INDEX_LEFT, true)
+onMouseUp(mid, MOUSE_BUTTON_INDEX_LEFT, false)
+onDragStart(mid, MOUSE_BUTTON_INDEX_RIGHT)
+equal(nil, globalUp, "right drag does not register a left gesture")
+onMouseUp(mid, MOUSE_BUTTON_INDEX_RIGHT, true)
+equal(1, folds, "a simple inside left click toggles once")
+equal(1, menus, "a right click still opens the menu")
+
+local beforeRefresh = refreshCalls.RefreshCurrentList
+onDragStart(leaf, MOUSE_BUTTON_INDEX_LEFT)
+equal("Leaf", dragText)
+globalUp(nil, MOUSE_BUTTON_INDEX_RIGHT)
+equal("Leaf", dragText, "right release does not end left drag")
+-- The original scroll row is reused before release; its new item must
+-- not become the source. The target can be hit through a child control.
+leaf.slot = topB.slot
+release(leaf, control(mid), true)
+equal(nil, rLeaf.parent, "move waits until the mouse-up finishes")
+finish()
+equal("Mid", rLeaf.parent)
+equal(3, rLeaf.level)
+equal(beforeRefresh + 1, refreshCalls.RefreshCurrentList, "one refresh after a valid drop")
+drop(mid, topA)
+equal("TopA", rMid.parent, "move a nested header to a different parent")
+equal("Mid", rLeaf.parent, "descendant moves with its parent")
+local movedMid = header("TopA----Mid")
+local movedLeaf = header("TopA----Mid----Leaf")
+local beforeInvalid = refreshCalls.RefreshCurrentList
+drop(movedMid, movedMid)
+drop(movedMid, movedLeaf)
+drop(movedMid, topA)
+drop(movedMid, nil)
+drop(movedMid, control(contents))
+drop(movedMid, header("TopB", 22))
+drop(movedMid, header("TopB", 20, otherContents))
+drop(movedMid, header("TopB----Leaf"))
+drop(header("Autres"), topB)
+equal("TopA", rMid.parent, "self, cycle, same parent, outside, item, other bag/list and synthetic drops never move")
+equal(beforeInvalid, refreshCalls.RefreshCurrentList)
+equal(1, folds, "neither mouse-up ordering folds a header after dragging")
+
+local deepTarget = header("Indent L1----Indent L2----Indent L3----Indent L4", 23)
+drop(header("Indent L1----Indent L2----Indent L3----Indent L4----Indent source", 23),
+    header("Indent L1----Indent L2", 23))
+local depthSource = header("Indent L1----Indent L2----Indent source", 23)
+drop(depthSource, deepTarget)
+equal(5, AutoCategory.GetRuleByName("Indent source").level, "a drop may reach level five")
+local maxTarget = header("Indent L1----Indent L2----Indent L3----Indent L4----Indent source", 23)
+local atTop = newRule("Drag top-level")
+table.insert(AutoCategory.saved.bags[23].rules, { name = atTop.name })
+drop(header(atTop.name, 23), maxTarget)
+equal(nil, atTop.parent, "a level-five header cannot be a destination")
+drop(maxTarget, header("Indent L1", 23))
+drop(header("Indent L1----Indent L2", 23), header("Indent L1----Indent source", 23))
+equal("Indent L1", AutoCategory.GetRuleByName("Indent L2").parent, "a whole branch may not exceed level five")
+
+onDragStart(movedMid, MOUSE_BUTTON_INDEX_LEFT)
+release(movedMid, topB, true)
+contents.hidden = true
+finish()
+contents.hidden = false
+equal("TopA", rMid.parent, "closing the inventory cancels the pending drop")
+onMouseUp(movedMid, MOUSE_BUTTON_INDEX_LEFT, true)
+equal(2, folds, "normal clicks resume after the drag is cleaned up")
 
 print("CategoryLevelMenu_test: " .. assertions .. " assertions passed")

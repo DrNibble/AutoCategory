@@ -50,7 +50,8 @@ local chunkSource = table.concat({
     extractBlock("local function getBagTypeId(header)"),
     extractBlock("local function subLevelNames(fullName, bagTypeId)"),
     extractBlock("local function bagCategoryNames(bagTypeId)"),
-    extractBlock("local function addScrollableContextSubMenu("),
+    extractBlock("local function createHeaderScrollableMenu(menuRows)"),
+    extractBlock("local function showHeaderContextMenu("),
     extractBlock("function AC_ItemRowHeader_OnShowContextMenu(header)"),
 }, "\n")
 
@@ -99,15 +100,16 @@ CategoryTree = {
 }
 
 AutoCategory = {
-    -- AddCategoryLevelMenuEntries stays nil: the AutoCategory entries
-    -- of the menu are covered by CategoryLevelMenu_test.
+    AddCategoryLevelMenuEntries = function() end,
     CategoryLevelMenu = { RuleChainPrefixes = function() return {} end },
     GetRuleByName = function() return nil end,
 }
 
 local ScrollData = {} -- the visible entries of the guild bank list
-inven_data = { [GUILDBANK] = { listView = {} } }
-function ZO_ScrollList_GetDataList() return ScrollData end
+local guildList = { data = ScrollData }
+inven_data = { [GUILDBANK] = { listView = guildList } }
+function ZO_ScrollList_GetDataList(listView) return listView.data end
+assert(loadstring(extractBlock("function AutoCategory.GetDisplayedHeaders(")))()
 
 L = function(s) return s end
 SI_CONTEXT_MENU_EXPAND = "EXPAND"
@@ -117,14 +119,20 @@ SI_CONTEXT_MENU_COLLAPSE_ALL = "COLLAPSE_ALL"
 SI_CONTEXT_MENU_COLLAPSE_LEVEL_ALL = "COLLAPSE_ALL_SUBLEVELS"
 SI_CONTEXT_MENU_EXPAND_LEVEL_ALL = "EXPAND_ALL_SUBLEVELS"
 
-local Menu = {}
-function ClearMenu()
-    for i = #Menu, 1, -1 do Menu[i] = nil end
+local Menu, pending, shownAt, options
+function ClearMenu() end
+function zo_callLater(callback, delay)
+    equal(0, delay, "open after the right mouse-up")
+    pending = callback
 end
-function AddMenuItem(label, callback)
-    Menu[#Menu + 1] = { label = label, callback = callback }
+AutoCategory.ScrollMenu = {}
+function AutoCategory.ScrollMenu.Show(anchor, rows, opts)
+    shownAt, Menu, options = anchor, rows, opts
 end
-function ShowMenu() end
+local function openHeader(header)
+    M.OnShowContextMenu(header)
+    pending()
+end
 
 local function menuLabels()
     local labels = {}
@@ -140,7 +148,7 @@ end
 local function click(label)
     for _, item in ipairs(Menu) do
         if item.label == label then
-            item.callback()
+            item.action()
             return true
         end
     end
@@ -148,7 +156,8 @@ local function click(label)
 end
 
 local function header(name)
-    return { slot = { dataEntry = { data = {
+    local contents = { GetParent = function() return guildList end }
+    return { GetParent = function() return contents end, slot = { dataEntry = { data = {
         AC_categoryName = name, AC_bagTypeId = GUILDBANK,
     } } } }
 end
@@ -159,6 +168,20 @@ local function resetList(entries)
     for i = #ScrollData, 1, -1 do ScrollData[i] = nil end
     for i, e in ipairs(entries) do ScrollData[i] = e end
 end
+
+local function headerEntry(name, bagId)
+    return { data = { AC_categoryName = name, AC_bagTypeId = bagId, AC_isHeader = true } }
+end
+resetList({ headerEntry("PvP", GUILDBANK), headerEntry("PvP----Siège", GUILDBANK),
+    subEntry("not a header"), headerEntry("other bag", 99), headerEntry("PvP", GUILDBANK) })
+local unrelated = { data = { headerEntry("Other list for the same bag", GUILDBANK) } }
+inven_data[99] = { listView = unrelated }
+equal("PvP,PvP----Siège", table.concat(AutoCategory.GetDisplayedHeaders(GUILDBANK, guildList), ","),
+    "the source list excludes other lists, non-headers, other bags, and duplicates")
+equal("Other list for the same bag", table.concat(AutoCategory.GetDisplayedHeaders(GUILDBANK, unrelated), ","))
+equal(0, #AutoCategory.GetDisplayedHeaders(GUILDBANK, { data = {} }), "an empty source list is available")
+equal(nil, AutoCategory.GetDisplayedHeaders(GUILDBANK, {}), "an unavailable source is not assumed empty")
+inven_data[99] = nil
 
 --------------------------------------------------------------------
 -- subLevelNames: the sub-levels of a category, from the visible list
@@ -182,7 +205,7 @@ setCategoryCollapsed(GUILDBANK, "PvP----Caché", false)
 -- Expanded parent: Collapse All Sub-Levels is offered and folds every
 -- sub-level; the parent itself stays expanded
 --------------------------------------------------------------------
-M.OnShowContextMenu(header("PvP"))
+openHeader(header("PvP"))
 equal(true, hasLabel("COLLAPSE"), "single Collapse offered for expanded parent")
 equal(true, hasLabel("COLLAPSE_ALL_SUBLEVELS"),
     "Collapse All Sub-Levels offered with expanded sub-levels")
@@ -204,7 +227,7 @@ equal(before + 1, Refreshes, "the list is refreshed after folding")
 -- Every sub-level already folded: the collapse entry is STILL offered
 -- (it used to vanish here), next to Expand All Sub-Levels
 --------------------------------------------------------------------
-M.OnShowContextMenu(header("PvP"))
+openHeader(header("PvP"))
 equal(true, hasLabel("COLLAPSE_ALL_SUBLEVELS"),
     "Collapse All Sub-Levels still offered when all sub-levels are folded")
 equal(true, hasLabel("EXPAND_ALL_SUBLEVELS"),
@@ -222,7 +245,7 @@ equal(before + 1, Refreshes, "the list is refreshed after unfolding")
 --------------------------------------------------------------------
 setCategoryCollapsed(GUILDBANK, "PvP", true)
 setCategoryCollapsed(GUILDBANK, "PvP----Siège", true)
-M.OnShowContextMenu(header("PvP"))
+openHeader(header("PvP"))
 equal(true, hasLabel("EXPAND"), "single Expand offered for folded category")
 equal(true, hasLabel("EXPAND_ALL_SUBLEVELS"),
     "Expand All Sub-Levels offered for a folded category")
@@ -236,7 +259,7 @@ equal(false, AutoCat.IsCategoryCollapsed(GUILDBANK, "PvP----Siège"),
 -- A category without sub-levels: neither Sub-Levels entry is offered
 --------------------------------------------------------------------
 resetList({ subEntry("Solo") })
-M.OnShowContextMenu(header("Solo"))
+openHeader(header("Solo"))
 equal(true, hasLabel("COLLAPSE"), "single Collapse offered for a flat category")
 equal(false, hasLabel("COLLAPSE_ALL_SUBLEVELS"),
     "no Collapse All Sub-Levels without sub-levels")
@@ -244,56 +267,109 @@ equal(false, hasLabel("EXPAND_ALL_SUBLEVELS"),
     "no Expand All Sub-Levels without sub-levels")
 
 --------------------------------------------------------------------
--- The real header handler supplies the Move To renderer. Verify the
--- fallback plus the 15-row viewport without truncating destinations.
+-- The real header handler builds internal submenus without truncating entries.
 --------------------------------------------------------------------
 local moveTitle = "Déplacer vers"
+local ruleTitle, levelTitle, copyTitle = "Règle", "Niveau", "Copier vers"
+local tip = "déjà existant, sélectionner pour écraser"
+SI_AC_MENU_CM_COPY_SELECTED = "Copier la sélection"
+SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT = "Rechercher"
+SI_SORT_FILTER_LIST_NO_RESULTS = "Aucun résultat"
+GetString = L
+
 local destinations, chosen = {}
 for index = 1, 18 do
     local label = ("Destination %02d"):format(19 - index)
+    if index == 2 then label = "  " .. label end
+    if index == 3 then label = "    Destination 16 [50%]" end
     destinations[index] = { label = label, callback = function() chosen = label end }
 end
-AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, addMoveSubMenu)
-    equal("Solo", name, "Move To receives the clicked category")
-    equal(GUILDBANK, bagId, "Move To receives the clicked bag")
-    addMoveSubMenu(moveTitle, destinations)
+local priority
+local ruleEntries = {
+    { isHeader = true },
+    { slider = {
+        label = "Priorité d’exécution", data = { value = 10 },
+        callback = function(value) priority = value end,
+    } },
+    { label = "true", kind = "text" },
+}
+local copyEntries = {
+    { label = "Banque", overwriteTooltip = tip },
+    { label = "Banque de guilde", onChecked = function() end },
+}
+copyEntries[1].onChecked = function(state) copyEntries[1].selected = state end
+local applied
+local clickedHeader = header("Parent----Solo")
+clickedHeader.slot.dataEntry.data.AC_displayName = "Solo"
+AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, menu, displayName, sourceList)
+    equal("Parent----Solo", name, "renderer receives the clicked category key")
+    equal("Solo", displayName, "renderer receives the inventory's display name")
+    equal(GUILDBANK, bagId, "renderer receives the clicked bag")
+    equal(guildList, sourceList, "the clicked scroll list is forwarded to the menu")
+    menu.addDivider()
+    ruleEntries[1].label = displayName
+    menu.addSubMenu(ruleTitle, ruleEntries)
+    menu.addSubMenu(levelTitle, { { label = "Increase Level", callback = function() end } })
+    menu.addSubMenu(moveTitle, destinations, { searchable = true })
+    menu.addSubMenu(copyTitle, copyEntries, { copyAction = function() applied = true end })
 end
-local fallbackTitle, fallbackEntries
-function AddCustomSubMenuItem(title, entries)
-    fallbackTitle, fallbackEntries = title, entries
-end
-AddCustomMenuItem = AddMenuItem
-local clickedHeader = header("Solo")
-M.OnShowContextMenu(clickedHeader)
-equal(moveTitle, fallbackTitle, "fallback uses the localized menu title")
-equal(destinations, fallbackEntries, "fallback retains all destinations")
-equal(false, hasLabel(moveTitle), "fallback does not add a launcher")
 
-local pending, scrolled, shownAt, options
-LibScrollableMenu = {}
-function zo_callLater(callback, delay)
-    equal(0, delay, "open after the native click")
-    pending = callback
-end
-function ClearCustomScrollableMenu() scrolled = {} end
-function AddCustomScrollableMenuEntry(label, callback)
-    scrolled[#scrolled + 1] = { label = label, callback = callback }
-end
-function ShowCustomScrollableMenu(anchor, opts) shownAt, options = anchor, opts end
-fallbackTitle = nil
+shownAt = nil
 M.OnShowContextMenu(clickedHeader)
-equal(true, hasLabel("COLLAPSE"), "other header options stay native")
-equal(nil, fallbackTitle, "no duplicate native Move To submenu with LSM")
-equal(true, click(moveTitle), "click the localized Move To launcher")
-equal(nil, shownAt, "the scrollable menu waits for the native menu to finish")
+equal(nil, shownAt, "the root menu waits for the mouse-up to finish")
+clickedHeader.slot.dataEntry.data.AC_displayName = "Recycled"
 pending()
-equal(clickedHeader, shownAt, "scrollable menu belongs to the clicked header")
-equal(15, options.visibleRowsDropdown, "Move To shows up to fifteen rows")
-equal(true, options.enableFilter, "Move To shows the native LSM search box")
-equal(false, options.sortEntries, "preserve destination order")
-equal(18, #scrolled, "destinations past the viewport are still present")
-equal("Destination 18", scrolled[1].label, "first destination stays first")
-scrolled[18].callback()
-equal("Destination 01", chosen, "destination past row fifteen remains actionable")
+clickedHeader.slot.dataEntry.data.AC_displayName = "Solo"
+local scrolled = Menu
+equal(clickedHeader, shownAt, "root menu belongs to the clicked header")
+equal(15, options.submenuRows, "Move To shows up to fifteen destinations")
+equal("COLLAPSE", scrolled[1].label, "fold actions also use the root menu")
+equal("divider", scrolled[4].kind, "main divider immediately before Rule")
+equal(ruleTitle, scrolled[5].label)
+equal(levelTitle, scrolled[6].label)
+equal(moveTitle, scrolled[7].label)
+equal(copyTitle, scrolled[8].label)
+for index = 5, 8 do
+    equal(nil, scrolled[index].action, "submenu does not execute an action")
+    equal("table", type(scrolled[index].entries), "the submenu has its own rows")
+    equal(index == 7, scrolled[index].search == true, "only Move To has a search field")
+end
+
+local moveRows = scrolled[7].entries
+equal(18, #moveRows, "all destinations, including those past the viewport")
+equal("Destination 18", moveRows[1].label, "first destination stays first")
+equal("  Destination 17", moveRows[2].label, "indentation is preserved")
+equal("    Destination 16 [50%]", moveRows[3].label, "special characters are preserved")
+moveRows[18].action()
+equal("Destination 01", chosen, "last destination remains actionable")
+
+local ruleRows = scrolled[5].entries
+equal("header", ruleRows[1].kind, "Rule begins with a header")
+equal("Solo", ruleRows[1].label, "Rule title is the visible name, not the synthetic path")
+equal(nil, ruleRows[1].action, "the title is not clickable")
+equal("slider", ruleRows[2].kind, "the slider follows the title")
+equal(10, ruleRows[2].slider.data.value)
+ruleRows[2].slider.callback(33)
+equal(33, priority, "the slider callback remains wired")
+equal("divider", ruleRows[3].kind, "the slider is followed by a divider")
+equal(nil, ruleRows[3].action, "the divider is not clickable")
+equal("true", ruleRows[4].label, "the rule text follows the divider")
+equal(nil, ruleRows[4].action, "the rule text is read-only")
+
+local copyRows = scrolled[8].entries
+equal(3, #copyRows, "two destinations followed by the copy action")
+equal("check", copyRows[1].kind, "destination is still a checkbox")
+equal("|cFF5555Banque|r", copyRows[1].label, "existing destination has a red label")
+equal(tip, copyRows[1].tooltip, "existing destination has the overwrite tooltip")
+equal(false, copyRows[1].checked(), "existing destination is not preselected")
+equal("Banque de guilde", copyRows[2].label, "non-existing destination uses a normal label")
+equal(nil, copyRows[2].tooltip, "non-existing destination has no overwrite tooltip")
+equal(false, copyRows[2].checked(), "non-existing destination is not preselected")
+equal("Copier la sélection", copyRows[3].label, "the list ends with the localized apply action")
+copyRows[1].setChecked(true)
+equal(true, copyRows[1].checked(), "the checkbox state is retained when the submenu is rebuilt")
+equal(nil, applied, "selecting is separate from applying")
+copyRows[3].action()
+equal(true, applied, "the final action applies the selection")
 
 print("PASS: " .. assertions .. " assertions (HeaderFoldMenu)")

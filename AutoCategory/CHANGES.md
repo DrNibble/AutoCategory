@@ -1,5 +1,198 @@
 # Changes
 
+## 2026-11-24: create categories from Manage Categories
+
+- Add a New Category button below the left column. It opens the existing
+  dialog for the selected inventory and returns to the same tab afterward.
+- Refresh the lists after creation. Apply or cancel pending manager edits
+  before opening the creation dialog. Not tested in ESO.
+
+## 2026-11-24: sort the New Category parent dropdown by name
+
+- List eligible parents alphabetically, ignoring case, with None first.
+  Keep the clicked parent selected and leave inventory priorities unchanged.
+  Not tested in ESO.
+
+## 2026-11-24: keep execution and display order separate
+
+- Bag Settings and its order window use the inventory's display keys
+  at every level, including for siblings and parents in another bag.
+- The display list sorts a copy; the saved rule list is sorted for
+  execution before the order window renders. Not tested in ESO.
+
+## 2026-11-23: manage category branches from the list
+
+- Add space under the inventory dropdown and show the selected level
+  (1–5) between the horizontal arrows. Mixed selections show their levels.
+- In Display Priority, move branches with their descendants. The right
+  arrow nests under a preceding eligible sibling; the left arrow promotes
+  the branch one level.
+- Right-click opens actions for the selection: copy branches to checked
+  inventories, remove from the current inventory (promoting remaining
+  children), or attach to a named parent. Apply saves the draft, including
+  queued copies; Cancel discards it. Not tested in ESO.
+
+## 2026-11-23: hide display-priority numbers in Manage Categories
+
+- Display Priority shows category names and indentation without the
+  numeric prefix. Execution Priority still shows its numbers. Not tested in ESO.
+
+## 2026-11-23: switch inventories in Manage Categories
+
+- The dropdown under the title lists all inventory types and starts on
+  the inventory whose context menu opened the window.
+- Changing inventory refreshes both lists and keeps the priority tab.
+  Apply or cancel unsaved changes before switching inventories.
+  Not tested in ESO.
+
+## 2026-11-23: match inventory display order in Manage Categories
+
+- Display Priority uses the inventory's category paths and sort keys.
+  Parents stay above their subcategories, and display priority sorts
+  categories that share a parent. Draft layout changes are previewed
+  before Apply, including categories without a visible inventory header.
+- Display-priority arrows and drag-and-drop reorder siblings without
+  changing parent links or execution priorities. Not tested in ESO.
+
+## 2026-11-23: select multiple categories in Manage Categories
+
+- Ctrl+click toggles a category on the right; Shift+click selects a
+  range of filtered rows. Ctrl+Shift+click adds a range. The vertical
+  arrows move the selection without changing its relative order.
+- Switch between execution and display priority above the list.
+  Display priority controls the order of siblings in the inventory;
+  it does not change the order in which rules run.
+- The horizontal arrows shift the selected branches together; selecting
+  both a parent and its child does not shift the child twice. If one
+  branch reaches a level limit, the whole shift is blocked. Changes
+  remain in the draft until Apply. Not tested in ESO.
+
+## 2026-11-22: filter and change levels in Manage Categories
+
+- Both lists have independent name filters. The right list stays sorted
+  by execution priority and indents categories by three spaces per level
+  below the top level.
+- The right list shows categories with no header in the originating
+  inventory list in grey, and categories marked hidden in red.
+- Select a category on the right and use the horizontal arrows below
+  the list to raise (left) or lower (right) its level. The same-bag
+  subtree follows the existing level rules. Apply saves the changes;
+  Cancel discards them. Levels and parents are shared across inventories
+  that use the same categories. Not tested in ESO.
+
+## 2026-11-22: share the inventory move destinations
+
+- Move To on headers and Move to Category on items share the configured
+  category list, including empty or collapsed categories but excluding
+  hidden entries. Subheaders use three spaces per displayed level.
+- Ineligible destinations are shown dimmed: impossible hierarchy moves
+  on headers and predefined rules on items. The item submenu opens beside
+  the native context menu with the same search and scrollable list.
+  Updated all six languages. Not tested in ESO.
+
+## 2026-11-22: choose a parent when creating an inventory category
+
+- New Category remembers the clicked category's name and level and
+  preselects it when eligible. The native Parent dropdown offers
+  non-hidden categories from this bag at effective levels 1 to 4,
+  including categories under collapsed headers. Choose no parent to
+  keep the existing Normal creation behavior.
+- The new category gets the selected parent's level plus one. A category
+  created at level 5 has no hidden placeholder child. Stale selections
+  are refused without saving. Updated all six languages. Not tested in ESO.
+
+## 2026-11-22: drag inventory category headers
+
+- In keyboard inventory, hold the left mouse button and drag a category
+  header onto another category header of the same bag to make it a child.
+  This runs the same operation as Move To: descendants move along with
+  the category, while invalid drops (including a cycle or a depth above
+  level 5) leave the layout unchanged.
+- A simple left click still folds or unfolds the header, and right-click
+  still opens its menu. Generated headings without their own bag rule and
+  legacy headings made from separator-delimited category names cannot be
+  dragged or used as parents. Not tested in ESO.
+
+## 2026-11-20: manage categories in the selected inventory
+
+- AutoCategory no longer requires LibScrollableMenu. Its Lua/XML menus
+  keep the Move To search, destination order and indentation, the
+  Rule priority slider and the Copy To destination checkboxes. New
+  Category uses ESO's native scrollable tag selector.
+- Manage Categories opens a persistent window with two internal,
+  15-row scroll lists anchored inside the window.
+  Search and click on the left to add. On the right, reorder by
+  execution priority using the arrows or by dragging, or right-click to
+  remove. Apply saves changes for this bag; Cancel discards them.
+- The four reorder buttons use ESO's arrow textures for all states
+  instead of text glyphs.
+- The game's System Menu and Inventory shortcuts cancel the category
+  manager without saving. The inventory shortcut follows the game's
+  keybinding rather than using a hardcoded key. Escape also cancels
+  from the search field.
+- Reordering decrements lower priorities by one, adjusting at ties and
+  at the priority limits when needed. Existing display priorities and
+  global rules are unchanged. Not tested in ESO.
+
+## 2026-11-19: search only in Move To and category title in Rule
+
+- Move To has its own search field, above the indented destinations. The
+  main header menu and other hover submenus are not filtered.
+- Rule starts with the selected category's display name, above the
+  execution-priority slider. Existing ESO translations are reused.
+
+## 2026-11-19: New Category dialog and required LibScrollableMenu
+
+- LibScrollableMenu 2.44 or newer is required. Removed native menu
+  fallbacks while keeping standard inventory item actions.
+- New Category uses a dedicated dialog with a name field and a scrollable
+  tag dropdown. Select no tag, an existing tag, or name a new tag without
+  leaving the dialog. Validation and bag-specific creation are unchanged.
+  Existing translations are reused. Not tested in ESO.
+
+## 2026-11-19: hover submenus for category headers
+
+- Rule, Level, Move To and Copy To open as side submenus with
+  LibScrollableMenu. The header menu has a divider before Rule, and
+  the Rule submenu has a divider after the execution-priority slider.
+- Move To indents each destination by two spaces per nested level
+  without changing the eligible destinations or their order. The search
+  field is now at the top of the header menu and can find destinations
+  inside the submenus. Copy To keeps its checkboxes and overwrite warning.
+- Without LibScrollableMenu, the native submenus remain available with
+  the main divider and the same indentation. No translation changes.
+  Not tested in ESO.
+
+## 2026-11-19: select multiple bags in Copy To
+
+- With LibScrollableMenu, check the destination bags and use the copy
+  action to apply the selection together. A bag that already contains
+  the chosen category is red and has an overwrite tooltip.
+- Selecting a marked bag replaces the matching entries' per-bag
+  priorities and visibility in the copied subtree. Shared definitions,
+  existing ancestors and destination-only entries are not changed.
+  The native fallback still copies to one bag and skips existing entries.
+  Updated all six languages. Not tested in ESO.
+
+## 2026-11-19: execution priority slider in Rule
+
+- The category header's "Rule" menu uses a LibScrollableMenu slider for
+  the clicked bag's execution priority. It starts at the current value,
+  displays the selected number, and accepts integer values from 0 to 1000.
+  The display priority and the rule text are unchanged.
+- Bag Settings supports the same execution priority range. Without a
+  compatible LibScrollableMenu, the original read-only Rule menu is kept.
+  Existing translations are reused. Not tested in ESO.
+
+## 2026-11-19: parent items before subcategories
+
+- In categorized bags, items assigned directly to a parent are displayed
+  immediately under its header, before its subcategories and their items.
+  This also applies at deeper levels. Display priority orders sibling
+  sections, and rule matching is unchanged.
+- The same order is used in keyboard and gamepad lists. No new translation
+  strings. Not tested in ESO.
+
 ## 2026-11-19: search in Move To
 
 - The category header's "Move To" list uses LibScrollableMenu's built-in

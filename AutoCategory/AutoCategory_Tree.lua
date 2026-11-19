@@ -141,12 +141,18 @@ end
 -- level 1 category display BEFORE the level 2+ sections nested under it.
 -- sortName (optional) overrides the base of a flat key: plugins may
 -- register a sort name for a category (AutoCategory.GetCategorySortName).
--- Hierarchical keys always use their own levels, which keeps the
--- documented format; sort names are registered per flat category.
-function CategoryTree.BuildSortKey(showPriority, fullName, sortName)
+-- Optional pathPriorities order each level among its siblings, without
+-- changing any ancestor key. Direct items keep the shorter ancestor key.
+function CategoryTree.BuildSortKey(showPriority, fullName, sortName, pathPriorities)
     local levels = CategoryTree.Levels(fullName)
     if levels == nil or #levels == 1 then
         return string.format("%04d%s", 1000 - showPriority, sortName or fullName)
+    end
+    if pathPriorities then
+        for level, name in ipairs(levels) do
+            levels[level] = string.format("%04d%s", 1000 - pathPriorities[level], name)
+        end
+        return table.concat(levels, SORT_SEPARATOR)
     end
     return string.format("%04d%s", 1000 - showPriority, levels[1])
         .. SORT_SEPARATOR .. table.concat(levels, SORT_SEPARATOR, 2, #levels)

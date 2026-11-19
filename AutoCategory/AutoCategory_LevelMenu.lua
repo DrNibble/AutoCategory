@@ -12,8 +12,9 @@
 -- Levels and parents are properties of the global rules, shared by every
 -- bag: re-levelling a category here re-levels it in every bag that shows
 -- it. Copying to another bag reuses the global rules (like the "Export
--- all" button) - it only adds bag rules to the destination bag, and the
--- categories already present there are skipped. Deleting removes the
+-- all" button) - it only adds or overwrites destination bag rules.
+-- Existing categories are skipped unless explicitly selected for overwrite.
+-- Deleting removes the
 -- category from the clicked bag only (like the Remove Category button);
 -- the global rule stays.
 
@@ -118,15 +119,15 @@ function CLM.HeaderRule(cateName)
     return rule
 end
 
--- The bag rule of a name in a bag, or nil. A direct scan of the saved
--- bag rules (the cache lookups are refreshed separately).
-local function findBagrule(bagTypeId, ruleName)
+local function bagRules(bagTypeId)
     local saved = AutoCategory.saved
     local savedBag = saved and saved.bags and saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules then return nil end
+    return savedBag and savedBag.rules
+end
 
-    for i = 1, #savedBag.rules do
-        local bagrule = savedBag.rules[i]
+local function findRuleInList(rules, ruleName)
+    for i = 1, #(rules or {}) do
+        local bagrule = rules[i]
         if bagrule and bagrule.name == ruleName then
             return bagrule
         end
@@ -134,21 +135,54 @@ local function findBagrule(bagTypeId, ruleName)
     return nil
 end
 
+-- Scan the saved bag rules directly; the cache is refreshed separately.
+local function findBagrule(bagTypeId, ruleName)
+    return findRuleInList(bagRules(bagTypeId), ruleName)
+end
+
+local function orderedBagRules(bagrules)
+    local ordered = {}
+    for _, brule in ipairs(bagrules) do
+        if type(brule.name) == "string" and brule.name ~= "" then
+            ordered[#ordered + 1] = brule
+        end
+    end
+    table.sort(ordered, function(a, b)
+        local ap = a.showpriority or a.runpriority or 0
+        local bp = b.showpriority or b.runpriority or 0
+        if ap ~= bp then
+            return ap > bp
+        end
+        return a.name < b.name
+    end)
+    return ordered
+end
+
+-- A drop edits a real category of this bag, not a synthetic prefix or
+-- a dynamic sub-header that happens to end in the name of a rule.
+function CLM.HeaderRuleForDrag(bagTypeId, cateName)
+    local rule = CLM.HeaderRule(cateName)
+    if not rule or not findBagrule(bagTypeId, rule.name)
+            or CategoryTree.IsHierarchical(rule.name) then return nil end
+    if cateName == rule.name then return rule end
+    local prefixes = CLM.RuleChainPrefixes(rule)
+    if cateName == prefixes[#prefixes]
+            and CategoryTree.LevelCount(cateName) <= CLM.EffectiveLevel(rule) then
+        return rule
+    end
+end
+
 -- Every category of the bag whose parent chain (the Parent dropdown
 -- chain) contains ruleName: the categories nested under the category,
 -- in the order of the bag's rule list. The category itself is never
 -- included, and a chain that loops stops at the first repeated name.
-function CLM.DescendantsInBag(bagTypeId, ruleName)
+local function descendantsInRules(rules, ruleName, getRule)
     local result = {}
-    local saved = AutoCategory.saved
-    local savedBag = saved and saved.bags and saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules or not ruleName then
-        return result
-    end
+    if not rules or not ruleName then return result end
 
-    for i = 1, #savedBag.rules do
-        local bagrule = savedBag.rules[i]
-        local rule = bagrule and AutoCategory.GetRuleByName(bagrule.name)
+    for i = 1, #rules do
+        local bagrule = rules[i]
+        local rule = bagrule and getRule(bagrule.name)
         if rule and rule.name ~= ruleName then
             local visited = { [rule.name] = true }
             local crule = rule
@@ -163,28 +197,36 @@ function CLM.DescendantsInBag(bagTypeId, ruleName)
                 end
                 if visited[parent] then break end
                 visited[parent] = true
-                crule = AutoCategory.GetRuleByName(parent)
+                crule = getRule(parent)
             end
         end
     end
     return result
 end
 
+function CLM.DescendantsInBag(bagTypeId, ruleName)
+    return descendantsInRules(bagRules(bagTypeId), ruleName, AutoCategory.GetRuleByName)
+end
+
 -- The category and the categories nested under it in the bag, as
 -- { rule = ..., bagrule = ... } entries, the category first. Returns
 -- nil when the category is not a category of the bag.
-function CLM.SubtreeInBag(bagTypeId, ruleName)
-    local rootBagrule = findBagrule(bagTypeId, ruleName)
+function CLM.SubtreeInRules(rules, ruleName, getRule)
+    local rootBagrule = findRuleInList(rules, ruleName)
     if not rootBagrule then return nil end
-    local rootRule = AutoCategory.GetRuleByName(ruleName)
+    local rootRule = getRule(ruleName)
     if not rootRule then return nil end
 
     local subtree = { { rule = rootRule, bagrule = rootBagrule } }
-    local descendants = CLM.DescendantsInBag(bagTypeId, ruleName)
+    local descendants = descendantsInRules(rules, ruleName, getRule)
     for i = 1, #descendants do
         subtree[#subtree + 1] = descendants[i]
     end
     return subtree
+end
+
+function CLM.SubtreeInBag(bagTypeId, ruleName)
+    return CLM.SubtreeInRules(bagRules(bagTypeId), ruleName, AutoCategory.GetRuleByName)
 end
 
 -- Can every category of the subtree move one level deeper? Level 5 is
@@ -216,40 +258,20 @@ end
 -- automatic parent attachment of Edit Category. The categories of the
 -- subtree are never candidates (the root cannot nest under its own
 -- descendants).
-local function nearestAncestorName(bagTypeId, rootRule, targetLevel, subtree)
-    local saved = AutoCategory.saved
-    local savedBag = saved and saved.bags and saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules then return nil end
-
+local function nearestAncestorName(rules, rootRule, targetLevel, subtree, getRule, moving)
+    if not rules then return nil end
     local excluded = {}
     for i = 1, #subtree do
         excluded[subtree[i].rule.name] = true
     end
 
-    local ordered = {}
-    for i = 1, #savedBag.rules do
-        local brule = savedBag.rules[i]
-        if brule and type(brule.name) == "string" and brule.name ~= "" then
-            ordered[#ordered + 1] = brule
-        end
-    end
-    table.sort(ordered, function(a, b)
-        local ap = a.showpriority or a.runpriority or 0
-        local bp = b.showpriority or b.runpriority or 0
-        if ap ~= bp then
-            return ap > bp
-        end
-        return a.name < b.name
-    end)
-
     local nearest, first, passedSelf
-    for i = 1, #ordered do
-        local brule = ordered[i]
+    for _, brule in ipairs(orderedBagRules(rules)) do
         if brule.name == rootRule.name then
             passedSelf = true
         else
-            local r = AutoCategory.GetRuleByName(brule.name)
-            if r and not excluded[r.name]
+            local r = getRule(brule.name)
+            if r and not excluded[r.name] and not (moving and moving[r.name])
                     and CLM.EffectiveLevel(r) == targetLevel then
                 first = first or brule.name
                 if not passedSelf then
@@ -270,8 +292,9 @@ end
 -- stays 2-5. Returns true when the levels changed, false when the move
 -- was refused (a category of the subtree is already at level 5) or
 -- there was nothing to decrease.
-function CLM.ShiftLevels(bagTypeId, subtree, delta)
-    if delta ~= 1 and delta ~= -1 then return false end
+-- Operate on the supplied rules; the manager passes draft copies.
+function CLM.ShiftRuleLevels(rules, subtree, delta, getRule, moving)
+    if not subtree or not subtree[1] or (delta ~= 1 and delta ~= -1) then return false end
     if delta == 1 and not CLM.CanIncrease(subtree) then return false end
     if delta == -1 and not CLM.CanDecrease(subtree) then return false end
 
@@ -281,8 +304,8 @@ function CLM.ShiftLevels(bagTypeId, subtree, delta)
     if delta == 1 then
         local root = subtree[1].rule
         if not (type(root.parent) == "string" and root.parent ~= "") then
-            newRootParent = nearestAncestorName(bagTypeId, root,
-                CLM.EffectiveLevel(root), subtree)
+            newRootParent = nearestAncestorName(rules, root,
+                CLM.EffectiveLevel(root), subtree, getRule, moving)
         end
     end
 
@@ -299,6 +322,13 @@ function CLM.ShiftLevels(bagTypeId, subtree, delta)
     if newRootParent then
         subtree[1].rule.parent = newRootParent
     end
+    return true
+end
+
+function CLM.ShiftLevels(bagTypeId, subtree, delta)
+    if not CLM.ShiftRuleLevels(bagRules(bagTypeId), subtree, delta, AutoCategory.GetRuleByName) then
+        return false
+    end
     -- the level/parent layout of a predefined category is kept
     -- as an override in the account saved rules (the definition
     -- itself never is saved)
@@ -311,30 +341,28 @@ end
 -- Copy the category and the categories nested under it to another bag.
 -- The rules are global and shared: the copy reuses them, exactly like
 -- the "Export all" button of Bag Settings - editing the category in
--- one bag changes it everywhere. Categories already present in the
--- destination bag are skipped. The ancestors of the category are copied
+-- one bag changes it everywhere. Existing destination entries in the
+-- subtree are skipped unless overwrite is requested. Ancestors are copied
 -- with it when they are not categories of the destination bag yet, so
 -- the category keeps its place in the level hierarchy there (without
 -- them a level 2-5 category displays flat in that bag).
--- Returns copied, skipped: the number of categories added to the
--- destination bag, and the number of the subtree categories that were
--- already present there.
-function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId)
-    local copied, skipped = 0, 0
-    if srcBagTypeId == destBagTypeId then return copied, skipped end
+-- Returns the number of categories added, skipped, and overwritten.
+function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId, overwrite)
+    local copied, skipped, overwritten = 0, 0, 0
+    if srcBagTypeId == destBagTypeId then return copied, skipped, overwritten end
 
     local subtree = CLM.SubtreeInBag(srcBagTypeId, ruleName)
-    if not subtree then return copied, skipped end
+    if not subtree then return copied, skipped, overwritten end
 
     local saved = AutoCategory.saved
     local destBag = saved and saved.bags and saved.bags[destBagTypeId]
-    if not destBag or not destBag.rules then return copied, skipped end
+    if not destBag or not destBag.rules then return copied, skipped, overwritten end
 
     local present = {}
     for i = 1, #destBag.rules do
         local bagrule = destBag.rules[i]
         if bagrule and bagrule.name then
-            present[bagrule.name] = true
+            present[bagrule.name] = bagrule
         end
     end
 
@@ -353,44 +381,71 @@ function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId)
         crule = prule
     end
 
-    -- what to add: the missing ancestors, then the missing categories
-    -- of the subtree; the priorities of each category come from its own
-    -- bag rule of the source bag, else from the copied category's
     local rootBagrule = subtree[1].bagrule
-    local toAdd = {}
-    local function queueCopy(rule)
-        local srcBagrule = findBagrule(srcBagTypeId, rule.name)
-        toAdd[#toAdd + 1] = {
-            name = rule.name,
-            runpriority = (srcBagrule and srcBagrule.runpriority)
-                or rootBagrule.runpriority,
-            showpriority = (srcBagrule and srcBagrule.showpriority)
-                or rootBagrule.showpriority,
-        }
-    end
-    for i = 1, #chain do
-        if not present[chain[i].name] then
-            queueCopy(chain[i])
-        end
-    end
-    for i = 1, #subtree do
-        if present[subtree[i].rule.name] then
-            skipped = skipped + 1
-        else
-            queueCopy(subtree[i].rule)
-        end
-    end
-
-    for i = 1, #toAdd do
-        local item = toAdd[i]
-        local entry = AutoCategory.CreateBagRule(item.name,
-            item.runpriority, item.showpriority)
+    local function addMissing(name, srcBagrule)
+        local entry = AutoCategory.CreateBagRule(name,
+            (srcBagrule and srcBagrule.runpriority) or rootBagrule.runpriority,
+            (srcBagrule and srcBagrule.showpriority) or rootBagrule.showpriority)
         if entry then
             destBag.rules[#destBag.rules + 1] = entry
+            present[name] = entry
             copied = copied + 1
         end
     end
-    return copied, skipped
+    for i = 1, #chain do
+        local name = chain[i].name
+        if not present[name] then
+            addMissing(name, findBagrule(srcBagTypeId, name))
+        end
+    end
+    for i = 1, #subtree do
+        local name, srcBagrule = subtree[i].rule.name, subtree[i].bagrule
+        local existing = present[name]
+        if not existing then
+            addMissing(name, srcBagrule)
+        elseif overwrite then
+            -- Keep the destination entry in place and copy only per-bag
+            -- settings. Neither the shared rule nor other entries change.
+            existing.runpriority = srcBagrule.runpriority
+            existing.showpriority = srcBagrule.showpriority
+            existing.isHidden = srcBagrule.isHidden or nil
+            overwritten = overwritten + 1
+        else
+            skipped = skipped + 1
+        end
+    end
+    return copied, skipped, overwritten
+end
+
+-- The inventory header and the manager offer the same checkbox picker.
+function CLM.BuildCopyChoices(sourceId, hasOverlap, copyToBag, onChanged)
+    local entries = {}
+    local bags = AutoCategory.cache and AutoCategory.cache.bags_cvt
+    if bags and bags.choices and bags.choicesValues then
+        for i, bagId in ipairs(bags.choicesValues) do
+            local bagName = bags.choices[i]
+            if bagId ~= sourceId and bagName then
+                local overwrite = hasOverlap(bagId)
+                local entry = {
+                    label = bagName,
+                    overwriteTooltip = overwrite and GetString(SI_AC_TIP_CM_COPY_OVERWRITE) or nil,
+                }
+                entry.onChecked = function(checked) entry.selected = checked == true end
+                entry.copySelected = function() return copyToBag(bagId, bagName, overwrite) end
+                entries[#entries + 1] = entry
+            end
+        end
+    end
+    return entries, function()
+        local changed = false
+        for _, entry in ipairs(entries) do
+            if entry.selected then
+                entry.selected = false
+                if entry.copySelected() then changed = true end
+            end
+        end
+        if changed and onChanged then onChanged() end
+    end
 end
 
 -- Names are global, even though the new bag entry belongs only to the
@@ -420,10 +475,20 @@ function CLM.ValidateNewCategoryName(name)
     return name
 end
 
--- Create an ordinary category (Normal, no parent) in the captured bag,
--- with the chosen tag (nil keeps the empty tag, the previous default).
+-- Only real, non-hidden categories in this bag can be selected.
+-- Normal counts as level 1; a level-5 category cannot have a child.
+local function newCategoryParentLevel(bagrule)
+    if not bagrule or bagrule.isHidden then return nil end
+    local rule = AutoCategory.GetRuleByName(bagrule.name)
+    if not rule or CategoryTree.IsHierarchical(rule.name) then return nil end
+    local level = CLM.EffectiveLevel(rule)
+    if level < 5 then return level end
+end
+
+-- Create a category in the captured bag, with the chosen tag (nil keeps
+-- the empty tag) and optional { name, level } parent selection.
 -- Prepare both objects before inserting anything into saved state.
-function CLM.CreateCategory(bagTypeId, name, tag)
+function CLM.CreateCategory(bagTypeId, name, tag, parent)
     local saved = AutoCategory.saved
     local savedBag = saved and saved.bags and saved.bags[bagTypeId]
     if not savedBag or not savedBag.rules then
@@ -431,11 +496,18 @@ function CLM.CreateCategory(bagTypeId, name, tag)
     end
     local newName, err = CLM.ValidateNewCategoryName(name)
     if not newName then return nil, err end
+    local parentLevel
+    if parent then
+        parentLevel = newCategoryParentLevel(findBagrule(bagTypeId, parent.name))
+        if not parentLevel or parentLevel ~= parent.level then
+            return nil, SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE
+        end
+    end
     local newRule = AutoCategory.CreateRule(newName,
         tag or GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG))
     newRule.rule = "false"
-    newRule.level = nil
-    newRule.parent = nil
+    newRule.level = parentLevel and parentLevel + 1 or nil
+    newRule.parent = parent and parent.name or nil
 
     -- Stay inside the display slider's 2..1000 range. If it is already
     -- full at the top, compact existing priority groups without changing
@@ -476,25 +548,27 @@ function CLM.CreateCategory(bagTypeId, name, tag)
     -- (the inventory only builds headers from matching items). The
     -- zero-count header right after creation comes from the session
     -- marker (CLM.CreatedThisSession), not from a persisted marker:
-    -- give every new category a hidden placeholder sub-category only
+    -- give the new category a hidden placeholder where the level allows it
     -- to keep it a structural parent of nested rules. Its rule is
     -- false, so it never matches anything and never displays. The
     -- placeholder is an ordinary category: it can be edited (drop
     -- items in it) or deleted like any other.
-    local childName = AutoCategory.GetUsableRuleName(
-        newName .. " " .. GetString(SI_AC_NEW_CATEGORY_EMPTY_CHILD))
-    local childRule = AutoCategory.CreateRule(childName, newRule.tag)
-    childRule.rule = "false"
-    childRule.level = 2
-    childRule.parent = newName
-    local childEntry = AutoCategory.CreateBagRule(childRule,
-        entry.runpriority, newPriority)
-    if childEntry then
-        childEntry.isHidden = true
-        childRule:compile()
-        AutoCategory.ARW:AddRule(childRule)
-        AutoCategory.cache.AddRule(childRule)
-        savedBag.rules[#savedBag.rules + 1] = childEntry
+    if CLM.EffectiveLevel(newRule) < 5 then
+        local childName = AutoCategory.GetUsableRuleName(
+            newName .. " " .. GetString(SI_AC_NEW_CATEGORY_EMPTY_CHILD))
+        local childRule = AutoCategory.CreateRule(childName, newRule.tag)
+        childRule.rule = "false"
+        childRule.level = CLM.EffectiveLevel(newRule) + 1
+        childRule.parent = newName
+        local childEntry = AutoCategory.CreateBagRule(childRule,
+            entry.runpriority, newPriority)
+        if childEntry then
+            childEntry.isHidden = true
+            childRule:compile()
+            AutoCategory.ARW:AddRule(childRule)
+            AutoCategory.cache.AddRule(childRule)
+            savedBag.rules[#savedBag.rules + 1] = childEntry
+        end
     end
 
     -- Show the new category right away, even with the Show Empty
@@ -854,427 +928,206 @@ local function refreshAfterChange()
     AutoCategory.RefreshCurrentList()
 end
 
-local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
-local newCategoryDialogRegistered = false
-
--- Create the new category in the captured bag with the chosen tag.
--- The name was already validated when the tag was chosen; creation can
--- still fail (priority compaction limit), reported in the chat window.
-local function createCategoryWithTag(bagTypeId, name, tag)
-    local rule = CLM.CreateCategory(bagTypeId, name, tag)
-    if not rule then
-        CHAT_ROUTER:AddSystemMessage(GetString(
-            SI_AC_DIALOG_CATEGORY_CREATE_FAILED))
-        return
+-- The context menu and inventory drag share the mutation and refresh path.
+function CLM.MoveSubtreeAndRefresh(bagTypeId, ruleName, newParentName)
+    if not CLM.MoveSubtreeToParent(bagTypeId, ruleName, newParentName) then
+        return false
     end
+    refreshAfterChange()
+    return true
+end
+
+-- Use the inventory's configured paths, not the visible rows: empty
+-- categories and categories beneath a collapsed header remain available.
+function CLM.GetMoveDestinations(bagTypeId)
+    local bags = AutoCategory.saved and AutoCategory.saved.bags
+    local bag = bags and bags[bagTypeId]
+    local destinations = {}
+    if not bag or not bag.rules then return destinations end
+    local resolveDisplay = AutoCategory.MakeBagRuleDisplayResolver(bagTypeId)
+    for _, bagrule in ipairs(bag.rules) do
+        local rule = AutoCategory.GetRuleByName(bagrule.name)
+        if rule and not bagrule.isHidden then
+            local path, sortKey = resolveDisplay(bagrule)
+            local level = CategoryTree.LevelCount(path)
+            destinations[#destinations + 1] = {
+                name = rule.name,
+                rule = rule,
+                label = string.rep("   ", level - 1) .. rule.name,
+                sortKey = sortKey,
+            }
+        end
+    end
+    table.sort(destinations, function(a, b)
+        if a.sortKey ~= b.sortKey then return a.sortKey < b.sortKey end
+        return a.name < b.name
+    end)
+    return destinations
+end
+
+function CLM.MoveItemToCategory(bagTypeId, name, itemId)
+    local bagrule = findBagrule(bagTypeId, name)
+    local rule = bagrule and not bagrule.isHidden and AutoCategory.GetRuleByName(name)
+    if not rule or rule:isPredefined() or not rule:addItemIdToIsItemId(itemId) then return end
+    rule:compile()
     refreshAfterChange()
 end
 
--- The tag choices of the New Category dialog dropdown: the existing
--- tags (sorted), the empty tag (the previous default) and an entry
--- for a brand new tag. The value is the
--- tag the new category gets (nil keeps the empty tag); the new-tag
--- entry is marked with isNew and shows the tag name input row
--- inside the same dialog.
-function CLM.NewCategoryTagChoices()
-    local RulesW = AutoCategory.RulesW
-    local tags = RulesW and RulesW.tags or {}
-    local choices = {}
-    for i = 1, #tags do
-        local tag = tags[i]
-        if type(tag) == "string" and tag ~= ""
-                and tag ~= GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG) then
-            choices[#choices + 1] = { label = tag, value = tag }
-        end
+local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
+local newCategoryDialogRegistered = false
+
+local function setupNewCategoryParent(dialog)
+    local combo = dialog.parentCombo
+    combo:ClearItems()
+    local function addParent(label, parent)
+        local entry = combo:CreateItemEntry(label, function() dialog.categoryParent = parent end)
+        combo:AddItem(entry)
+        return entry
     end
-    table.sort(choices, function(a, b) return a.label < b.label end)
-    choices[#choices + 1] =
-        { label = GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG) }
-    choices[#choices + 1] =
-        { label = GetString(SI_AC_MENU_CM_TAG_NEW), isNew = true }
-    return choices
-end
 
--- The tag dropdown of the New Category dialog, directly beside the
--- edit box: the name and the tag are chosen in the same dialog, no
--- follow-up dialog or context menu. The controls are built once
--- per dialog control and reused; every opening refreshes the tag
--- list and resets the selection to the empty tag (the previous
--- default).
-local TAG_DROPDOWN_WIDTH = 150 -- the dropdown
-local TAG_DROPDOWN_MIN_WIDTH = 120 -- the dropdown never shrinks
-                                   -- below this, even on a cramped row
-local TAG_LABEL_WIDTH = 90     -- room for the "Tag" label
-local TAG_DROPDOWN_GAP = 12    -- between the edit box and the label
-local TAG_EDIT_MIN_WIDTH = 160 -- the name field never collapses
-local NEW_CATEGORY_DIALOG_WIDTH = 450 -- the window is a quarter
-                                     -- wider than the framework's 360
-                               -- below this (it becomes an unusable
-                               -- sliver without an explicit width)
-
-local newCategoryTagControls = nil -- { label, comboControl, comboBox,
-                                   --   tagNameLabel, tagEdit, tagEditBox }
-local newCategoryTagChoice = nil   -- the selected choice entry
-local newTagRowShown = false       -- the tag name input row is visible
-local centerDialogButtons = nil    -- forward declaration: showing and
-                                   -- hiding the tag name row re-centers
-                                   -- the OK and Cancel buttons under it
-
--- The choice currently selected in the dropdown of the open dialog
--- (the empty tag before the user picks one).
-function CLM.GetNewCategoryTagChoice()
-    return newCategoryTagChoice
-end
-
--- The tag name input row, below the edit box row of the same dialog:
--- shown while "New Tag..." is selected in the dropdown, hidden
--- for every other choice (and its text is cleared, so the next
--- opening starts fresh). Selecting the entry gives the field the
--- focus: the name is typed right away, in the field that just
--- appeared.
-local function showNewTagNameRow()
-    local controls = newCategoryTagControls
-    if not controls then return end
-    controls.tagNameLabel:SetHidden(false)
-    controls.tagEdit:SetHidden(false)
-    newTagRowShown = true
-    local box = controls.tagEditBox
-    if box and box.TakeFocus then box:TakeFocus() end
-    if centerDialogButtons and ZO_Dialogs_FindDialog then
-        local dialog = ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
-        if dialog then centerDialogButtons(dialog) end
-    end
-end
-
-local function hideNewTagNameRow()
-    newTagRowShown = false
-    local controls = newCategoryTagControls
-    if not controls then return end
-    controls.tagNameLabel:SetHidden(true)
-    controls.tagEdit:SetHidden(true)
-    -- clear the typed name: a hidden field must not keep it
-    local box = controls.tagEditBox
-    if box and box.SetText then box:SetText("") end
-    if centerDialogButtons and ZO_Dialogs_FindDialog then
-        local dialog = ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
-        if dialog then centerDialogButtons(dialog) end
-    end
-end
-
-local function hideNewCategoryTagDropdown(dialog)
-    if newCategoryTagControls then
-        newCategoryTagControls.label:SetHidden(true)
-        newCategoryTagControls.comboControl:SetHidden(true)
-        -- restore the framework's stock window width: the
-        -- other dialogs that use the same window must not
-        -- see the widened one
-        if newCategoryTagControls.stockTitleWidth then
-            local dialogControl = dialog
-            if not dialogControl and ZO_Dialogs_FindDialog then
-                dialogControl = ZO_Dialogs_FindDialog(
-                    NEW_CATEGORY_DIALOG)
-            end
-            local title = dialogControl
-                and dialogControl.GetNamedChild
-                and dialogControl:GetNamedChild("Title")
-            if title and title.SetWidth then
-                title:SetWidth(
-                    newCategoryTagControls.stockTitleWidth)
+    local selected = addParent(GetString(SI_AC_MENU_EC_DROPDOWN_PARENT_NONE), nil)
+    dialog.categoryParent = nil
+    local clickedParent = dialog.data.clickedParent
+    local savedBag = AutoCategory.saved.bags[dialog.data.bagTypeId]
+    local parents = {}
+    for _, bagrule in ipairs(savedBag and savedBag.rules or {}) do
+        if type(bagrule.name) == "string" and bagrule.name ~= "" then
+            local level = newCategoryParentLevel(bagrule)
+            if level then
+                parents[#parents + 1] = { name = bagrule.name, level = level }
             end
         end
     end
-    hideNewTagNameRow()
+    local lower = LocaleAwareToLower or string.lower
+    table.sort(parents, function(a, b)
+        local an, bn = lower(a.name), lower(b.name)
+        if an ~= bn then return an < bn end
+        return a.name < b.name
+    end)
+    for _, parent in ipairs(parents) do
+        local label = parent.name .. " (" .. GetString(SI_AC_TIP_LEVEL):format(parent.level) .. ")"
+        local entry = addParent(label, parent)
+        if clickedParent and clickedParent.name == parent.name and clickedParent.level == parent.level then
+            selected = entry
+            dialog.categoryParent = parent
+        end
+    end
+    combo:SelectItem(selected, true)
 end
 
-local function setupNewCategoryTagDropdown(dialog)
-    if not WINDOW_MANAGER then return end
-    local edit = dialog:GetNamedChild("Edit")
-    if not edit then return end
+local function setupNewCategoryDialog(dialog)
+    dialog.categoryName:SetText("")
+    dialog.newTag:SetHidden(true)
+    dialog.tagName:SetText("")
+    dialog.tag = nil
+    dialog.creatingTag = false
 
-    if not newCategoryTagControls then
-        local label = WINDOW_MANAGER:CreateControl(
-            "$(parent)ACTagLabel", dialog, CT_LABEL)
-        label:SetFont("ZoFontGame")
-        label:SetText(GetString(SI_AC_MENU_CS_DROPDOWN_TAG))
-        local comboControl = CreateControlFromVirtual(
-            "$(parent)ACTagCombo", dialog, "ZO_ComboBox")
-        comboControl:SetWidth(TAG_DROPDOWN_WIDTH)
-        -- the label sits between the edit box and the dropdown, on
-        -- the row of the edit box
-        label:SetAnchor(RIGHT, comboControl, LEFT, -TAG_DROPDOWN_GAP, 2)
-        comboControl:SetAnchor(TOPLEFT, edit, TOPRIGHT,
-            TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH + TAG_DROPDOWN_GAP, 2)
-        -- the tag name input row, below the edit box row: the
-        -- label starts the row, the input field takes the rest
-        -- of the row after it (its width is set per opening,
-        -- from the row width minus the label)
-        local tagNameLabel = WINDOW_MANAGER:CreateControl(
-            "$(parent)ACTagNameLabel", dialog, CT_LABEL)
-        tagNameLabel:SetFont("ZoFontGame")
-        tagNameLabel:SetText(GetString(SI_AC_DIALOG_TAG_NAME_FIELD))
-        local tagEdit = CreateControlFromVirtual(
-            "$(parent)ACTagEdit", dialog,
-            "ZO_SingleLineEditBackdrop_Keyboard")
-        local tagEditBox = CreateControlFromVirtual(
-            "$(parent)ACTagEditBox", tagEdit,
-            "ZO_DefaultEditForBackdrop")
-        tagNameLabel:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, 0, 13)
-        tagEdit:SetAnchor(TOPLEFT, tagNameLabel, TOPRIGHT,
-            TAG_DROPDOWN_GAP, -3)
-        tagNameLabel:SetHidden(true)
-        tagEdit:SetHidden(true)
-        newCategoryTagControls = {
-            label = label,
-            comboControl = comboControl,
-            comboBox = ZO_ComboBox_ObjectFromContainer(comboControl),
-            tagNameLabel = tagNameLabel,
-            tagEdit = tagEdit,
-            tagEditBox = tagEditBox,
-        }
-        -- the framework's stock width of the title, captured
-        -- once before the window is ever widened, to restore
-        -- it on release
-        local title = dialog:GetNamedChild("Title")
-        if title and title.GetWidth then
-            newCategoryTagControls.stockTitleWidth
-                = title:GetWidth()
-        end
-        newCategoryTagControls.tagNameLabelWidth =
-            tagNameLabel:GetWidth()
-    end
-
-    local controls = newCategoryTagControls
-    local comboBox = controls.comboBox
-    if not comboBox then return end
-    controls.label:SetHidden(false)
-    controls.comboControl:SetHidden(false)
-
-    -- Make room for the dropdown on the edit box row: the edit
-    -- box keeps the left end of the row, the label and the
-    -- dropdown the right end. The dialog framework re-applies
-    -- the anchors of the edit box on every opening (a two-sided
-    -- pair that stretches it across the whole row); the single
-    -- anchor kept here plus an explicit width replaces that
-    -- stretch. The width is ALWAYS set: a leftover below the
-    -- minimum must never leave the edit box without a width -
-    -- it collapses to an unusable sliver then (the name field
-    -- of 4.6.27). The dropdown gives way first, down to its own
-    -- minimum; only then does the row overflow the framework's
-    -- width a little.
-    local isValid, point, relTo, relPoint, offX, offY = edit:GetAnchor(0)
-    if isValid and relTo then
-        edit:ClearAnchors()
-        edit:SetAnchor(point, relTo, relPoint, offX, offY)
-    end
-    -- widen the window itself: the row is a quarter wider
-    -- than the stock 360 content, and the title is set to the
-    -- SAME width so the whole window (the backdrop sizes
-    -- itself to its children) grows symmetrically around the
-    -- screen center - a wider row alone would overflow the
-    -- right edge of a still-centered window
-    local title = dialog:GetNamedChild("Title")
-    if title and title.SetWidth then
-        title:SetWidth(NEW_CATEGORY_DIALOG_WIDTH)
-    end
-    -- the row is laid out on the widened width: the extra
-    -- room goes to the name field (the dropdown and the
-    -- label keep their width)
-    local rowWidth = NEW_CATEGORY_DIALOG_WIDTH
-    local labelRoom = TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH
-        + TAG_DROPDOWN_GAP
-    local dropdownWidth = TAG_DROPDOWN_WIDTH
-    local editWidth = rowWidth - labelRoom - dropdownWidth
-    if editWidth < TAG_EDIT_MIN_WIDTH then
-        dropdownWidth = rowWidth - labelRoom - TAG_EDIT_MIN_WIDTH
-        if dropdownWidth < TAG_DROPDOWN_MIN_WIDTH then
-            dropdownWidth = TAG_DROPDOWN_MIN_WIDTH
-        end
-        editWidth = rowWidth - labelRoom - dropdownWidth
-        if editWidth < TAG_EDIT_MIN_WIDTH then
-            editWidth = TAG_EDIT_MIN_WIDTH
-        end
-    end
-    controls.comboControl:SetWidth(dropdownWidth)
-    controls.dropdownWidth = dropdownWidth
-    edit:SetWidth(editWidth)
-    -- the tag name input row spans the same row width: the
-    -- label at its left, the input field after it
-    controls.tagEdit:SetWidth(rowWidth
-        - (controls.tagNameLabelWidth or 120) - TAG_DROPDOWN_GAP)
-
-    comboBox:ClearItems()
-    local choices = CLM.NewCategoryTagChoices()
-    local defaultEntry = nil
-    for i = 1, #choices do
-        local choice = choices[i]
-        local entry = comboBox:CreateItemEntry(choice.label, function()
-            newCategoryTagChoice = choice
-            if choice.isNew then
-                showNewTagNameRow()
+    local combo = dialog.tagCombo
+    combo:ClearItems()
+    local function addTag(label, tag, creatingTag)
+        local entry = combo:CreateItemEntry(label, function()
+            dialog.tag = tag
+            dialog.creatingTag = creatingTag
+            dialog.newTag:SetHidden(not creatingTag)
+            if creatingTag then
+                dialog.tagName:TakeFocus()
             else
-                hideNewTagNameRow()
+                dialog.tagName:SetText("")
             end
         end)
-        comboBox:AddItem(entry)
-        if choice.value == nil and not choice.isNew then
-            defaultEntry = entry
+        combo:AddItem(entry)
+        return entry
+    end
+
+    local emptyTag = GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG)
+    local tags = {}
+    for _, tag in ipairs(AutoCategory.RulesW.tags) do
+        if type(tag) == "string" and tag ~= "" and tag ~= emptyTag then
+            tags[#tags + 1] = tag
         end
     end
-    -- reset the selection to the empty tag without firing its
-    -- callback, and hide the tag name input row of the
-    -- "New Tag..." entry until it is selected again
-    newCategoryTagChoice = nil
-    hideNewTagNameRow()
-    if defaultEntry then
-        comboBox:SelectItem(defaultEntry, true)
+    table.sort(tags)
+    for _, tag in ipairs(tags) do
+        addTag(tag, tag, false)
     end
+    local default = addTag(emptyTag, nil, false)
+    addTag(GetString(SI_AC_MENU_CM_TAG_NEW), nil, true)
+    combo:SelectItem(default, true)
+    setupNewCategoryParent(dialog)
 end
 
--- Center the OK and Cancel buttons of the New Category dialog
--- horizontally under the edit box row, on their texts (SI_OK /
--- SI_DIALOG_CANCEL): the dialog framework anchors them to the
--- bottom right corner by default, and it re-applies its own
--- anchors on every opening, so this runs after every
--- ZO_Dialogs_ShowDialog, keeping the framework's spacing and
--- vertical offset. Each button also carries its key label
--- ([E], [ALT]) and its paddings on the left of its text, so the
--- pair is positioned from the name labels (right-anchored inside
--- their button) instead of the button boxes. The row the pair is
--- centered on is the width the edit box row really occupies
--- (edit box + label room + dropdown, as laid out by the setup
--- above); the main text control the edit box is anchored to is
--- only the fallback when the tag row was not built.
-centerDialogButtons = function(dialog)
-    local edit = dialog:GetNamedChild("Edit")
-    local b1 = dialog:GetNamedChild("Button1")
-    local b2 = dialog:GetNamedChild("Button2")
-    if not edit or not b1 or not b2 then return end
-    -- the row the buttons sit under: the tag name input row
-    -- while it is shown (it spans the full row width), the
-    -- edit box row otherwise
-    local anchorTo = edit
-    if newTagRowShown and newCategoryTagControls
-        and newCategoryTagControls.tagEdit then
-        anchorTo = newCategoryTagControls.tagEdit
-    end
-    local rowWidth = nil
-    if newCategoryTagControls and newCategoryTagControls.dropdownWidth
-        and newCategoryTagControls.dropdownWidth >= TAG_DROPDOWN_MIN_WIDTH
-        and edit.GetWidth then
-        rowWidth = edit:GetWidth() + TAG_DROPDOWN_GAP
-            + TAG_LABEL_WIDTH + TAG_DROPDOWN_GAP
-            + newCategoryTagControls.dropdownWidth
-    end
-    if not rowWidth then
-        local isValid, _, relTo = edit:GetAnchor(0)
-        if not isValid or not relTo or not relTo.GetWidth then
-            return
-        end
-        rowWidth = relTo:GetWidth()
-    end
-    local spacing = 20 -- the framework's BUTTON_SPACING
-    local w1, w2 = b1:GetWidth(), b2:GetWidth()
-    -- the name text of each button and its inset from the
-    -- button's right edge (the name label is right-anchored)
-    local t1, t2 = w1, w2
-    local r1, r2 = 0, 0
-    local function readNameLabel(button)
-        if not button.GetNamedChild then return end
-        local label = button:GetNamedChild("NameLabel")
-        if not label or not label.GetWidth or not label.GetAnchor then
-            return
-        end
-        local aValid, _, aRelTo, _, aOffX = label:GetAnchor(0)
-        if not aValid or aRelTo ~= button then return end
-        return label:GetWidth(), -aOffX
-    end
-    local nt1, nr1 = readNameLabel(b1)
-    local nt2, nr2 = readNameLabel(b2)
-    if nt1 then t1, r1 = nt1, nr1 end
-    if nt2 then t2, r2 = nt2, nr2 end
-    b1:ClearAnchors()
-    b2:ClearAnchors()
-    if b2:IsHidden() then
-        b1:SetAnchor(TOPLEFT, anchorTo, BOTTOMLEFT,
-            (rowWidth - t1) / 2 - (w1 - t1 - r1), 23)
-    else
-        -- offset so that the pair of texts is centered on the
-        -- row (the buttons keep the framework's spacing)
-        local offX = (rowWidth - (w1 + spacing + w2)) / 2
-            + (r1 + r2 + t1 - w1) / 2
-        b1:SetAnchor(TOPLEFT, anchorTo, BOTTOMLEFT, offX, 23)
-        b2:SetAnchor(TOPLEFT, b1, TOPRIGHT, spacing, 0)
-    end
+local function showNewCategoryError(dialog, errorId)
+    ZO_Dialogs_UpdateDialogMainText(dialog, { text = errorId })
 end
 
-function CLM.OpenNewCategoryDialog(bagTypeId)
+local function submitNewCategoryDialog(dialog)
+    local name, err = CLM.ValidateNewCategoryName(dialog.categoryName:GetText())
+    if not name then
+        showNewCategoryError(dialog, err)
+        return
+    end
+    local tag = dialog.tag
+    if dialog.creatingTag then
+        tag = dialog.tagName:GetText():match("^%s*(.-)%s*$")
+        if tag == "" then
+            showNewCategoryError(dialog, SI_AC_DIALOG_TAG_NAME_EMPTY)
+            return
+        end
+    end
+    local rule, createError = CLM.CreateCategory(dialog.data.bagTypeId, name, tag, dialog.categoryParent)
+    if not rule then
+        showNewCategoryError(dialog, createError)
+        return
+    end
+    dialog.data.created = true
+    ZO_Dialogs_ReleaseDialogOnButtonPress(dialog)
+end
+
+function CLM.OpenNewCategoryDialog(bagTypeId, clickedParent, onFinished)
     local bags = AutoCategory.saved and AutoCategory.saved.bags
     if not bags or not bags[bagTypeId] then return end
     if not newCategoryDialogRegistered then
+        local dialog = AC_NewCategoryDialog
+        dialog.categoryName = dialog:GetNamedChild("CategoryName"):GetNamedChild("Edit")
+        dialog.categoryName:SetMaxInputChars(128)
+        dialog.newTag = dialog:GetNamedChild("NewTag")
+        dialog.tagName = dialog.newTag:GetNamedChild("Backdrop"):GetNamedChild("Edit")
+        local container = dialog:GetNamedChild("Tag")
+        dialog.tagCombo = ZO_ComboBox_ObjectFromContainer(container)
+        dialog.parentCombo = ZO_ComboBox_ObjectFromContainer(dialog:GetNamedChild("Parent"))
+        -- The native keyboard combo box is already scrollable.
+        dialog.tagCombo:SetSortsItems(false)
+        dialog.parentCombo:SetSortsItems(false)
+
         ZO_Dialogs_RegisterCustomDialog(NEW_CATEGORY_DIALOG, {
+            customControl = dialog,
             title = { text = SI_AC_MENU_CM_NEW_CATEGORY },
             mainText = { text = SI_AC_DIALOG_CATEGORY_NAME_PROMPT },
-            editBox = { defaultText = "", maxInputCharacters = 128 },
-            finishedCallback = function(dialog)
-                hideNewCategoryTagDropdown(dialog)
+            setup = setupNewCategoryDialog,
+            finishedCallback = function(control)
+                control.tagCombo:HideDropdown()
+                control.parentCombo:HideDropdown()
+                local data = control.data
+                local callback = data.onFinished
+                data.onFinished = nil
+                if data.created then refreshAfterChange() end
+                if callback then callback(data.created == true) end
             end,
             buttons = {
                 {
+                    control = dialog:GetNamedChild("Confirm"),
                     text = SI_OK,
                     noReleaseOnClick = true,
-                    callback = function(dialog)
-                        local bagTypeId = dialog.data.bagTypeId
-                        -- validate the name first: a blank or
-                        -- duplicate name keeps the dialog open
-                        local newName, err = CLM.ValidateNewCategoryName(
-                            ZO_Dialogs_GetEditBoxText(dialog))
-                        if not newName then
-                            ZO_Dialogs_UpdateDialogMainText(dialog,
-                                { text = GetString(err) })
-                            return
-                        end
-                        -- then apply the tag chosen in the dropdown
-                        -- beside the edit box: the empty tag (the
-                        -- previous default), an existing tag, or a
-                        -- brand new one typed in the input row
-                        -- below, in the same dialog (that row is
-                        -- shown while "New Tag..." is selected). A
-                        -- blank tag name keeps the dialog open too
-                        local choice = CLM.GetNewCategoryTagChoice()
-                        local newTag = nil
-                        if choice and choice.isNew then
-                            local text = newCategoryTagControls
-                                and newCategoryTagControls.tagEditBox
-                                    :GetText()
-                            newTag = type(text) == "string"
-                                and text:match("^%s*(.-)%s*$") or ""
-                            if newTag == "" then
-                                ZO_Dialogs_UpdateDialogMainText(dialog,
-                                    { text = GetString(
-                                        SI_AC_DIALOG_TAG_NAME_EMPTY) })
-                                return
-                            end
-                        end
-                        ZO_Dialogs_ReleaseDialog(NEW_CATEGORY_DIALOG)
-                        createCategoryWithTag(bagTypeId, newName,
-                            newTag or (choice and choice.value or nil))
-                    end,
+                    callback = submitNewCategoryDialog,
                 },
-                { text = SI_DIALOG_CANCEL },
+                { control = dialog:GetNamedChild("Cancel"), text = SI_DIALOG_CANCEL },
             },
         })
         newCategoryDialogRegistered = true
     end
-    ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, { bagTypeId = bagTypeId })
-    -- a standard edit box dialog has no setup hook (only the
-    -- custom-control dialogs have one), so build the tag dropdown
-    -- of this opening now, against the displayed dialog
-    local dialog = ZO_Dialogs_FindDialog and
-        ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
-    if dialog then
-        setupNewCategoryTagDropdown(dialog)
-        centerDialogButtons(dialog)
-    end
+    return ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, {
+        bagTypeId = bagTypeId, clickedParent = clickedParent, onFinished = onFinished,
+    })
 end
 
 -- Wrap the rule text of the header context menu "Rule" submenu into
@@ -1310,9 +1163,7 @@ end
 -- and the categories nested under it move up one level, exactly like
 -- the Remove Category button of Bag Settings; it is neither the
 -- hidden state - the children would disappear with it - nor the
--- deletion of the rule). A submenu cannot hold a submenu in ESO, so
--- the level operations sit in their own submenu, next to the move
--- and copy submenus. A predefined (protected) rule accepts the
+-- deletion of the rule). A predefined (protected) rule accepts the
 -- level, priority and display-removal operations too (the display
 -- removal only takes it out of the inventory list of the clicked
 -- bag; the protected rule itself is never deletable). Added by
@@ -1320,10 +1171,10 @@ end
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
-function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSubMenu)
-    if not AutoCategory.CategoryLevelMenu then return end
+function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, displayName, sourceList)
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
+    local addItem, addSubMenu = menu.addItem, menu.addSubMenu
 
     local rule = CLM.HeaderRule(cateName)
 
@@ -1338,43 +1189,48 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
 
     if rule then
 
-        -- the numeric execution priority of the category (read-only
-        -- information): the runpriority of its bag rule in this bag,
-        -- the order the rules run in (not the display order)
+        -- Only the clicked bag's execution priority is editable here.
         local infoBagrule = subtree[1].bagrule
-        -- if infoBagrule and infoBagrule.runpriority then
-            -- AddCustomMenuItem(
-                -- string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
-                    -- infoBagrule.runpriority),
-                -- function() end, MENU_ADD_OPTION_LABEL)
-        -- end
-
-        -- the rule of the category (read-only information): a "Rule"
-        -- submenu right after the priority display, holding the
-        -- execution priority again and the rule text of the clicked
-        -- category - the criteria its items are sorted by, the same
-        -- text the rule editbox of the settings shows. The context
-        -- menu entries are single-line, so a long rule text is
-        -- wrapped over as many entries as needed.
         local ruleEntries = {}
-        if infoBagrule and infoBagrule.runpriority then
+        if infoBagrule and type(infoBagrule.runpriority) == "number" then
+            local ruleName = rule.name
+            local function clampPriority(value)
+                return math.max(0, math.min(1000, math.floor(value + 0.5)))
+            end
+            local function currentPriority()
+                return clampPriority(infoBagrule.runpriority)
+            end
             ruleEntries[#ruleEntries + 1] = {
-                label = string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
-                    infoBagrule.runpriority),
-                callback = function() end,
+                slider = {
+                    label = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY),
+                    tooltip = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY_TOOLTIP),
+                    data = { min = 0, max = 1000, step = 1, value = currentPriority },
+                    callback = function(value)
+                        if type(value) ~= "number" or value ~= value
+                            or findBagRule(bagTypeId, ruleName) ~= infoBagrule then return end
+                        local priority = clampPriority(value)
+                        -- Do not save or refresh an unchanged value.
+                        if priority == currentPriority() then return end
+                        infoBagrule.runpriority = priority
+                        refreshAfterChange()
+                    end,
+                },
             }
         end
+        -- Keep the rule expression read-only and wrap long text as before.
         local ruleText = rule.rule or ""
         if ruleText ~= "" then
             for _, line in ipairs(wrapRuleText(ruleText)) do
                 ruleEntries[#ruleEntries + 1] = {
                     label = line,
-                    callback = function() end,
+                    kind = "text",
                 }
             end
         end
         if #ruleEntries > 0 then
-            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_RULE), ruleEntries)
+            table.insert(ruleEntries, 1, { label = displayName or rule.name, isHeader = true })
+            menu.addDivider()
+            addSubMenu(GetString(SI_AC_MENU_CM_RULE), ruleEntries)
         end
 
         -- the level and display-position operations of the
@@ -1434,103 +1290,66 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
             }
         end
         if #levelEntries > 0 then
-            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_LEVEL_SUBMENU),
+            addSubMenu(GetString(SI_AC_MENU_CM_LEVEL_SUBMENU),
                 levelEntries)
         end
 
-        -- move the category under another category of the bag: the
-        -- candidates in the display order of the bag, never the category
-        -- itself, the categories nested under it, its current parent or
-        -- a category the section does not fit under; the first entry
-        -- moves the section back to the top level (a Normal category)
+        -- Show the same destinations as the inventory-item menu. Keep
+        -- invalid moves visible but disabled, including cycles and depth.
+        -- Top Level remains a separate action for nested categories.
         local moveEntries = {}
         if CLM.EffectiveLevel(rule) > 1 or (type(rule.parent) == "string"
                 and rule.parent ~= "") then
             moveEntries[#moveEntries + 1] = {
                 label = GetString(SI_AC_MENU_CM_MOVE_TOP),
                 callback = function()
-                    if CLM.MoveSubtreeToParent(bagTypeId, rule.name, nil) then
-                        refreshAfterChange()
-                    end
+                    CLM.MoveSubtreeAndRefresh(bagTypeId, rule.name, nil)
                 end,
             }
         end
-        local savedBag = AutoCategory.saved.bags[bagTypeId]
-        if savedBag and savedBag.rules then
-            local excluded = {}
-            for i = 1, #subtree do
-                excluded[subtree[i].rule.name] = true
-            end
-            if type(rule.parent) == "string" and rule.parent ~= "" then
-                excluded[rule.parent] = true
-            end
-
-            local ordered = {}
-            for i = 1, #savedBag.rules do
-                local brule = savedBag.rules[i]
-                if brule and type(brule.name) == "string"
-                        and brule.name ~= "" then
-                    ordered[#ordered + 1] = brule
+        local excluded = {}
+        for _, member in ipairs(subtree) do
+            excluded[member.rule.name] = true
+        end
+        for _, destination in ipairs(CLM.GetMoveDestinations(bagTypeId)) do
+            local name = destination.name
+            local callback
+            if not excluded[name] and name ~= rule.parent and moveDelta(subtree, name) ~= nil then
+                callback = function()
+                    local target = findBagrule(bagTypeId, name)
+                    if target and not target.isHidden then
+                        CLM.MoveSubtreeAndRefresh(bagTypeId, rule.name, name)
+                    end
                 end
             end
-            table.sort(ordered, function(a, b)
-                local ap = a.showpriority or a.runpriority or 0
-                local bp = b.showpriority or b.runpriority or 0
-                if ap ~= bp then
-                    return ap > bp
-                end
-                return a.name < b.name
-            end)
-
-            for i = 1, #ordered do
-                local name = ordered[i].name
-                if not excluded[name] and moveDelta(subtree, name) ~= nil then
-                    moveEntries[#moveEntries + 1] = {
-                        label = name,
-                        callback = function()
-                            if CLM.MoveSubtreeToParent(bagTypeId,
-                                    rule.name, name) then
-                                refreshAfterChange()
-                            end
-                        end,
-                    }
-                end
-            end
+            moveEntries[#moveEntries + 1] = { label = destination.label, callback = callback }
         end
         if #moveEntries > 0 then
-            local addSubMenu = addMoveSubMenu or AddCustomSubMenuItem
-            addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries)
+            addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries, { searchable = true })
         end
 
-        -- copy the category and the categories nested under it to another
-        -- bag: every other bag of the addon in a "Copy To" submenu (the
-        -- rules are shared; the categories already present in the
-        -- destination bag are skipped)
-        local copyEntries = {}
-        local bags_cvt = AutoCategory.cache and AutoCategory.cache.bags_cvt
-        if bags_cvt and bags_cvt.choices and bags_cvt.choicesValues then
-            for i = 1, #bags_cvt.choicesValues do
-                local bagId = bags_cvt.choicesValues[i]
-                local bagName = bags_cvt.choices[i]
-                if bagId ~= bagTypeId and bagName then
-                    copyEntries[#copyEntries + 1] = {
-                        label = bagName,
-                        callback = function()
-                            local copied, skipped = CLM.CopySubtreeToBag(
-                                bagTypeId, rule.name, bagId)
-                            CHAT_ROUTER:AddSystemMessage(string.format(
-                                GetString(SI_AC_MESSAGE_CM_COPY_DONE),
-                                copied, bagName, skipped))
-                            refreshAfterChange()
-                        end,
-                    }
-                end
+        -- Stage multiple destinations; only a marked bag can overwrite.
+        local function copyToBag(bagId, bagName, overwrite)
+            local copied, skipped, overwritten = CLM.CopySubtreeToBag(
+                bagTypeId, rule.name, bagId, overwrite)
+            local message
+            if overwritten > 0 then
+                message = string.format(GetString(SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE),
+                    copied, bagName, overwritten)
+            else
+                message = string.format(GetString(SI_AC_MESSAGE_CM_COPY_DONE),
+                    copied, bagName, skipped)
             end
+            CHAT_ROUTER:AddSystemMessage(message)
+            return copied > 0 or overwritten > 0
         end
-            if #copyEntries > 0 then
-                AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_COPY_SUBMENU),
-                    copyEntries)
-            end
+        local copyEntries, copyAction = CLM.BuildCopyChoices(bagTypeId, function(bagId)
+            return findBagrule(bagId, rule.name) ~= nil
+        end, copyToBag, refreshAfterChange)
+        if #copyEntries > 0 then
+            local title = GetString(SI_AC_MENU_CM_COPY_SUBMENU)
+            addSubMenu(title, copyEntries, { copyAction = copyAction })
+        end
     end
 
     -- the removal of the category from the inventory list of the
@@ -1539,18 +1358,20 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
     -- it only leaves the display of the clicked bag) and the
     -- categories nested under it move up one level
     if rule then
-        AddCustomMenuItem(GetString(SI_AC_MENU_CM_REMOVE_DISPLAY),
+        addItem(GetString(SI_AC_MENU_CM_REMOVE_DISPLAY),
             function()
                 if CLM.DeleteLevelInBag(bagTypeId, rule.name) then
                     refreshAfterChange()
                 end
-            end, MENU_ADD_OPTION_LABEL)
+            end)
     end
     
-    -- creation does not modify the clicked rule or inherit its
-    -- level; offered on ungrouped/predefined headers and at level 5
-    -- as well
-    AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
-        function() CLM.OpenNewCategoryDialog(bagTypeId) end,
-        MENU_ADD_OPTION_LABEL)
+    -- Snapshot the clicked category before the menu callback opens the dialog.
+    -- New Category is also offered on headers that cannot be a parent.
+    local clickedRule = rule and CLM.HeaderRuleForDrag(bagTypeId, cateName)
+    local clickedParent = clickedRule and { name = clickedRule.name, level = CLM.EffectiveLevel(clickedRule) }
+    addItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
+        function() CLM.OpenNewCategoryDialog(bagTypeId, clickedParent) end)
+    addItem(GetString(SI_AC_MENU_CM_MANAGE_CATEGORIES),
+        function() AutoCategory.CategoryManagement.Open(bagTypeId, refreshAfterChange, sourceList) end)
 end

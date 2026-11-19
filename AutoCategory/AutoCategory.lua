@@ -173,66 +173,18 @@ local function RuleSortingFunction(a, b)
     return a.name < b.name
 end
 
--- the sort key of a bag rule for the display order of the Categories
--- list and of the addon settings bag rule lists: Normal and level 1
--- categories display first, then the level 2-5 sections nested under
--- them, so the entries of a bag read like the bag: the parent, then its
--- levels. A level 2-5 entry uses its parent chain (AutoCategory.CategoryTree
--- format "Parent----Child"), so the parent displays, then its level
--- sections under it. Normal entries, level 1 entries and entries whose
--- rule is missing or has an invalid level keep the flat key of the
--- category alone.
-local function BagRuleShowKey(bagrule, byName)
-    if not bagrule or not bagrule.name then return "" end
-    local rule = AutoCat.GetRuleByName(bagrule.name)
-    local level = 0
-    if rule and type(rule.level) == "number"
-        and rule.level >= 2 and rule.level <= 5
-        and rule.level == math.floor(rule.level) then
-        level = rule.level
-    end
-    -- showpriority when set, runpriority otherwise; a rule without any
-    -- priority sorts last
-    local function priorityOf(br)
-        if not br then return 0 end
-        return br.showpriority or br.runpriority or 0
-    end
-    if level < 2 then
-        return CategoryTree.BuildSortKey(priorityOf(bagrule), bagrule.name,
-            AutoCategory.GetCategorySortName(bagrule.name))
-    end
-    local chain = {}
-    local crule = rule
-    while crule do
-        if chain[crule.name] then break end
-        chain[crule.name] = true
-        table.insert(chain, 1, crule.name)
-        if not (type(crule.parent) == "string" and crule.parent ~= ""
-            and crule.level and crule.level > 1) then
-            break
-        end
-        crule = AutoCat.GetRuleByName(crule.parent)
-    end
-    local fullName = table.concat(chain, "----")
-    local top = byName and byName[chain[1]]
-    local priority = (top and priorityOf(top)) or priorityOf(bagrule)
-    return CategoryTree.BuildSortKey(priority, fullName)
-end
-
--- sort a bag rule list in display order (InitScrollBag): showpriority
--- desc, Normal and level 1 categories first, then the level 2-5 sections
--- grouped under their parent chain, name asc within a group
-function AutoCat.SortBagRulesByDisplay(rules)
+-- Use the inventory's path and priority at every level, not just at the root.
+-- Sort only a display snapshot; bag.rules is for execution.
+function AutoCat.SortBagRulesByDisplay(rules, bagId)
     if not rules then return end
-    local byName = {}
-    for ndx = 1, #rules do
-        local bagrule = rules[ndx]
-        if bagrule and bagrule.name then byName[bagrule.name] = bagrule end
-    end
+    local resolve = AutoCat.MakeBagRuleDisplayResolver(bagId, rules)
     local keys = {}
     for ndx = 1, #rules do
         local bagrule = rules[ndx]
-        if bagrule then keys[bagrule] = BagRuleShowKey(bagrule, byName) end
+        if bagrule and type(bagrule.name) == "string" and bagrule.name ~= "" then
+            local _, key = resolve(bagrule)
+            keys[bagrule] = key
+        end
     end
     local function byKey(a, b)
         local ka = (a and keys[a]) or ""
@@ -533,21 +485,23 @@ function AutoCat.InitScrollBag(bagId)
 	local svdbag = AutoCat.saved.bags[bagId]		-- alias
 	if not svdbag or not svdbag.rules then return end
 	
-	AutoCat.SortBagRulesByDisplay(svdbag.rules)
+	local displayRules = {}
+	for i, bagrule in ipairs(svdbag.rules) do
+		displayRules[i] = bagrule
+	end
+	AutoCat.SortBagRulesByDisplay(displayRules, bagId)
 
 	-- Populate the display list in show order.
 	local win = AutoCat.dspWin
 	win:ClearList()
-	logDebug("[InitScrollBag] #svdbag.rules ", #svdbag.rules)
+	logDebug("[InitScrollBag] #displayRules ", #displayRules)
 
-	for entry = 1, #svdbag.rules do
-		local bagrule = svdbag.rules[entry] 	-- BagRule {name, runpriority, showpriority, isHidden}
-		if not bagrule then break end
-
+	for entry, bagrule in ipairs(displayRules) do
 		logDebug("[InitScrollBag] sbag ", entry, " bagrule.name ", bagrule.name)
 		win:AddItem(bagrule)
 	end
 	win:UpdateScrollList()
+	return displayRules
 end
 
 -- populate the entriesByName and entriesByBag lists in the cache from the saved.bags table
@@ -595,14 +549,11 @@ function AutoCat.cacheInitBag(bagId)
     -- load in the bagged rules (sorted by showpriority high-to-low) into the dropdown
 	logDebug("[cacheInitBag] Initializing sbag ", bagId, " with bagrules")
 
-	-- initialize dspWin with bag rules sorted by showpriority high-to-low order
-	AutoCat.InitScrollBag(bagId)
-	
-	--table.sort(svdbag.rules, BagRuleShowSortingFunction)		-- already sorted by InitScrollBag
-	for entry = 1, countrules do
-		local bagrule = savedrules[entry] -- BagRule {name, runpriority, showpriority, isHidden}
-		if not bagrule then break end
+	-- Sort for execution before populating any UI that can read bag.rules.
+	table.sort(savedrules, BagRuleRunSortingFunction)
 
+	local displayRules = AutoCat.InitScrollBag(bagId)
+	for entry, bagrule in ipairs(displayRules) do
 		logDebug("[cacheInitBag] sbag ", entry, " bagrule.name ", bagrule.name)
 
 		sbag:append(bagrule:formatShow(),  bagrule:formatValue())
@@ -610,8 +561,6 @@ function AutoCat.cacheInitBag(bagId)
 	end
 		
     -- load in the bagged rules (sorted by runpriority high-to-low) into the dropdown
-	table.sort(svdbag.rules, BagRuleRunSortingFunction)
-	
 	logDebug("[cacheInitBag] Initializing ebag ", bagId, " with bagrules")
 	local bagrule
 	for entry = 1, countrules do
@@ -741,38 +690,6 @@ function AutoCat.cache.AddRule(rule)
 	rule:compile()
 end
 
--- Keep the native context menu intact; open only this list with LSM.
-local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, enableFilter)
-	if #entries == 0 then return end
-
-	if not LibScrollableMenu
-		or type(ClearCustomScrollableMenu) ~= "function"
-		or type(AddCustomScrollableMenuEntry) ~= "function"
-		or type(ShowCustomScrollableMenu) ~= "function" then
-		AddCustomSubMenuItem(title, entries)
-		return
-	end
-
-	AddCustomMenuItem(title, function()
-		-- Let the native menu finish handling the click before opening
-		-- a menu that also listens for the global mouse-up event.
-		zo_callLater(function()
-			ClearCustomScrollableMenu()
-			for _, entry in ipairs(entries) do
-				-- LSM treats its divider token as a separator, not a category.
-				local label = entry.label
-				if label == LibScrollableMenu.DIVIDER then label = " " .. label end
-				AddCustomScrollableMenuEntry(label, entry.callback)
-			end
-			ShowCustomScrollableMenu(anchor, {
-				sortEntries = false,
-				visibleRowsDropdown = visibleRows,
-				enableFilter = enableFilter == true,
-			})
-		end, 0)
-	end, MENU_ADD_OPTION_LABEL)
-end
-
 -- Set up the context menu item for AutoCategory
 local LCM = LibCustomMenu
 local function setupContextMenu()
@@ -783,62 +700,30 @@ local function setupContextMenu()
 		local name = GetItemName(bagId, slotIndex)
 		sysd("[AC] "..tostring(name).."   itemId = "..tostring(itemId))
 	end
-	local function AC_AddToCategoryMenu(rowControl, bagId, slotIndex)
-		-- the "AutoCategory" submenu: the categories (levels) of the
-		-- bag the item is in, in display order. Selecting a category adds
-		-- the itemId of the item to the isitemid() command of that
-		-- category's rule, so the item lands in that category.
+	local function AC_AddToCategoryMenu(bagId, slotIndex)
 		local bagTypeId = AutoCategory.getBagTypeId(bagId)
 		if not bagTypeId then return end
-		local bag = AutoCat.saved.bags[bagTypeId]
-		if not bag or not bag.rules then return end
 
-		-- the categories in display order (the order of the Display
-		-- Order window): a copy of the list, the saved order stays
-		-- untouched
-		local rules = {}
-		for i = 1, #bag.rules do
-			rules[#rules + 1] = bag.rules[i]
-		end
-		AutoCat.SortBagRulesByDisplay(rules)
-
+		local CLM = AutoCategory.CategoryLevelMenu
 		local itemId = GetItemId(bagId, slotIndex)
 		local entries = {}
-		for i = 1, #rules do
-			local bagrule = rules[i]
-			local rule = AutoCategory.GetRuleByName(bagrule.name)
-			-- only the categories whose rule can be edited: a predefined
-			-- rule is not editable (the same guard as Edit Category)
-			if rule and not rule:isPredefined() then
-				-- indent the category under its level (a Normal category
-				-- counts as level 1)
-				local level = 1
-				if type(rule.level) == "number" and rule.level >= 2
-					and rule.level <= 5 and rule.level == math.floor(rule.level) then
-					level = rule.level
+		for _, destination in ipairs(CLM.GetMoveDestinations(bagTypeId)) do
+			local name = destination.name
+			local action
+			if not destination.rule:isPredefined() then
+				action = function()
+					CLM.MoveItemToCategory(bagTypeId, name, itemId)
 				end
-				local label = string.rep("    ", level - 1) .. bagrule.name
-				entries[#entries + 1] = {
-					label = label,
-					callback = function()
-						if not rule:addItemIdToIsItemId(itemId) then return end
-						rule:compile()
-						-- the same refreshes as a rule edit in Edit Category
-						AutoCat.cacheInitialize()
-						AC_UI.RefreshDropdownData()
-						AC_UI.RefreshControls()
-						-- re-sort the open inventories so the item moves now
-						AutoCat.RefreshCurrentList()
-					end,
-				}
 			end
+			entries[#entries + 1] = { label = destination.label, action = action }
 		end
-		addScrollableContextSubMenu("AutoCategory", entries, rowControl, 12)
+		AutoCategory.ScrollMenu.AddNativeSubmenu(GetString(SI_AC_MENU_CM_MOVE_ITEM_SUBMENU), entries)
 	end
 
 	local function AC_AddMenuItem(rowControl, slotActions)
 		local bagId, slotIndex = ZO_Inventory_GetBagAndIndex(rowControl)
-		AC_AddToCategoryMenu(rowControl, bagId, slotIndex)
+		AutoCategory.ScrollMenu.Hide()
+		AC_AddToCategoryMenu(bagId, slotIndex)
 		AddCustomMenuItem("AC: Get itemId", function() AC_GetItem(rowControl) end, MENU_ADD_OPTION_LABEL)
         if AutoCat.displayItem then
 		    AddCustomMenuItem("AC: Debug", function() AutoCat.displayItem(bagId, slotIndex) end, MENU_ADD_OPTION_LABEL)
@@ -1288,6 +1173,76 @@ local function getBagTypeId(header)
 	return bagTypeId
 end
 
+local HEADER_DRAG_EVENT = "AutoCategory_InventoryHeaderDrag"
+local headerDrag
+
+local function inventoryHeaderData(control)
+    local slot = control and control.slot
+    local data = slot and slot.dataEntry and slot.dataEntry.data
+    if data and data.AC_isHeader then return data end
+end
+
+-- Scroll list row controls can be recycled under the pointer. Keep the
+-- source rule name, and resolve the row being hovered only on release.
+function AC_ItemRowHeader_OnDragStart(header, button)
+    if button ~= MOUSE_BUTTON_INDEX_LEFT or headerDrag then return end
+    local data = inventoryHeaderData(header)
+    local contents = header:GetParent()
+    if not data or not contents then return end
+
+    local bagTypeId = getBagTypeId(header)
+    local CLM = AutoCat.CategoryLevelMenu
+    local rule = CLM.HeaderRuleForDrag(bagTypeId, data.AC_categoryName)
+    local drag = { ruleName = rule and rule.name }
+    headerDrag = drag
+    if rule then
+        AutoCat.ScrollMenu.Hide()
+        AutoCat.OrderList.ShowDragLabel(data.AC_displayName or data.AC_categoryName)
+    end
+
+    EVENT_MANAGER:RegisterForEvent(HEADER_DRAG_EVENT, EVENT_GLOBAL_MOUSE_UP, function(_, released)
+        if released ~= MOUSE_BUTTON_INDEX_LEFT then return end
+        EVENT_MANAGER:UnregisterForEvent(HEADER_DRAG_EVENT, EVENT_GLOBAL_MOUSE_UP)
+        if drag.ruleName then AutoCat.OrderList.HideDragLabel() end
+
+        local parentRule
+        if drag.ruleName and not contents:IsControlHidden() then
+            local target = WINDOW_MANAGER:GetMouseOverControl()
+            -- Only a header in the same scroll list can be the target.
+            while target and target ~= contents do
+                local parent = target:GetParent()
+                if parent == contents then
+                    local targetData = not target:IsControlHidden() and inventoryHeaderData(target)
+                    if targetData and getBagTypeId(target) == bagTypeId then
+                        parentRule = CLM.HeaderRuleForDrag(bagTypeId, targetData.AC_categoryName)
+                    end
+                    break
+                end
+                target = parent
+            end
+        end
+
+        -- Let the row's mouse-up finish without toggling its collapsed
+        -- state, regardless of the order of the global and row events.
+        zo_callLater(function()
+            if headerDrag ~= drag then return end
+            headerDrag = nil
+            if parentRule and not contents:IsControlHidden() then
+                CLM.MoveSubtreeAndRefresh(bagTypeId, drag.ruleName, parentRule.name)
+            end
+        end, 0)
+    end)
+end
+
+function AC_ItemRowHeader_OnMouseUp(header, button, upInside)
+    if not upInside or headerDrag then return end
+    if button == MOUSE_BUTTON_INDEX_LEFT then
+        AC_ItemRowHeader_OnMouseClicked(header)
+    elseif button == MOUSE_BUTTON_INDEX_RIGHT then
+        AC_ItemRowHeader_OnShowContextMenu(header)
+    end
+end
+
 -- The names of the sub-levels displayed under a category of a bag: the
 -- ones present in the inventory lists of that bag type (every entry
 -- carries its full level chain), and the folded ones remembered in the
@@ -1335,28 +1290,32 @@ end
 -- category has no header. The display-priority moves use this to
 -- find the category displayed just above or below: the visible
 -- display order of the bag, never the hidden or empty
--- categories. Nil when the lists are not accessible.
-function AutoCategory.GetDisplayedHeaders(bagTypeId)
+-- categories. The manager supplies the specific list it was opened from.
+function AutoCategory.GetDisplayedHeaders(bagTypeId, sourceList)
     if bagTypeId == nil then return nil end
     local names = {}
     local seen = {}
-    for _, info in pairs(inven_data) do
-        local listView = info.listView
+    local function collect(listView)
         local dataList = listView and ZO_ScrollList_GetDataList
             and ZO_ScrollList_GetDataList(listView)
-        if dataList then
-            for _, entry in ipairs(dataList) do
-                local data = entry and entry.data
-                if data and data.AC_isHeader
-                        and data.AC_bagTypeId == bagTypeId
-                        and type(data.AC_categoryName) == "string"
-                        and data.AC_categoryName ~= ""
-                        and not seen[data.AC_categoryName] then
-                    seen[data.AC_categoryName] = true
-                    names[#names + 1] = data.AC_categoryName
-                end
+        if not dataList then return false end
+        for _, entry in ipairs(dataList) do
+            local data = entry and entry.data
+            if data and data.AC_isHeader
+                    and data.AC_bagTypeId == bagTypeId
+                    and type(data.AC_categoryName) == "string"
+                    and data.AC_categoryName ~= ""
+                    and not seen[data.AC_categoryName] then
+                seen[data.AC_categoryName] = true
+                names[#names + 1] = data.AC_categoryName
             end
         end
+        return true
+    end
+    if sourceList then
+        if not collect(sourceList) then return nil end
+    else
+        for _, info in pairs(inven_data) do collect(info.listView) end
     end
     return names
 end
@@ -1414,7 +1373,7 @@ local function bagCategoryNames(bagTypeId)
     end
     return names
 end
--- called from AutoCategory.xml
+-- called from XML/AutoCategory.xml
 function AC_ItemRowHeader_OnMouseEnter(header)
     local cateName = header.slot.dataEntry.data.AC_categoryName
     local bagTypeId = getBagTypeId(header)
@@ -1437,13 +1396,13 @@ function AC_ItemRowHeader_OnMouseEnter(header)
     end
 end
 
--- called from AutoCategory.xml
+-- called from XML/AutoCategory.xml
 function AC_ItemRowHeader_OnMouseExit(header)
     local markerBG = header:GetNamedChild("CollapseMarkerBG")
     markerBG:SetHidden(true)
 end
 
--- called from AutoCategory.xml
+-- called from XML/AutoCategory.xml
 -- collapse/expand a header by clicking on the -/+ icon
 function AC_ItemRowHeader_OnMouseClicked(header)
     if (AutoCat.acctSaved.general["SHOW_CATEGORY_COLLAPSE_ICON"] == false) then
@@ -1458,17 +1417,61 @@ function AC_ItemRowHeader_OnMouseClicked(header)
     AutoCat.RefreshCurrentList()
 end
 
--- called from AutoCategory.xml
--- context menu for collapse/expand on category headers
-function AC_ItemRowHeader_OnShowContextMenu(header)
+-- The inventory-item context menu continues to use LibCustomMenu.
+local function createHeaderScrollableMenu(menuRows)
+    local function addItem(label, action)
+        menuRows[#menuRows + 1] = { label = label, action = action }
+    end
+    return {
+        addItem = addItem,
+        addDivider = function() menuRows[#menuRows + 1] = { kind = "divider" } end,
+        addSubMenu = function(title, entries, options)
+            local copyAction = options and options.copyAction
+            local rows = {}
+            for _, entry in ipairs(entries) do
+                local slider = entry.slider
+                local label = entry.label
+                if entry.isHeader then
+                    rows[#rows + 1] = { label = label, kind = "header" }
+                elseif slider then
+                    rows[#rows + 1] = {
+                        label = slider.label, kind = "slider", slider = slider,
+                        tooltip = slider.tooltip,
+                    }
+                    rows[#rows + 1] = { kind = "divider" }
+                elseif copyAction then
+                    if entry.overwriteTooltip then label = "|cFF5555" .. label .. "|r" end
+                    rows[#rows + 1] = {
+                        label = label, kind = "check", setChecked = entry.onChecked,
+                        checked = function() return entry.selected == true end,
+                        tooltip = entry.overwriteTooltip,
+                    }
+                else
+                    rows[#rows + 1] = { label = label, action = entry.callback, kind = entry.kind }
+                end
+            end
+            if copyAction then
+                rows[#rows + 1] = {
+                    label = GetString(SI_AC_MENU_CM_COPY_SELECTED), action = copyAction,
+                }
+            end
+            menuRows[#menuRows + 1] = {
+                label = title, entries = rows, search = options and options.searchable,
+            }
+        end,
+    }
+end
+
+local function showHeaderContextMenu(header, cateName, bagTypeId, displayName, sourceList)
     ClearMenu()
-    local cateName = header.slot.dataEntry.data.AC_categoryName
-    local bagTypeId = getBagTypeId(header)
+    local rows = {}
+    local menu = createHeaderScrollableMenu(rows)
+    local addItem = menu.addItem
 
 	-- add either single Expand or Collapse to menu as appropriate for category state
     local collapsed = AutoCat.IsCategoryCollapsed(bagTypeId, cateName)
     if collapsed then
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_EXPAND),
             function()
                 setCategoryCollapsed(bagTypeId, cateName, false)
@@ -1477,7 +1480,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         )
 
     else
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_COLLAPSE),
             function()
                 setCategoryCollapsed(bagTypeId, cateName, true)
@@ -1500,7 +1503,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         end
     end
     if #subLevels > 0 then
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_COLLAPSE_LEVEL_ALL),
             function()
                 for _, name in ipairs(subLevels) do
@@ -1514,7 +1517,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     -- and every folded sub-level with it
     if anySubCollapsed
             or AutoCat.IsCategoryCollapsed(bagTypeId, cateName) then
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_EXPAND_LEVEL_ALL),
             function()
                 setCategoryCollapsed(bagTypeId, cateName, false)
@@ -1527,7 +1530,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     end
 
 	-- add Expand All to menu
-    AddMenuItem(
+    addItem(
         L(SI_CONTEXT_MENU_EXPAND_ALL),
         function()
             for k, _ in pairs(AutoCat.saved.collapses[bagTypeId]) do
@@ -1541,7 +1544,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
 	-- only the already folded ones (the collapses table holds only
 	-- those), so the names come from the displayed headers and from
 	-- the chains of the bag rules
-    AddMenuItem(
+    addItem(
         L(SI_CONTEXT_MENU_COLLAPSE_ALL),
         function()
             for _, name in ipairs(bagCategoryNames(bagTypeId)) do
@@ -1551,19 +1554,29 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
             AutoCat.RefreshCurrentList()
         end
     )
-    -- the AutoCategory entries: the run priority, the "Level"
+    -- the AutoCategory entries: the "Rule" submenu, the "Level"
     -- submenu, the "Move To" and "Copy To" submenus, the category
     -- creation and the removal from the bag (a no-op for headers
     -- with no operable backing rule, except for New Category)
-    if AutoCategory.AddCategoryLevelMenuEntries then
-        AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, function(title, entries)
-            addScrollableContextSubMenu(title, entries, header, 15, true)
-        end)
-    end
-    ShowMenu()
+    AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, displayName, sourceList)
+    AutoCategory.ScrollMenu.Show(header, rows, { visibleRows = 15, submenuRows = 15 })
 end
 
--- called from binding.xml
+-- Called from XML/AutoCategory.xml on right mouse-up over a category header.
+function AC_ItemRowHeader_OnShowContextMenu(header)
+    local data = header.slot.dataEntry.data
+    local cateName, displayName = data.AC_categoryName, data.AC_displayName
+    local bagTypeId = getBagTypeId(header)
+    -- Inventory rows are parented to the ZO_ScrollList's Contents control.
+    local contents = header:GetParent()
+    local sourceList = contents and contents:GetParent()
+    -- Open after the right-click's global mouse-up has been processed.
+    zo_callLater(function()
+        showHeaderContextMenu(header, cateName, bagTypeId, displayName, sourceList)
+    end, 0)
+end
+
+-- called from XML/Bindings.xml
 -- toggle AutoCategory on or off
 function AC_Binding_ToggleCategorize()
     AutoCat.Enabled = not AutoCat.Enabled

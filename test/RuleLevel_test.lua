@@ -205,12 +205,29 @@ addBagRule("Légères", 30, 3)
 addBagRule("Moyennes", 40, 4)
 
 itemType = "armorlight"
-local ok, name, rp, sp, bti = match()
+local ok, name, rp, sp, bti, _, sortKey = match()
 equal(true, ok, "light armor matched")
 equal("premier niveau----Armures----Légères", name, "three-level path")
 equal(30, rp, "deepest rule run priority")
 equal(3, sp, "deepest rule show priority")
 equal(AC_BAG_TYPE_BACKPACK, bti, "bag type id")
+equal("0999premier niveau\0010998Armures\0010997Légères", sortKey,
+    "sort key retains priority at every level without changing the match")
+local secondBag = 233
+AutoCategory.saved.bags[secondBag] = { rules = {
+    { name = "premier niveau", runpriority = 7, showpriority = 70 },
+    { name = "Armures", runpriority = 8, showpriority = 40 },
+    { name = "Légères", runpriority = 9, showpriority = 18 },
+} }
+local _, otherName, otherRun, otherShow, otherBag, _, otherKey =
+    AutoCategory:MatchCategoryRules(BAG_BACKPACK, 4, secondBag)
+equal(name, otherName, "same hierarchy in a different bag")
+equal(9, otherRun, "second bag retains its own leaf rule execution priority")
+equal(18, otherShow, "second bag retains its own leaf display priority")
+equal(secondBag, otherBag, "special type chooses the correct bag")
+equal("0930premier niveau\0010960Armures\0010982Légères", otherKey,
+    "each level's priority is taken from the current bag")
+AutoCategory.saved.bags[secondBag] = nil
 local registered = false
 for _, call in ipairs(collapseCalls) do
     if call == AC_BAG_TYPE_BACKPACK .. "\001" .. name then
@@ -527,6 +544,17 @@ itemType = "weapon"
 ok, name = match()
 equal(true, ok, "no-bag parent match")
 equal("Hors sac----Enfants libre", name, "a parent of no bag is still followed")
+
+rule("Enfants libres 2", [[type("armor")]], 2, "Hors sac")
+addBagRule("Enfants libres 2", 30, 8)
+local _, _, _, _, _, _, weaponKey = match()
+itemType = "armor"
+local _, _, _, _, _, _, armorKey = match()
+equal("0992Hors sac", AutoCategory.CategoryTree.ParentSortKey(weaponKey),
+    "synthetic parent takes the best configured priority, not the visible branch's priority")
+equal("0992Hors sac", AutoCategory.CategoryTree.ParentSortKey(armorKey),
+    "synthetic parent has the same priority on every branch")
+equal(true, armorKey < weaponKey, "synthetic parent still honors its sibling priorities")
 
 -- ---------------------------------------------------------------------------
 -- Part 4: the level/parent layout of a predefined category, kept as a

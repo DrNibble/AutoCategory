@@ -9,7 +9,7 @@
 ## DependsOn: LibAddonMenu-2.0>=43 LibCustomMenu>=730 LibSFUtils>=77 LibMediaProvider>=36 
 ## DependsOn: LibDebugLogger>=307
 ## OptionalDependsOn: GearChangerByIakoni FCOItemSaver QuickMenu ItemSaver ItemSaverLite ItemMarker UnknownTracker
-## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom LibSets LibScrollableMenu
+## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom LibSets
 
 
 lang/strings.lua
@@ -21,7 +21,11 @@ AutoCategory_Global.lua
 AutoCategory_Defaults.lua
 AutoCategory_Tree.lua
 Plugin_API.lua
-AutoCategory.xml
+XML/AutoCategory_OrderList.xml
+XML/AutoCategory.xml
+XML/AutoCategory_ScrollMenu.xml
+AutoCategory_ScrollMenu.lua
+AutoCategory_OrderList.lua
 Hooks_Keyboard.lua
 Hooks_Gamepad.lua
 classes/CVT.lua
@@ -32,6 +36,7 @@ classes/BaseUI.lua
 ;misc/MiscDebugFuncs.lua
 AutoCategory.lua
 AutoCategory_LevelMenu.lua
+AutoCategory_CategoryManagement.lua
 SavedVarsCompact.lua
 PredefinedLayouts.lua
 
@@ -61,4 +66,4 @@ plugins/DressingRoom2018_Plugin.lua
 ; old integration with other addons files
 AutoCategory_Integrations_QuickMenu.lua
 
-Bindings.xml
+XML/Bindings.xml

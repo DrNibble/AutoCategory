@@ -1,5 +1,15 @@
 # Changes
 
+## 2026-11-19: execution priority slider in Rule
+
+- The category header's "Rule" menu uses a LibScrollableMenu slider for
+  the clicked bag's execution priority. It starts at the current value,
+  displays the selected number, and accepts integer values from 0 to 1000.
+  The display priority and the rule text are unchanged.
+- Bag Settings supports the same execution priority range. Without a
+  compatible LibScrollableMenu, the original read-only Rule menu is kept.
+  Existing translations are reused. Not tested in ESO.
+
 ## 2026-11-19: parent items before subcategories
 
 - In categorized bags, items assigned directly to a parent are displayed

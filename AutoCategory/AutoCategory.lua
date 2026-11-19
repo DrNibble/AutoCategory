@@ -745,10 +745,12 @@ end
 local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, enableFilter)
 	if #entries == 0 then return end
 
+	local hasSlider = entries[1].slider ~= nil
 	if not LibScrollableMenu
 		or type(ClearCustomScrollableMenu) ~= "function"
 		or type(AddCustomScrollableMenuEntry) ~= "function"
-		or type(ShowCustomScrollableMenu) ~= "function" then
+		or type(ShowCustomScrollableMenu) ~= "function"
+		or (hasSlider and type(AddCustomScrollableMenuSlider) ~= "function") then
 		AddCustomSubMenuItem(title, entries)
 		return
 	end
@@ -759,15 +761,22 @@ local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, 
 		zo_callLater(function()
 			ClearCustomScrollableMenu()
 			for _, entry in ipairs(entries) do
-				-- LSM treats its divider token as a separator, not a category.
-				local label = entry.label
-				if label == LibScrollableMenu.DIVIDER then label = " " .. label end
-				AddCustomScrollableMenuEntry(label, entry.callback)
+				local slider = entry.slider
+				if slider then
+					AddCustomScrollableMenuSlider(slider.label, slider.callback,
+						slider.data, { tooltip = slider.tooltip })
+				else
+					-- LSM treats its divider token as a separator, not a category.
+					local label = entry.label
+					if label == LibScrollableMenu.DIVIDER then label = " " .. label end
+					AddCustomScrollableMenuEntry(label, entry.callback)
+				end
 			end
 			ShowCustomScrollableMenu(anchor, {
 				sortEntries = false,
 				visibleRowsDropdown = visibleRows,
 				enableFilter = enableFilter == true,
+				minDropdownWidth = hasSlider and 460 or nil,
 			})
 		end, 0)
 	end, MENU_ADD_OPTION_LABEL)
@@ -1551,13 +1560,15 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
             AutoCat.RefreshCurrentList()
         end
     )
-    -- the AutoCategory entries: the run priority, the "Level"
+    -- the AutoCategory entries: the "Rule" submenu, the "Level"
     -- submenu, the "Move To" and "Copy To" submenus, the category
     -- creation and the removal from the bag (a no-op for headers
     -- with no operable backing rule, except for New Category)
     if AutoCategory.AddCategoryLevelMenuEntries then
         AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, function(title, entries)
             addScrollableContextSubMenu(title, entries, header, 15, true)
+        end, function(title, entries)
+            addScrollableContextSubMenu(title, entries, header, 12)
         end)
     end
     ShowMenu()

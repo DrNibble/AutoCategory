@@ -1320,7 +1320,7 @@ end
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
-function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSubMenu)
+function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSubMenu, addRuleSubMenu)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
@@ -1338,32 +1338,41 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
 
     if rule then
 
-        -- the numeric execution priority of the category (read-only
-        -- information): the runpriority of its bag rule in this bag,
-        -- the order the rules run in (not the display order)
+        -- Only the clicked bag's execution priority is editable here.
+        -- A native menu uses the read-only label instead of the slider.
         local infoBagrule = subtree[1].bagrule
-        -- if infoBagrule and infoBagrule.runpriority then
-            -- AddCustomMenuItem(
-                -- string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
-                    -- infoBagrule.runpriority),
-                -- function() end, MENU_ADD_OPTION_LABEL)
-        -- end
-
-        -- the rule of the category (read-only information): a "Rule"
-        -- submenu right after the priority display, holding the
-        -- execution priority again and the rule text of the clicked
-        -- category - the criteria its items are sorted by, the same
-        -- text the rule editbox of the settings shows. The context
-        -- menu entries are single-line, so a long rule text is
-        -- wrapped over as many entries as needed.
         local ruleEntries = {}
-        if infoBagrule and infoBagrule.runpriority then
+        if infoBagrule and type(infoBagrule.runpriority) == "number" then
+            local ruleName = rule.name
+            local function clampPriority(value)
+                return math.max(0, math.min(1000, math.floor(value + 0.5)))
+            end
+            local function currentPriority()
+                return clampPriority(infoBagrule.runpriority)
+            end
             ruleEntries[#ruleEntries + 1] = {
                 label = string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
                     infoBagrule.runpriority),
                 callback = function() end,
+                slider = {
+                    label = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY),
+                    tooltip = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY_TOOLTIP),
+                    data = { min = 0, max = 1000, step = 1, value = currentPriority,
+                        showValueLabel = true, labelWidth = 195 },
+                    callback = function(_, _, value)
+                        if type(value) ~= "number" or value ~= value
+                            or findBagRule(bagTypeId, ruleName) ~= infoBagrule then return end
+                        local priority = clampPriority(value)
+                        -- LSM can invoke this when it initializes or redraws
+                        -- the slider. Do not save or refresh an unchanged value.
+                        if priority == currentPriority() then return end
+                        infoBagrule.runpriority = priority
+                        refreshAfterChange()
+                    end,
+                },
             }
         end
+        -- Keep the rule expression read-only and wrap long text as before.
         local ruleText = rule.rule or ""
         if ruleText ~= "" then
             for _, line in ipairs(wrapRuleText(ruleText)) do
@@ -1374,7 +1383,12 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
             end
         end
         if #ruleEntries > 0 then
-            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_RULE), ruleEntries)
+            local title = GetString(SI_AC_MENU_CM_RULE)
+            if ruleEntries[1].slider and addRuleSubMenu then
+                addRuleSubMenu(title, ruleEntries)
+            else
+                AddCustomSubMenuItem(title, ruleEntries)
+            end
         end
 
         -- the level and display-position operations of the

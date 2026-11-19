@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Search in Move To (2026-11-19)[/COLOR]:
+[LIST]
+[*] The Move To list uses LibScrollableMenu's search box to filter destinations by name as you type. The 15-row limit and original fallback submenu are unchanged. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Scrollable Move To menu (2026-11-19)[/COLOR]:
 [LIST]
 [*] With LibScrollableMenu installed, the category header's Move To entry opens a scrollable list of up to 15 visible rows. The same destinations are offered in the same order. Without the library the original submenu is retained. Not tested in ESO.

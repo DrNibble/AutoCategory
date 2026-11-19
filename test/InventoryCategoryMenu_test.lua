@@ -130,6 +130,7 @@ equal("clear,scrollable", table.concat(events, ",", 2), "clear LSM before displa
 equal(backpack, anchoredTo, "scrollable list belongs to clicked row")
 equal(false, options.sortEntries, "LSM must not sort the display order")
 equal(12, options.visibleRowsDropdown, "long lists have a fixed viewport")
+equal(false, options.enableFilter, "the item category menu does not gain a search box")
 equal(3, #scrolled, "filter out protected and missing rules")
 equal("Zèbre", scrolled[1].label, "highest visual priority comes first")
 equal("    Enfant", scrolled[2].label, "child follows its parent with indentation")

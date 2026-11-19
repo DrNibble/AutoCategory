@@ -742,7 +742,7 @@ function AutoCat.cache.AddRule(rule)
 end
 
 -- Keep the native context menu intact; open only this list with LSM.
-local function addScrollableContextSubMenu(title, entries, anchor, visibleRows)
+local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, enableFilter)
 	if #entries == 0 then return end
 
 	if not LibScrollableMenu
@@ -767,6 +767,7 @@ local function addScrollableContextSubMenu(title, entries, anchor, visibleRows)
 			ShowCustomScrollableMenu(anchor, {
 				sortEntries = false,
 				visibleRowsDropdown = visibleRows,
+				enableFilter = enableFilter == true,
 			})
 		end, 0)
 	end, MENU_ADD_OPTION_LABEL)
@@ -1556,7 +1557,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     -- with no operable backing rule, except for New Category)
     if AutoCategory.AddCategoryLevelMenuEntries then
         AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, function(title, entries)
-            addScrollableContextSubMenu(title, entries, header, 15)
+            addScrollableContextSubMenu(title, entries, header, 15, true)
         end)
     end
     ShowMenu()

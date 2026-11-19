@@ -852,424 +852,112 @@ end
 local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
 local newCategoryDialogRegistered = false
 
--- Create the new category in the captured bag with the chosen tag.
--- The name was already validated when the tag was chosen; creation can
--- still fail (priority compaction limit), reported in the chat window.
-local function createCategoryWithTag(bagTypeId, name, tag)
-    local rule = CLM.CreateCategory(bagTypeId, name, tag)
-    if not rule then
-        CHAT_ROUTER:AddSystemMessage(GetString(
-            SI_AC_DIALOG_CATEGORY_CREATE_FAILED))
-        return
-    end
-    refreshAfterChange()
-end
+local function setupNewCategoryDialog(dialog)
+    dialog.categoryName:SetText("")
+    dialog.newTag:SetHidden(true)
+    dialog.tagName:SetText("")
+    dialog.tag = nil
+    dialog.creatingTag = false
 
--- The tag choices of the New Category dialog dropdown: the existing
--- tags (sorted), the empty tag (the previous default) and an entry
--- for a brand new tag. The value is the
--- tag the new category gets (nil keeps the empty tag); the new-tag
--- entry is marked with isNew and shows the tag name input row
--- inside the same dialog.
-function CLM.NewCategoryTagChoices()
-    local RulesW = AutoCategory.RulesW
-    local tags = RulesW and RulesW.tags or {}
-    local choices = {}
-    for i = 1, #tags do
-        local tag = tags[i]
-        if type(tag) == "string" and tag ~= ""
-                and tag ~= GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG) then
-            choices[#choices + 1] = { label = tag, value = tag }
-        end
-    end
-    table.sort(choices, function(a, b) return a.label < b.label end)
-    choices[#choices + 1] =
-        { label = GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG) }
-    choices[#choices + 1] =
-        { label = GetString(SI_AC_MENU_CM_TAG_NEW), isNew = true }
-    return choices
-end
-
--- The tag dropdown of the New Category dialog, directly beside the
--- edit box: the name and the tag are chosen in the same dialog, no
--- follow-up dialog or context menu. The controls are built once
--- per dialog control and reused; every opening refreshes the tag
--- list and resets the selection to the empty tag (the previous
--- default).
-local TAG_DROPDOWN_WIDTH = 150 -- the dropdown
-local TAG_DROPDOWN_MIN_WIDTH = 120 -- the dropdown never shrinks
-                                   -- below this, even on a cramped row
-local TAG_LABEL_WIDTH = 90     -- room for the "Tag" label
-local TAG_DROPDOWN_GAP = 12    -- between the edit box and the label
-local TAG_EDIT_MIN_WIDTH = 160 -- the name field never collapses
-local NEW_CATEGORY_DIALOG_WIDTH = 450 -- the window is a quarter
-                                     -- wider than the framework's 360
-                               -- below this (it becomes an unusable
-                               -- sliver without an explicit width)
-
-local newCategoryTagControls = nil -- { label, comboControl, comboBox,
-                                   --   tagNameLabel, tagEdit, tagEditBox }
-local newCategoryTagChoice = nil   -- the selected choice entry
-local newTagRowShown = false       -- the tag name input row is visible
-local centerDialogButtons = nil    -- forward declaration: showing and
-                                   -- hiding the tag name row re-centers
-                                   -- the OK and Cancel buttons under it
-
--- The choice currently selected in the dropdown of the open dialog
--- (the empty tag before the user picks one).
-function CLM.GetNewCategoryTagChoice()
-    return newCategoryTagChoice
-end
-
--- The tag name input row, below the edit box row of the same dialog:
--- shown while "New Tag..." is selected in the dropdown, hidden
--- for every other choice (and its text is cleared, so the next
--- opening starts fresh). Selecting the entry gives the field the
--- focus: the name is typed right away, in the field that just
--- appeared.
-local function showNewTagNameRow()
-    local controls = newCategoryTagControls
-    if not controls then return end
-    controls.tagNameLabel:SetHidden(false)
-    controls.tagEdit:SetHidden(false)
-    newTagRowShown = true
-    local box = controls.tagEditBox
-    if box and box.TakeFocus then box:TakeFocus() end
-    if centerDialogButtons and ZO_Dialogs_FindDialog then
-        local dialog = ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
-        if dialog then centerDialogButtons(dialog) end
-    end
-end
-
-local function hideNewTagNameRow()
-    newTagRowShown = false
-    local controls = newCategoryTagControls
-    if not controls then return end
-    controls.tagNameLabel:SetHidden(true)
-    controls.tagEdit:SetHidden(true)
-    -- clear the typed name: a hidden field must not keep it
-    local box = controls.tagEditBox
-    if box and box.SetText then box:SetText("") end
-    if centerDialogButtons and ZO_Dialogs_FindDialog then
-        local dialog = ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
-        if dialog then centerDialogButtons(dialog) end
-    end
-end
-
-local function hideNewCategoryTagDropdown(dialog)
-    if newCategoryTagControls then
-        newCategoryTagControls.label:SetHidden(true)
-        newCategoryTagControls.comboControl:SetHidden(true)
-        -- restore the framework's stock window width: the
-        -- other dialogs that use the same window must not
-        -- see the widened one
-        if newCategoryTagControls.stockTitleWidth then
-            local dialogControl = dialog
-            if not dialogControl and ZO_Dialogs_FindDialog then
-                dialogControl = ZO_Dialogs_FindDialog(
-                    NEW_CATEGORY_DIALOG)
-            end
-            local title = dialogControl
-                and dialogControl.GetNamedChild
-                and dialogControl:GetNamedChild("Title")
-            if title and title.SetWidth then
-                title:SetWidth(
-                    newCategoryTagControls.stockTitleWidth)
-            end
-        end
-    end
-    hideNewTagNameRow()
-end
-
-local function setupNewCategoryTagDropdown(dialog)
-    if not WINDOW_MANAGER then return end
-    local edit = dialog:GetNamedChild("Edit")
-    if not edit then return end
-
-    if not newCategoryTagControls then
-        local label = WINDOW_MANAGER:CreateControl(
-            "$(parent)ACTagLabel", dialog, CT_LABEL)
-        label:SetFont("ZoFontGame")
-        label:SetText(GetString(SI_AC_MENU_CS_DROPDOWN_TAG))
-        local comboControl = CreateControlFromVirtual(
-            "$(parent)ACTagCombo", dialog, "ZO_ComboBox")
-        comboControl:SetWidth(TAG_DROPDOWN_WIDTH)
-        -- the label sits between the edit box and the dropdown, on
-        -- the row of the edit box
-        label:SetAnchor(RIGHT, comboControl, LEFT, -TAG_DROPDOWN_GAP, 2)
-        comboControl:SetAnchor(TOPLEFT, edit, TOPRIGHT,
-            TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH + TAG_DROPDOWN_GAP, 2)
-        -- the tag name input row, below the edit box row: the
-        -- label starts the row, the input field takes the rest
-        -- of the row after it (its width is set per opening,
-        -- from the row width minus the label)
-        local tagNameLabel = WINDOW_MANAGER:CreateControl(
-            "$(parent)ACTagNameLabel", dialog, CT_LABEL)
-        tagNameLabel:SetFont("ZoFontGame")
-        tagNameLabel:SetText(GetString(SI_AC_DIALOG_TAG_NAME_FIELD))
-        local tagEdit = CreateControlFromVirtual(
-            "$(parent)ACTagEdit", dialog,
-            "ZO_SingleLineEditBackdrop_Keyboard")
-        local tagEditBox = CreateControlFromVirtual(
-            "$(parent)ACTagEditBox", tagEdit,
-            "ZO_DefaultEditForBackdrop")
-        tagNameLabel:SetAnchor(TOPLEFT, edit, BOTTOMLEFT, 0, 13)
-        tagEdit:SetAnchor(TOPLEFT, tagNameLabel, TOPRIGHT,
-            TAG_DROPDOWN_GAP, -3)
-        tagNameLabel:SetHidden(true)
-        tagEdit:SetHidden(true)
-        newCategoryTagControls = {
-            label = label,
-            comboControl = comboControl,
-            comboBox = ZO_ComboBox_ObjectFromContainer(comboControl),
-            tagNameLabel = tagNameLabel,
-            tagEdit = tagEdit,
-            tagEditBox = tagEditBox,
-        }
-        -- the framework's stock width of the title, captured
-        -- once before the window is ever widened, to restore
-        -- it on release
-        local title = dialog:GetNamedChild("Title")
-        if title and title.GetWidth then
-            newCategoryTagControls.stockTitleWidth
-                = title:GetWidth()
-        end
-        newCategoryTagControls.tagNameLabelWidth =
-            tagNameLabel:GetWidth()
-    end
-
-    local controls = newCategoryTagControls
-    local comboBox = controls.comboBox
-    if not comboBox then return end
-    controls.label:SetHidden(false)
-    controls.comboControl:SetHidden(false)
-
-    -- Make room for the dropdown on the edit box row: the edit
-    -- box keeps the left end of the row, the label and the
-    -- dropdown the right end. The dialog framework re-applies
-    -- the anchors of the edit box on every opening (a two-sided
-    -- pair that stretches it across the whole row); the single
-    -- anchor kept here plus an explicit width replaces that
-    -- stretch. The width is ALWAYS set: a leftover below the
-    -- minimum must never leave the edit box without a width -
-    -- it collapses to an unusable sliver then (the name field
-    -- of 4.6.27). The dropdown gives way first, down to its own
-    -- minimum; only then does the row overflow the framework's
-    -- width a little.
-    local isValid, point, relTo, relPoint, offX, offY = edit:GetAnchor(0)
-    if isValid and relTo then
-        edit:ClearAnchors()
-        edit:SetAnchor(point, relTo, relPoint, offX, offY)
-    end
-    -- widen the window itself: the row is a quarter wider
-    -- than the stock 360 content, and the title is set to the
-    -- SAME width so the whole window (the backdrop sizes
-    -- itself to its children) grows symmetrically around the
-    -- screen center - a wider row alone would overflow the
-    -- right edge of a still-centered window
-    local title = dialog:GetNamedChild("Title")
-    if title and title.SetWidth then
-        title:SetWidth(NEW_CATEGORY_DIALOG_WIDTH)
-    end
-    -- the row is laid out on the widened width: the extra
-    -- room goes to the name field (the dropdown and the
-    -- label keep their width)
-    local rowWidth = NEW_CATEGORY_DIALOG_WIDTH
-    local labelRoom = TAG_DROPDOWN_GAP + TAG_LABEL_WIDTH
-        + TAG_DROPDOWN_GAP
-    local dropdownWidth = TAG_DROPDOWN_WIDTH
-    local editWidth = rowWidth - labelRoom - dropdownWidth
-    if editWidth < TAG_EDIT_MIN_WIDTH then
-        dropdownWidth = rowWidth - labelRoom - TAG_EDIT_MIN_WIDTH
-        if dropdownWidth < TAG_DROPDOWN_MIN_WIDTH then
-            dropdownWidth = TAG_DROPDOWN_MIN_WIDTH
-        end
-        editWidth = rowWidth - labelRoom - dropdownWidth
-        if editWidth < TAG_EDIT_MIN_WIDTH then
-            editWidth = TAG_EDIT_MIN_WIDTH
-        end
-    end
-    controls.comboControl:SetWidth(dropdownWidth)
-    controls.dropdownWidth = dropdownWidth
-    edit:SetWidth(editWidth)
-    -- the tag name input row spans the same row width: the
-    -- label at its left, the input field after it
-    controls.tagEdit:SetWidth(rowWidth
-        - (controls.tagNameLabelWidth or 120) - TAG_DROPDOWN_GAP)
-
-    comboBox:ClearItems()
-    local choices = CLM.NewCategoryTagChoices()
-    local defaultEntry = nil
-    for i = 1, #choices do
-        local choice = choices[i]
-        local entry = comboBox:CreateItemEntry(choice.label, function()
-            newCategoryTagChoice = choice
-            if choice.isNew then
-                showNewTagNameRow()
+    local combo = dialog.tagCombo
+    combo:ClearItems()
+    local function addTag(label, tag, creatingTag)
+        -- LSM reserves "-" for dividers; it is also a valid tag name.
+        if label == LibScrollableMenu.DIVIDER then label = " " .. label end
+        local entry = combo:CreateItemEntry(label, function()
+            dialog.tag = tag
+            dialog.creatingTag = creatingTag
+            dialog.newTag:SetHidden(not creatingTag)
+            if creatingTag then
+                dialog.tagName:TakeFocus()
             else
-                hideNewTagNameRow()
+                dialog.tagName:SetText("")
             end
         end)
-        comboBox:AddItem(entry)
-        if choice.value == nil and not choice.isNew then
-            defaultEntry = entry
+        combo:AddItem(entry)
+        return entry
+    end
+
+    local emptyTag = GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG)
+    local tags = {}
+    for _, tag in ipairs(AutoCategory.RulesW.tags) do
+        if type(tag) == "string" and tag ~= "" and tag ~= emptyTag then
+            tags[#tags + 1] = tag
         end
     end
-    -- reset the selection to the empty tag without firing its
-    -- callback, and hide the tag name input row of the
-    -- "New Tag..." entry until it is selected again
-    newCategoryTagChoice = nil
-    hideNewTagNameRow()
-    if defaultEntry then
-        comboBox:SelectItem(defaultEntry, true)
+    table.sort(tags)
+    for _, tag in ipairs(tags) do
+        addTag(tag, tag, false)
     end
+    local default = addTag(emptyTag, nil, false)
+    addTag(GetString(SI_AC_MENU_CM_TAG_NEW), nil, true)
+    combo:SelectItem(default, true)
 end
 
--- Center the OK and Cancel buttons of the New Category dialog
--- horizontally under the edit box row, on their texts (SI_OK /
--- SI_DIALOG_CANCEL): the dialog framework anchors them to the
--- bottom right corner by default, and it re-applies its own
--- anchors on every opening, so this runs after every
--- ZO_Dialogs_ShowDialog, keeping the framework's spacing and
--- vertical offset. Each button also carries its key label
--- ([E], [ALT]) and its paddings on the left of its text, so the
--- pair is positioned from the name labels (right-anchored inside
--- their button) instead of the button boxes. The row the pair is
--- centered on is the width the edit box row really occupies
--- (edit box + label room + dropdown, as laid out by the setup
--- above); the main text control the edit box is anchored to is
--- only the fallback when the tag row was not built.
-centerDialogButtons = function(dialog)
-    local edit = dialog:GetNamedChild("Edit")
-    local b1 = dialog:GetNamedChild("Button1")
-    local b2 = dialog:GetNamedChild("Button2")
-    if not edit or not b1 or not b2 then return end
-    -- the row the buttons sit under: the tag name input row
-    -- while it is shown (it spans the full row width), the
-    -- edit box row otherwise
-    local anchorTo = edit
-    if newTagRowShown and newCategoryTagControls
-        and newCategoryTagControls.tagEdit then
-        anchorTo = newCategoryTagControls.tagEdit
+local function showNewCategoryError(dialog, errorId)
+    ZO_Dialogs_UpdateDialogMainText(dialog, { text = errorId })
+end
+
+local function submitNewCategoryDialog(dialog)
+    local name, err = CLM.ValidateNewCategoryName(dialog.categoryName:GetText())
+    if not name then
+        showNewCategoryError(dialog, err)
+        return
     end
-    local rowWidth = nil
-    if newCategoryTagControls and newCategoryTagControls.dropdownWidth
-        and newCategoryTagControls.dropdownWidth >= TAG_DROPDOWN_MIN_WIDTH
-        and edit.GetWidth then
-        rowWidth = edit:GetWidth() + TAG_DROPDOWN_GAP
-            + TAG_LABEL_WIDTH + TAG_DROPDOWN_GAP
-            + newCategoryTagControls.dropdownWidth
-    end
-    if not rowWidth then
-        local isValid, _, relTo = edit:GetAnchor(0)
-        if not isValid or not relTo or not relTo.GetWidth then
+    local tag = dialog.tag
+    if dialog.creatingTag then
+        tag = dialog.tagName:GetText():match("^%s*(.-)%s*$")
+        if tag == "" then
+            showNewCategoryError(dialog, SI_AC_DIALOG_TAG_NAME_EMPTY)
             return
         end
-        rowWidth = relTo:GetWidth()
     end
-    local spacing = 20 -- the framework's BUTTON_SPACING
-    local w1, w2 = b1:GetWidth(), b2:GetWidth()
-    -- the name text of each button and its inset from the
-    -- button's right edge (the name label is right-anchored)
-    local t1, t2 = w1, w2
-    local r1, r2 = 0, 0
-    local function readNameLabel(button)
-        if not button.GetNamedChild then return end
-        local label = button:GetNamedChild("NameLabel")
-        if not label or not label.GetWidth or not label.GetAnchor then
-            return
-        end
-        local aValid, _, aRelTo, _, aOffX = label:GetAnchor(0)
-        if not aValid or aRelTo ~= button then return end
-        return label:GetWidth(), -aOffX
+    local rule, createError = CLM.CreateCategory(dialog.data.bagTypeId, name, tag)
+    if not rule then
+        showNewCategoryError(dialog, createError)
+        return
     end
-    local nt1, nr1 = readNameLabel(b1)
-    local nt2, nr2 = readNameLabel(b2)
-    if nt1 then t1, r1 = nt1, nr1 end
-    if nt2 then t2, r2 = nt2, nr2 end
-    b1:ClearAnchors()
-    b2:ClearAnchors()
-    if b2:IsHidden() then
-        b1:SetAnchor(TOPLEFT, anchorTo, BOTTOMLEFT,
-            (rowWidth - t1) / 2 - (w1 - t1 - r1), 23)
-    else
-        -- offset so that the pair of texts is centered on the
-        -- row (the buttons keep the framework's spacing)
-        local offX = (rowWidth - (w1 + spacing + w2)) / 2
-            + (r1 + r2 + t1 - w1) / 2
-        b1:SetAnchor(TOPLEFT, anchorTo, BOTTOMLEFT, offX, 23)
-        b2:SetAnchor(TOPLEFT, b1, TOPRIGHT, spacing, 0)
-    end
+    ZO_Dialogs_ReleaseDialogOnButtonPress(dialog)
+    refreshAfterChange()
 end
 
 function CLM.OpenNewCategoryDialog(bagTypeId)
     local bags = AutoCategory.saved and AutoCategory.saved.bags
     if not bags or not bags[bagTypeId] then return end
     if not newCategoryDialogRegistered then
+        local dialog = AC_NewCategoryDialog
+        dialog.categoryName = dialog:GetNamedChild("CategoryName"):GetNamedChild("Edit")
+        dialog.categoryName:SetMaxInputChars(128)
+        dialog.newTag = dialog:GetNamedChild("NewTag")
+        dialog.tagName = dialog.newTag:GetNamedChild("Backdrop"):GetNamedChild("Edit")
+        local container = dialog:GetNamedChild("Tag")
+        AddCustomScrollableComboBoxDropdownMenu(dialog, container, {
+            sortEntries = false,
+            visibleRowsDropdown = 10,
+        })
+        dialog.tagCombo = ZO_ComboBox_ObjectFromContainer(container)
+
         ZO_Dialogs_RegisterCustomDialog(NEW_CATEGORY_DIALOG, {
+            customControl = dialog,
             title = { text = SI_AC_MENU_CM_NEW_CATEGORY },
             mainText = { text = SI_AC_DIALOG_CATEGORY_NAME_PROMPT },
-            editBox = { defaultText = "", maxInputCharacters = 128 },
-            finishedCallback = function(dialog)
-                hideNewCategoryTagDropdown(dialog)
+            setup = setupNewCategoryDialog,
+            finishedCallback = function(control)
+                control.tagCombo:HideDropdown()
             end,
             buttons = {
                 {
+                    control = dialog:GetNamedChild("Confirm"),
                     text = SI_OK,
                     noReleaseOnClick = true,
-                    callback = function(dialog)
-                        local bagTypeId = dialog.data.bagTypeId
-                        -- validate the name first: a blank or
-                        -- duplicate name keeps the dialog open
-                        local newName, err = CLM.ValidateNewCategoryName(
-                            ZO_Dialogs_GetEditBoxText(dialog))
-                        if not newName then
-                            ZO_Dialogs_UpdateDialogMainText(dialog,
-                                { text = GetString(err) })
-                            return
-                        end
-                        -- then apply the tag chosen in the dropdown
-                        -- beside the edit box: the empty tag (the
-                        -- previous default), an existing tag, or a
-                        -- brand new one typed in the input row
-                        -- below, in the same dialog (that row is
-                        -- shown while "New Tag..." is selected). A
-                        -- blank tag name keeps the dialog open too
-                        local choice = CLM.GetNewCategoryTagChoice()
-                        local newTag = nil
-                        if choice and choice.isNew then
-                            local text = newCategoryTagControls
-                                and newCategoryTagControls.tagEditBox
-                                    :GetText()
-                            newTag = type(text) == "string"
-                                and text:match("^%s*(.-)%s*$") or ""
-                            if newTag == "" then
-                                ZO_Dialogs_UpdateDialogMainText(dialog,
-                                    { text = GetString(
-                                        SI_AC_DIALOG_TAG_NAME_EMPTY) })
-                                return
-                            end
-                        end
-                        ZO_Dialogs_ReleaseDialog(NEW_CATEGORY_DIALOG)
-                        createCategoryWithTag(bagTypeId, newName,
-                            newTag or (choice and choice.value or nil))
-                    end,
+                    callback = submitNewCategoryDialog,
                 },
-                { text = SI_DIALOG_CANCEL },
+                { control = dialog:GetNamedChild("Cancel"), text = SI_DIALOG_CANCEL },
             },
         })
         newCategoryDialogRegistered = true
     end
     ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, { bagTypeId = bagTypeId })
-    -- a standard edit box dialog has no setup hook (only the
-    -- custom-control dialogs have one), so build the tag dropdown
-    -- of this opening now, against the displayed dialog
-    local dialog = ZO_Dialogs_FindDialog and
-        ZO_Dialogs_FindDialog(NEW_CATEGORY_DIALOG)
-    if dialog then
-        setupNewCategoryTagDropdown(dialog)
-        centerDialogButtons(dialog)
-    end
 end
 
 -- Wrap the rule text of the header context menu "Rule" submenu into
@@ -1305,9 +993,7 @@ end
 -- and the categories nested under it move up one level, exactly like
 -- the Remove Category button of Bag Settings; it is neither the
 -- hidden state - the children would disappear with it - nor the
--- deletion of the rule). A submenu cannot hold a submenu in ESO, so
--- the level operations sit in their own submenu, next to the move
--- and copy submenus. A predefined (protected) rule accepts the
+-- deletion of the rule). A predefined (protected) rule accepts the
 -- level, priority and display-removal operations too (the display
 -- removal only takes it out of the inventory list of the clicked
 -- bag; the protected rule itself is never deletable). Added by
@@ -1316,12 +1002,9 @@ end
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
 function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
-    if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
-    local addItem = menu and menu.addItem or AddCustomMenuItem
-    local addSubMenu = menu and menu.addSubMenu or AddCustomSubMenuItem
-    local divider = LibCustomMenu and LibCustomMenu.DIVIDER or "-"
+    local addItem, addSubMenu = menu.addItem, menu.addSubMenu
 
     local rule = CLM.HeaderRule(cateName)
 
@@ -1337,7 +1020,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
     if rule then
 
         -- Only the clicked bag's execution priority is editable here.
-        -- A native menu uses the read-only label instead of the slider.
         local infoBagrule = subtree[1].bagrule
         local ruleEntries = {}
         if infoBagrule and type(infoBagrule.runpriority) == "number" then
@@ -1349,9 +1031,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
                 return clampPriority(infoBagrule.runpriority)
             end
             ruleEntries[#ruleEntries + 1] = {
-                label = string.format(GetString(SI_AC_MENU_CM_RUN_PRIORITY),
-                    infoBagrule.runpriority),
-                callback = function() end,
                 slider = {
                     label = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY),
                     tooltip = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY_TOOLTIP),
@@ -1381,11 +1060,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
             end
         end
         if #ruleEntries > 0 then
-            if menu then
-                menu.addDivider()
-            else
-                AddCustomMenuItem(divider, nil, MENU_ADD_OPTION_LABEL)
-            end
+            menu.addDivider()
             addSubMenu(GetString(SI_AC_MENU_CM_RULE), ruleEntries)
         end
 
@@ -1499,7 +1174,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
                 local target = not excluded[name] and AutoCategory.GetRuleByName(name)
                 if target and moveDelta(subtree, name) ~= nil then
                     local label = string.rep("  ", CLM.EffectiveLevel(target) - 1) .. name
-                    if label == divider then label = " " .. label end
                     moveEntries[#moveEntries + 1] = {
                         label = label,
                         callback = function()
@@ -1516,8 +1190,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
             addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries)
         end
 
-        -- The native fallback copies to one bag without overwriting.
-        -- LSM stages multiple destinations; only a marked bag can overwrite.
+        -- Stage multiple destinations; only a marked bag can overwrite.
         local copyEntries = {}
         local function copyToBag(bagId, bagName, overwrite)
             local copied, skipped, overwritten = CLM.CopySubtreeToBag(
@@ -1539,23 +1212,16 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
                 local bagId = bags_cvt.choicesValues[i]
                 local bagName = bags_cvt.choices[i]
                 if bagId ~= bagTypeId and bagName then
+                    local overwrite = findBagrule(bagId, rule.name) ~= nil
                     local entry = {
                         label = bagName,
-                        callback = function()
-                            if copyToBag(bagId, bagName, false) then
-                                refreshAfterChange()
-                            end
+                        overwriteTooltip = overwrite and GetString(SI_AC_TIP_CM_COPY_OVERWRITE) or nil,
+                        copySelected = function()
+                            return copyToBag(bagId, bagName, overwrite)
                         end,
                     }
-                    if menu then
-                        local overwrite = findBagrule(bagId, rule.name) ~= nil
-                        entry.overwriteTooltip = overwrite and GetString(SI_AC_TIP_CM_COPY_OVERWRITE) or nil
-                        entry.onChecked = function(_, _, _, checked)
-                            entry.selected = checked == true
-                        end
-                        entry.copySelected = function()
-                            return copyToBag(bagId, bagName, overwrite)
-                        end
+                    entry.onChecked = function(_, _, _, checked)
+                        entry.selected = checked == true
                     end
                     copyEntries[#copyEntries + 1] = entry
                 end
@@ -1563,20 +1229,16 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
         end
         if #copyEntries > 0 then
             local title = GetString(SI_AC_MENU_CM_COPY_SUBMENU)
-            if menu then
-                addSubMenu(title, copyEntries, function()
-                    local changed = false
-                    for _, entry in ipairs(copyEntries) do
-                        if entry.selected then
-                            entry.selected = false
-                            if entry.copySelected() then changed = true end
-                        end
+            addSubMenu(title, copyEntries, function()
+                local changed = false
+                for _, entry in ipairs(copyEntries) do
+                    if entry.selected then
+                        entry.selected = false
+                        if entry.copySelected() then changed = true end
                     end
-                    if changed then refreshAfterChange() end
-                end)
-            else
-                addSubMenu(title, copyEntries)
-            end
+                end
+                if changed then refreshAfterChange() end
+            end)
         end
     end
 

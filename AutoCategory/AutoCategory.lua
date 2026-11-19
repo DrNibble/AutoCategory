@@ -745,14 +745,6 @@ end
 local function addScrollableContextSubMenu(title, entries, anchor, visibleRows)
 	if #entries == 0 then return end
 
-	if not LibScrollableMenu
-		or type(ClearCustomScrollableMenu) ~= "function"
-		or type(AddCustomScrollableMenuEntry) ~= "function"
-		or type(ShowCustomScrollableMenu) ~= "function" then
-		AddCustomSubMenuItem(title, entries)
-		return
-	end
-
 	AddCustomMenuItem(title, function()
 		-- Let the native menu finish handling the click before opening
 		-- a menu that also listens for the global mouse-up event.
@@ -1462,16 +1454,6 @@ end
 -- navigation. The inventory-item context menu continues to use LibCustomMenu.
 local function createHeaderScrollableMenu()
     local lib = LibScrollableMenu
-    if not lib or type(ClearCustomScrollableMenu) ~= "function"
-        or type(AddCustomScrollableMenuEntry) ~= "function"
-        or type(AddCustomScrollableSubMenuEntry) ~= "function"
-        or type(AddCustomScrollableMenuDivider) ~= "function"
-        or type(ShowCustomScrollableMenu) ~= "function"
-        or not lib.LSM_ENTRY_TYPE_SLIDER or not lib.LSM_ENTRY_TYPE_CHECKBOX
-        or not lib.LSM_ENTRY_TYPE_DIVIDER then
-        return nil
-    end
-
     return {
         addItem = AddCustomScrollableMenuEntry,
         addDivider = AddCustomScrollableMenuDivider,
@@ -1514,10 +1496,10 @@ local function createHeaderScrollableMenu()
     }
 end
 
-local function showHeaderContextMenu(header, cateName, bagTypeId, menu)
+local function showHeaderContextMenu(header, cateName, bagTypeId)
     ClearMenu()
-    if menu then ClearCustomScrollableMenu() end
-    local addItem = menu and menu.addItem or AddMenuItem
+    ClearCustomScrollableMenu()
+    local addItem = AddCustomScrollableMenuEntry
 
 	-- add either single Expand or Collapse to menu as appropriate for category state
     local collapsed = AutoCat.IsCategoryCollapsed(bagTypeId, cateName)
@@ -1609,33 +1591,22 @@ local function showHeaderContextMenu(header, cateName, bagTypeId, menu)
     -- submenu, the "Move To" and "Copy To" submenus, the category
     -- creation and the removal from the bag (a no-op for headers
     -- with no operable backing rule, except for New Category)
-    if AutoCategory.AddCategoryLevelMenuEntries then
-        AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
-    end
-    if menu then
-        -- LSM filters submenu entries through the search field in the root menu.
-        ShowCustomScrollableMenu(header, {
-            sortEntries = false, visibleRowsDropdown = 15, visibleRowsSubmenu = 15,
-            enableFilter = true, minDropdownWidth = 380,
-        })
-    else
-        ShowMenu()
-    end
+    AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, createHeaderScrollableMenu())
+    -- LSM filters submenu entries through the search field in the root menu.
+    ShowCustomScrollableMenu(header, {
+        sortEntries = false, visibleRowsDropdown = 15, visibleRowsSubmenu = 15,
+        enableFilter = true, minDropdownWidth = 380,
+    })
 end
 
 -- Called from AutoCategory.xml on right mouse-up over a category header.
 function AC_ItemRowHeader_OnShowContextMenu(header)
     local cateName = header.slot.dataEntry.data.AC_categoryName
     local bagTypeId = getBagTypeId(header)
-    local menu = createHeaderScrollableMenu()
-    if menu then
-        -- Open after LSM's global mouse-up has processed this right-click.
-        zo_callLater(function()
-            showHeaderContextMenu(header, cateName, bagTypeId, menu)
-        end, 0)
-    else
+    -- Open after LSM's global mouse-up has processed this right-click.
+    zo_callLater(function()
         showHeaderContextMenu(header, cateName, bagTypeId)
-    end
+    end, 0)
 end
 
 -- called from binding.xml

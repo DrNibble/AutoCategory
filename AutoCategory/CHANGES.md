@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-11-19: New Category dialog and required LibScrollableMenu
+
+- LibScrollableMenu 2.44 or newer is required. Removed native menu
+  fallbacks while keeping standard inventory item actions.
+- New Category uses a dedicated dialog with a name field and a scrollable
+  tag dropdown. Select no tag, an existing tag, or name a new tag without
+  leaving the dialog. Validation and bag-specific creation are unchanged.
+  Existing translations are reused. Not tested in ESO.
+
 ## 2026-11-19: hover submenus for category headers
 
 - Rule, Level, Move To and Copy To open as side submenus with

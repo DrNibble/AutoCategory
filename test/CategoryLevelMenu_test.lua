@@ -34,7 +34,8 @@ SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categories added to %s 
 SI_AC_DEFAULT_NAME_NEW_CATEGORY = "NewCategory"
 SI_AC_DEFAULT_NAME_EMPTY_TAG = "<Empty>"
 SI_AC_NEW_CATEGORY_EMPTY_CHILD = "(empty)"
-SI_AC_MENU_CM_RUN_PRIORITY = "Execution Priority: %d"
+SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY = "Execution Priority"
+SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY_TOOLTIP = "Execution priority tooltip"
 SI_AC_MENU_CM_RULE = "Rule"
 
 function GetString(si)
@@ -172,18 +173,17 @@ CHAT_ROUTER = {
 local capturedSubmenus = {}
 local capturedItems = {}
 local capturedOrder = {}
-function AddCustomSubMenuItem(text, entries)
-    capturedOrder[#capturedOrder + 1] = text
-    capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries }
-end
-function AddCustomMenuItem(text, callback)
-    capturedOrder[#capturedOrder + 1] = text
-    if text == "-" and not callback then return end
-    capturedItems[#capturedItems + 1] = { label = text, callback = callback }
-end
-function AddMenuItem() end
-function ClearMenu() end
-function ShowMenu() end
+local testMenu = {
+    addItem = function(text, callback)
+        capturedOrder[#capturedOrder + 1] = text
+        capturedItems[#capturedItems + 1] = { label = text, callback = callback }
+    end,
+    addDivider = function() capturedOrder[#capturedOrder + 1] = "-" end,
+    addSubMenu = function(text, entries, apply)
+        capturedOrder[#capturedOrder + 1] = text
+        capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries, apply = apply }
+    end,
+}
 
 -- ---------------------------------------------------------------------------
 -- Part 1: EffectiveLevel and HeaderRule
@@ -468,9 +468,9 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 capturedSubmenus = {}
 capturedItems = {}
 capturedOrder = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal("-", capturedOrder[1], "native divider comes immediately before Rule")
-equal("Rule", capturedOrder[2], "native Rule follows the divider")
+AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu)
+equal("-", capturedOrder[1], "divider comes immediately before Rule")
+equal("Rule", capturedOrder[2], "Rule follows the divider")
 equal(2, #capturedItems, "creation and removal entries for an operable header")
 equal("Remove from display", capturedItems[1].label, "the removal entry comes after the operations")
 equal("New Category", capturedItems[2].label, "creation comes last")
@@ -479,8 +479,18 @@ equal("Rule", capturedSubmenus[1].text,
     "the rule submenu comes first")
 local ruleMenu = capturedSubmenus[1].entries
 equal(2, #ruleMenu, "the rule submenu holds the priority and the rule text")
-equal("Execution Priority: 5", ruleMenu[1].label,
-    "the rule submenu shows the execution priority")
+local slider = ruleMenu[1].slider
+equal("Execution Priority", slider.label, "the rule submenu shows the priority slider")
+equal(5, slider.data.value(), "the slider starts at the bag rule's execution priority")
+equal(0, slider.data.min, "the slider starts at zero")
+equal(1000, slider.data.max, "the slider is bounded by 1000")
+local callsBefore = refreshCalls.cacheInitialize
+slider.callback(nil, nil, 5)
+equal(callsBefore, refreshCalls.cacheInitialize, "initial value does not refresh")
+slider.callback(nil, nil, 9.6)
+equal(10, bags[12].rules[1].runpriority, "the slider rounds valid input")
+equal(5, bags[12].rules[1].showpriority, "display priority is untouched")
+equal(callsBefore + 1, refreshCalls.cacheInitialize, "the changed slider refreshes once")
 equal("true", ruleMenu[2].label, "the rule submenu shows the rule text")
 equal("Level", capturedSubmenus[2].text, "the level operations sit in their own submenu")
 local levelMenu = capturedSubmenus[2].entries
@@ -510,7 +520,7 @@ equal(true, rKid ~= nil, "the global rule is kept")
 -- A header with no backing rule only gets category creation.
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Others", 12)
+AutoCategory.AddCategoryLevelMenuEntries("Others", 12, testMenu)
 equal(1, #capturedItems, "creation is offered on ungrouped headers")
 equal(0, #capturedSubmenus, "no submenu for a category without a rule")
 
@@ -522,7 +532,7 @@ ruleList[ruleNames["Pred"]].pred = 1
 setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Pred", 13)
+AutoCategory.AddCategoryLevelMenuEntries("Pred", 13, testMenu)
 equal(2, #capturedItems, "removal and creation for a predefined rule")
 equal("Remove from display", capturedItems[1].label,
     "a predefined rule is offered the removal")
@@ -549,7 +559,7 @@ equal(true, ruleList[ruleNames["Pred"]] ~= nil, "the protected rule is kept")
 -- A category outside the clicked bag has no level operations.
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root", 13)
+AutoCategory.AddCategoryLevelMenuEntries("Root", 13, testMenu)
 equal(1, #capturedItems, "creation only needs the captured bag")
 equal(0, #capturedSubmenus, "no submenu outside the bag of the header")
 
@@ -558,7 +568,7 @@ newRule("Deep", 5)
 setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
+AutoCategory.AddCategoryLevelMenuEntries("Deep", 14, testMenu)
 equal(2, #capturedItems, "creation and removal at level 5")
 equal("Remove from display", capturedItems[1].label)
 equal("New Category", capturedItems[2].label)
@@ -580,7 +590,7 @@ setBag(15, { { name = "CopyMe", runpriority = 7, showpriority = 7 } })
 newRule("CopyMe", 1)
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("CopyMe", 15)
+AutoCategory.AddCategoryLevelMenuEntries("CopyMe", 15, testMenu)
 equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
 equal("Rule", capturedSubmenus[1].text)
 equal("Level", capturedSubmenus[2].text)
@@ -594,7 +604,8 @@ for i = 1, #menu do
 end
 equal(true, copyEntry ~= nil, "the copy entries list the other bags")
 chatMessages = {}
-copyEntry.callback()
+copyEntry.onChecked(nil, nil, nil, true)
+capturedSubmenus[3].apply()
 equal("CopyMe", bagNames(1)[#bagNames(1)],
     "the copy target bag received the category")
 equal("AutoCategory: 1 categories copied to Backpack (0 already there).",
@@ -681,7 +692,7 @@ equal("D", rE.parent, "the children keep their parent")
 -- never the category itself, its children or its current parent
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Mid", 20)
+AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, testMenu)
 equal(2, #capturedItems, "creation and removal entries")
 equal("Remove from display", capturedItems[1].label)
 equal("New Category", capturedItems[2].label)
@@ -713,29 +724,9 @@ equal("TopA", moveMenu[2].label)
 equal("Leaf", moveMenu[3].label)
 equal("Other", moveMenu[4].label)
 
--- A custom renderer gets exactly the eligible destinations of the
--- native Move To submenu, plus the other submenus in their usual order.
-capturedSubmenus = {}
-local renderedMoveMenu
-local customOrder = {}
-AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, {
-    addItem = AddCustomMenuItem,
-    addDivider = function() customOrder[#customOrder + 1] = "-" end,
-    addSubMenu = function(title, entries)
-        customOrder[#customOrder + 1] = title
-        if title == SI_AC_MENU_CM_MOVE_SUBMENU then renderedMoveMenu = entries end
-    end,
-})
-equal(#moveMenu, #renderedMoveMenu, "custom renderer receives the same number of destinations")
-for i, entry in ipairs(moveMenu) do
-    equal(entry.label, renderedMoveMenu[i].label, "destination in the same order at row " .. i)
-end
-equal(0, #capturedSubmenus, "all submenus switch renderers")
-equal("-,Rule,Level,Move To,Copy To", table.concat(customOrder, ","), "divider and submenu order")
-
 -- the move callback moves and refreshes
 refreshCalls.cacheInitialize = 0
-renderedMoveMenu[2].callback()
+moveMenu[2].callback()
 equal("TopA", rMid.parent, "the move callback parents to the target")
 equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 
@@ -749,7 +740,7 @@ rKid.parent = nil
 rKid.rule = "type(2) and quality(2) and (isSetOf(1) or isSetOf(2)) and not (bound() or stolen()) and level() >= 50 and (trait(1) or trait(2) or trait(3)) and (enchant() or poisen()) and (stolen() and fencePrice() > 100 or not stolen()) and (bagId() == 1 or bagId() == 2) and (isJunk() or isUsable()) and (potency() or aspect()) and (essence() or style()) and (hasEnchant() or hasPoisen() or hasCharge()) and (isImproved() or isRetraitable()) and (isInHouse() or isTreasure() or isOrnate()) and (isStackable() or isCrafted() or isRefined())"
 capturedSubmenus = {}
 capturedItems = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
+AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu)
 equal(3, #capturedSubmenus, "the rule submenu is there for a long rule too")
 local longMenu = capturedSubmenus[1].entries
 equal(true, #longMenu > 3, "a long rule is wrapped over several entries")
@@ -780,14 +771,11 @@ setBag(6, { existingAncestor, existingM, existingS, destOnly })
 setBag(7, { descendantOnly })
 setBag(8, { deselected })
 
-local destinations, apply
-AutoCategory.AddCategoryLevelMenuEntries("P----M", 5, {
-    addItem = AddCustomMenuItem,
-    addDivider = function() end,
-    addSubMenu = function(title, entries, callback)
-        if title == "Copy To" then destinations, apply = entries, callback end
-    end,
-})
+capturedSubmenus = {}
+AutoCategory.AddCategoryLevelMenuEntries("P----M", 5, testMenu)
+local copyMenu = capturedSubmenus[#capturedSubmenus]
+equal("Copy To", copyMenu.text, "copy is the final submenu")
+local destinations, apply = copyMenu.entries, copyMenu.apply
 equal(3, #destinations, "the source bag is excluded")
 equal("Matching root", destinations[1].label)
 equal(SI_AC_TIP_CM_COPY_OVERWRITE, destinations[1].overwriteTooltip, "the matching root is marked")
@@ -824,10 +812,6 @@ equal("M", AutoCategory.GetRuleByName("S").parent, "global hierarchy is unchange
 apply()
 equal(messageCount + 2, #chatMessages, "applying again does not repeat the batch")
 
--- The native callback continues to skip duplicates even on a marked entry.
-destinations[3].callback()
-equal(600, deselected.runpriority, "native fallback does not authorize overwriting")
-
 -- Indent by two literal spaces per nested level. The indent is display
 -- only: the action must still resolve the destination by its real name.
 newRule("Indent source")
@@ -845,7 +829,7 @@ setBag(23, {
     { name = "Indent L5", runpriority = 10, showpriority = 10 },
 })
 capturedSubmenus = {}
-AutoCategory.AddCategoryLevelMenuEntries("Indent source", 23)
+AutoCategory.AddCategoryLevelMenuEntries("Indent source", 23, testMenu)
 local indentEntries
 for _, submenu in ipairs(capturedSubmenus) do
     if submenu.text == "Move To" then indentEntries = submenu.entries end

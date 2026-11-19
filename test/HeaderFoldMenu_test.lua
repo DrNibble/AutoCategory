@@ -100,8 +100,7 @@ CategoryTree = {
 }
 
 AutoCategory = {
-    -- AddCategoryLevelMenuEntries stays nil: the AutoCategory entries
-    -- of the menu are covered by CategoryLevelMenu_test.
+    AddCategoryLevelMenuEntries = function() end,
     CategoryLevelMenu = { RuleChainPrefixes = function() return {} end },
     GetRuleByName = function() return nil end,
 }
@@ -118,14 +117,32 @@ SI_CONTEXT_MENU_COLLAPSE_ALL = "COLLAPSE_ALL"
 SI_CONTEXT_MENU_COLLAPSE_LEVEL_ALL = "COLLAPSE_ALL_SUBLEVELS"
 SI_CONTEXT_MENU_EXPAND_LEVEL_ALL = "EXPAND_ALL_SUBLEVELS"
 
-local Menu = {}
-function ClearMenu()
-    for i = #Menu, 1, -1 do Menu[i] = nil end
+local Menu, pending, shownAt, options, scrollSubmenus
+LibScrollableMenu = {
+    DIVIDER = "-", LSM_ENTRY_TYPE_DIVIDER = 2,
+    LSM_ENTRY_TYPE_CHECKBOX = 5, LSM_ENTRY_TYPE_SLIDER = 9,
+}
+function ClearMenu() end
+function zo_callLater(callback, delay)
+    equal(0, delay, "open after the right mouse-up")
+    pending = callback
 end
-function AddMenuItem(label, callback)
+function ClearCustomScrollableMenu() Menu, scrollSubmenus = {}, {} end
+function AddCustomScrollableMenuEntry(label, callback)
     Menu[#Menu + 1] = { label = label, callback = callback }
 end
-function ShowMenu() end
+function AddCustomScrollableMenuDivider()
+    Menu[#Menu + 1] = { divider = true }
+end
+function AddCustomScrollableSubMenuEntry(title, entries, callback)
+    Menu[#Menu + 1] = { label = title, entries = entries, callback = callback }
+    scrollSubmenus[title] = entries
+end
+function ShowCustomScrollableMenu(anchor, opts) shownAt, options = anchor, opts end
+local function openHeader(header)
+    M.OnShowContextMenu(header)
+    pending()
+end
 
 local function menuLabels()
     local labels = {}
@@ -183,7 +200,7 @@ setCategoryCollapsed(GUILDBANK, "PvP----Caché", false)
 -- Expanded parent: Collapse All Sub-Levels is offered and folds every
 -- sub-level; the parent itself stays expanded
 --------------------------------------------------------------------
-M.OnShowContextMenu(header("PvP"))
+openHeader(header("PvP"))
 equal(true, hasLabel("COLLAPSE"), "single Collapse offered for expanded parent")
 equal(true, hasLabel("COLLAPSE_ALL_SUBLEVELS"),
     "Collapse All Sub-Levels offered with expanded sub-levels")
@@ -205,7 +222,7 @@ equal(before + 1, Refreshes, "the list is refreshed after folding")
 -- Every sub-level already folded: the collapse entry is STILL offered
 -- (it used to vanish here), next to Expand All Sub-Levels
 --------------------------------------------------------------------
-M.OnShowContextMenu(header("PvP"))
+openHeader(header("PvP"))
 equal(true, hasLabel("COLLAPSE_ALL_SUBLEVELS"),
     "Collapse All Sub-Levels still offered when all sub-levels are folded")
 equal(true, hasLabel("EXPAND_ALL_SUBLEVELS"),
@@ -223,7 +240,7 @@ equal(before + 1, Refreshes, "the list is refreshed after unfolding")
 --------------------------------------------------------------------
 setCategoryCollapsed(GUILDBANK, "PvP", true)
 setCategoryCollapsed(GUILDBANK, "PvP----Siège", true)
-M.OnShowContextMenu(header("PvP"))
+openHeader(header("PvP"))
 equal(true, hasLabel("EXPAND"), "single Expand offered for folded category")
 equal(true, hasLabel("EXPAND_ALL_SUBLEVELS"),
     "Expand All Sub-Levels offered for a folded category")
@@ -237,7 +254,7 @@ equal(false, AutoCat.IsCategoryCollapsed(GUILDBANK, "PvP----Siège"),
 -- A category without sub-levels: neither Sub-Levels entry is offered
 --------------------------------------------------------------------
 resetList({ subEntry("Solo") })
-M.OnShowContextMenu(header("Solo"))
+openHeader(header("Solo"))
 equal(true, hasLabel("COLLAPSE"), "single Collapse offered for a flat category")
 equal(false, hasLabel("COLLAPSE_ALL_SUBLEVELS"),
     "no Collapse All Sub-Levels without sub-levels")
@@ -245,8 +262,7 @@ equal(false, hasLabel("EXPAND_ALL_SUBLEVELS"),
     "no Expand All Sub-Levels without sub-levels")
 
 --------------------------------------------------------------------
--- The real header handler supplies the Move To renderer. Verify the
--- fallback plus the 15-row viewport without truncating destinations.
+-- The real header handler builds LSM submenus without truncating entries.
 --------------------------------------------------------------------
 local moveTitle = "Déplacer vers"
 local ruleTitle, levelTitle, copyTitle = "Règle", "Niveau", "Copier vers"
@@ -262,7 +278,7 @@ for index = 1, 18 do
 end
 local priority
 local ruleEntries = {
-    { label = "Priorité d’exécution : 10", callback = function() end, slider = {
+    { slider = {
         label = "Priorité d’exécution", data = { value = 10 },
         callback = function(_, _, value) priority = value end,
     } },
@@ -274,56 +290,22 @@ local copyEntries = {
 }
 copyEntries[1].onChecked = function(_, _, _, state) copyEntries[1].selected = state end
 local applied
-local nativeSubmenus = {}
-function AddCustomSubMenuItem(title, entries)
-    nativeSubmenus[title] = entries
-    Menu[#Menu + 1] = { label = title, entries = entries }
-end
-AddCustomMenuItem = AddMenuItem
 local clickedHeader = header("Solo")
 AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, menu)
     equal("Solo", name, "renderer receives the clicked category")
     equal(GUILDBANK, bagId, "renderer receives the clicked bag")
-    local addSubMenu = menu and menu.addSubMenu or AddCustomSubMenuItem
-    if menu then menu.addDivider() else AddCustomMenuItem("-") end
-    addSubMenu(ruleTitle, ruleEntries)
-    addSubMenu(levelTitle, { { label = "Increase Level", callback = function() end } })
-    addSubMenu(moveTitle, destinations)
-    addSubMenu(copyTitle, copyEntries, menu and function() applied = true end)
+    menu.addDivider()
+    menu.addSubMenu(ruleTitle, ruleEntries)
+    menu.addSubMenu(levelTitle, { { label = "Increase Level", callback = function() end } })
+    menu.addSubMenu(moveTitle, destinations)
+    menu.addSubMenu(copyTitle, copyEntries, function() applied = true end)
 end
 
-local pending, scrolled, shownAt, options, scrollSubmenus
-LibScrollableMenu = { DIVIDER = "-", LSM_ENTRY_TYPE_DIVIDER = 2, LSM_ENTRY_TYPE_CHECKBOX = 5 }
-function zo_callLater(callback, delay)
-    equal(0, delay, "open after the right mouse-up")
-    pending = callback
-end
-function ClearCustomScrollableMenu() scrolled, scrollSubmenus = {}, {} end
-function AddCustomScrollableMenuEntry(label, callback)
-    scrolled[#scrolled + 1] = { label = label, callback = callback }
-end
-function AddCustomScrollableMenuDivider()
-    scrolled[#scrolled + 1] = { divider = true }
-end
-function AddCustomScrollableSubMenuEntry(title, entries, callback)
-    scrolled[#scrolled + 1] = { label = title, entries = entries, callback = callback }
-    scrollSubmenus[title] = entries
-end
-function ShowCustomScrollableMenu(anchor, opts) shownAt, options = anchor, opts end
-
-M.OnShowContextMenu(clickedHeader)
-equal(nil, pending, "LSM without slider rows uses the native menu immediately")
-equal(ruleEntries, nativeSubmenus[ruleTitle], "native Rule keeps the read-only fallback")
-equal(destinations, nativeSubmenus[moveTitle], "native Move To retains all destinations")
-equal(copyEntries, nativeSubmenus[copyTitle], "native Copy To retains all destinations")
-equal("  Destination 17", nativeSubmenus[moveTitle][2].label, "native indent is preserved")
-
-LibScrollableMenu.LSM_ENTRY_TYPE_SLIDER = 9
-nativeSubmenus = {}
+shownAt = nil
 M.OnShowContextMenu(clickedHeader)
 equal(nil, shownAt, "the root LSM menu waits for the mouse-up to finish")
 pending()
-equal(nil, next(nativeSubmenus), "compatible LSM does not add native submenus")
+local scrolled = Menu
 equal(clickedHeader, shownAt, "root menu belongs to the clicked header")
 equal(15, options.visibleRowsSubmenu, "Move To shows up to fifteen rows")
 equal(true, options.enableFilter, "search stays available in the root")

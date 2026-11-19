@@ -1,4 +1,4 @@
-[B][COLOR="DarkOrange"]Depends on the following (separately installed) libraries: LibAddonMenu[/COLOR][/B]
+[B][COLOR="DarkOrange"]Requires LibAddonMenu, LibCustomMenu, LibSFUtils, LibMediaProvider, LibDebugLogger and LibScrollableMenu 2.44 or newer. Install these libraries separately.[/COLOR][/B]
 
 [b]Features[/b]
 [list]

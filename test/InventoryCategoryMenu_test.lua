@@ -15,9 +15,9 @@ local function extract(signature)
     return source:sub(first, last + 3)
 end
 
-local registered, native, submenu, scrolled, pending, events
+local registered, native, scrolled, pending, events
 local function reset()
-    native, submenu, scrolled, pending, events = {}, {}, {}, {}, {}
+    native, scrolled, pending, events = {}, {}, {}, {}
 end
 reset()
 MENU_ADD_OPTION_LABEL = 1
@@ -31,7 +31,6 @@ LibCustomMenu = {
 function ZO_Inventory_GetBagAndIndex(row) return row.bag, row.slot end
 function GetItemId(bagId, slotIndex) return bagId * 100 + slotIndex end
 function AddCustomMenuItem(label, callback) native[label] = callback end
-function AddCustomSubMenuItem(label, entries) submenu[label] = entries end
 function ShowMenu(row)
     equal(true, type(row.slot) == "number", "original menu anchored to clicked slot")
     events[#events + 1] = "native"
@@ -96,12 +95,6 @@ assert(loadstring(table.concat({
 }, "\n")))()
 
 local backpack = { bag = 1, slot = 4 }
-registered(backpack)
-equal(nil, native.AutoCategory, "no launcher without LSM")
-equal(3, #submenu.AutoCategory, "fallback only lists editable categories")
-equal("    Enfant", submenu.AutoCategory[2].label, "fallback indents the child")
-equal("AC: Get itemId", next(native), "existing item ID entry remains")
-
 LibScrollableMenu = { DIVIDER = "-" }
 ClearCustomScrollableMenu = function()
     scrolled = {}
@@ -110,17 +103,13 @@ end
 AddCustomScrollableMenuEntry = function(label, callback)
     scrolled[#scrolled + 1] = { label = label, callback = callback }
 end
-registered(backpack)
-equal(nil, native.AutoCategory, "incomplete LSM API keeps the fallback")
-
 local anchoredTo, options
 function ShowCustomScrollableMenu(row, opts)
     anchoredTo, options = row, opts
     events[#events + 1] = "scrollable"
 end
-reset()
 registered(backpack)
-equal(nil, submenu.AutoCategory, "LSM does not add a duplicate native submenu")
+equal("function", type(native["AC: Get itemId"]), "existing item ID entry remains")
 equal("native", events[1], "normal item menu is shown first")
 equal(0, #pending, "no scrollable list on right-click alone")
 native.AutoCategory()

@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Search only in Move To and category title in Rule (2026-11-19)[/COLOR]:
+[LIST]
+[*] Move To filters only its own destinations, keeping their order and indentation.
+[*] Rule displays the clicked category's name above its execution-priority slider.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] New Category dialog and required LibScrollableMenu (2026-11-19)[/COLOR]:
 [LIST]
 [*] LibScrollableMenu 2.44 or newer is required. Removed native menu fallbacks.

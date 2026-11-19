@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-19: search only in Move To and category title in Rule
+
+- Move To has its own search field, above the indented destinations. The
+  main header menu and other hover submenus are not filtered.
+- Rule starts with the selected category's display name, above the
+  execution-priority slider. Existing ESO translations are reused.
+
 ## 2026-11-19: New Category dialog and required LibScrollableMenu
 
 - LibScrollableMenu 2.44 or newer is required. Removed native menu

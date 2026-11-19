@@ -50,6 +50,7 @@ local chunkSource = table.concat({
     extractBlock("local function getBagTypeId(header)"),
     extractBlock("local function subLevelNames(fullName, bagTypeId)"),
     extractBlock("local function bagCategoryNames(bagTypeId)"),
+    extractBlock("local function searchableHeaderSubmenu(destinations)"),
     extractBlock("local function createHeaderScrollableMenu()"),
     extractBlock("local function showHeaderContextMenu("),
     extractBlock("function AC_ItemRowHeader_OnShowContextMenu(header)"),
@@ -119,7 +120,8 @@ SI_CONTEXT_MENU_EXPAND_LEVEL_ALL = "EXPAND_ALL_SUBLEVELS"
 
 local Menu, pending, shownAt, options, scrollSubmenus
 LibScrollableMenu = {
-    DIVIDER = "-", LSM_ENTRY_TYPE_DIVIDER = 2,
+    DIVIDER = "-", LSM_ENTRY_TYPE_NORMAL = 1, LSM_ENTRY_TYPE_DIVIDER = 2,
+    LSM_ENTRY_TYPE_HEADER = 3, LSM_ENTRY_TYPE_EDITBOX = 8,
     LSM_ENTRY_TYPE_CHECKBOX = 5, LSM_ENTRY_TYPE_SLIDER = 9,
 }
 function ClearMenu() end
@@ -268,16 +270,20 @@ local moveTitle = "Déplacer vers"
 local ruleTitle, levelTitle, copyTitle = "Règle", "Niveau", "Copier vers"
 local tip = "déjà existant, sélectionner pour écraser"
 SI_AC_MENU_CM_COPY_SELECTED = "Copier la sélection"
+SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT = "Rechercher"
+SI_SORT_FILTER_LIST_NO_RESULTS = "Aucun résultat"
 GetString = L
 
 local destinations, chosen = {}
 for index = 1, 18 do
     local label = ("Destination %02d"):format(19 - index)
     if index == 2 then label = "  " .. label end
+    if index == 3 then label = "    Destination 16 [50%]" end
     destinations[index] = { label = label, callback = function() chosen = label end }
 end
 local priority
 local ruleEntries = {
+    { isHeader = true },
     { slider = {
         label = "Priorité d’exécution", data = { value = 10 },
         callback = function(_, _, value) priority = value end,
@@ -290,25 +296,30 @@ local copyEntries = {
 }
 copyEntries[1].onChecked = function(_, _, _, state) copyEntries[1].selected = state end
 local applied
-local clickedHeader = header("Solo")
-AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, menu)
-    equal("Solo", name, "renderer receives the clicked category")
+local clickedHeader = header("Parent----Solo")
+clickedHeader.slot.dataEntry.data.AC_displayName = "Solo"
+AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, menu, displayName)
+    equal("Parent----Solo", name, "renderer receives the clicked category key")
+    equal("Solo", displayName, "renderer receives the inventory's display name")
     equal(GUILDBANK, bagId, "renderer receives the clicked bag")
     menu.addDivider()
+    ruleEntries[1].label = displayName
     menu.addSubMenu(ruleTitle, ruleEntries)
     menu.addSubMenu(levelTitle, { { label = "Increase Level", callback = function() end } })
-    menu.addSubMenu(moveTitle, destinations)
-    menu.addSubMenu(copyTitle, copyEntries, function() applied = true end)
+    menu.addSubMenu(moveTitle, destinations, { searchable = true })
+    menu.addSubMenu(copyTitle, copyEntries, { copyAction = function() applied = true end })
 end
 
 shownAt = nil
 M.OnShowContextMenu(clickedHeader)
 equal(nil, shownAt, "the root LSM menu waits for the mouse-up to finish")
+clickedHeader.slot.dataEntry.data.AC_displayName = "Recycled"
 pending()
+clickedHeader.slot.dataEntry.data.AC_displayName = "Solo"
 local scrolled = Menu
 equal(clickedHeader, shownAt, "root menu belongs to the clicked header")
 equal(15, options.visibleRowsSubmenu, "Move To shows up to fifteen rows")
-equal(true, options.enableFilter, "search stays available in the root")
+equal(false, options.enableFilter, "no filter in the root menu")
 equal(false, options.sortEntries, "preserve destination order")
 equal("COLLAPSE", scrolled[1].label, "fold actions also use the root menu")
 equal(true, scrolled[4].divider, "main divider immediately before Rule")
@@ -318,22 +329,98 @@ equal(moveTitle, scrolled[7].label)
 equal(copyTitle, scrolled[8].label)
 for index = 5, 8 do
     equal(nil, scrolled[index].callback, "side submenu has no click launcher")
-    equal("table", type(scrolled[index].entries), "side submenu has children")
+    equal(index == 7 and "function" or "table", type(scrolled[index].entries),
+        "only Move To has dynamic submenu entries")
 end
-equal(18, #scrollSubmenus[moveTitle], "destinations past the viewport are still present")
-equal("Destination 18", scrollSubmenus[moveTitle][1].name, "first destination stays first")
-equal("  Destination 17", scrollSubmenus[moveTitle][2].name, "LSM indent is preserved")
-scrollSubmenus[moveTitle][18].callback()
-equal("Destination 01", chosen, "destination past row fifteen remains actionable")
+
+-- Simulate LSM rebuilding the open submenu and recycling its edit control.
+local moveEntries = scrollSubmenus[moveTitle]
+local moveRows = moveEntries()
+local search = moveRows[1]
+equal(LibScrollableMenu.LSM_ENTRY_TYPE_EDITBOX, search.entryType, "Move To begins with an edit field")
+equal("Rechercher", search.editBoxData.defaultText, "search placeholder uses a game string")
+equal("", search.editBoxData.text(), "search starts empty")
+equal(19, #moveRows, "all destinations, including those past the viewport")
+equal("Destination 18", moveRows[2].name, "first destination stays first")
+equal("  Destination 17", moveRows[3].name, "LSM indent is preserved")
+moveRows[19].callback()
+equal("Destination 01", chosen, "last destination remains actionable")
+
+local refreshCount, showCount = 0, 0
+local submenu = {
+    isSubmenu = true, visible = true, openingControl = {}, containerMinWidth = 380,
+    m_dropdownObject = { control = { GetWidth = function() return 450 end } },
+}
+function submenu:IsDropdownVisible() return self.visible end
+local function newEditBox()
+    search.editBoxData._EditBoxCtrl = {
+        rowControl = { m_owner = submenu, IsHidden = function() return false end },
+        callback = search.callback,
+        HasFocus = function(self) return self.focused end,
+        GetCursorPosition = function(self) return self.cursor end,
+        TakeFocus = function(self) self.focused = true end,
+        SetCursorPosition = function(self, cursor) self.cursor = cursor end,
+    }
+    return search.editBoxData._EditBoxCtrl
+end
+function submenu:RefreshSortedItems(opener)
+    equal(self.openingControl, opener, "refresh the submenu's own opener")
+    moveRows = moveEntries()
+    refreshCount = refreshCount + 1
+end
+function submenu:Show()
+    equal(450, self.containerMinWidth, "filtering cannot shrink the menu width")
+    showCount = showCount + 1
+    newEditBox()
+end
+local editBox = newEditBox()
+editBox.focused, editBox.cursor = true, 7
+search.callback(nil, editBox, "  dESTINATION 1  ")
+equal(10, #moveRows, "case-insensitive substring matches keep only relevant destinations")
+equal(search, moveRows[1], "search remains the first row")
+equal("Destination 18", moveRows[2].name)
+equal("  Destination 17", moveRows[3].name, "filtered destinations retain indentation")
+equal("Destination 10", moveRows[10].name, "filtered destinations retain display order")
+equal(380, submenu.containerMinWidth, "the original width setting is restored")
+editBox = search.editBoxData._EditBoxCtrl
+equal(true, editBox.focused, "redrawn editbox retains keyboard focus")
+equal(7, editBox.cursor, "redrawn editbox retains cursor position")
+equal("  dESTINATION 1  ", search.editBoxData.text(), "redrawn editbox retains original query")
+search.callback(nil, editBox, search.editBoxData.text())
+equal(1, refreshCount, "initializing the editbox with its own text doesn't trigger another redraw")
+search.callback(nil, editBox, "[50%]")
+equal(2, #moveRows, "pattern characters are matched literally")
+equal("    Destination 16 [50%]", moveRows[2].name)
+moveRows[2].callback()
+equal("    Destination 16 [50%]", chosen, "filtered row retains its original action")
+search.callback(nil, search.editBoxData._EditBoxCtrl, "absent")
+equal(2, #moveRows, "zero matches retains the search field and a status row")
+equal("Aucun résultat", moveRows[2].name)
+equal(false, moveRows[2].enabled, "no matching destination is not clickable")
+equal(nil, moveRows[2].callback)
+search.callback(nil, search.editBoxData._EditBoxCtrl, "")
+equal(19, #moveRows, "clearing the query restores all destinations")
+submenu.visible = false
+search.callback(nil, search.editBoxData._EditBoxCtrl, "delayed")
+equal(4, showCount, "delayed edits cannot reopen the closed submenu")
+submenu.visible = true
+search.editBoxData._EditBoxCtrl.callback = function() end
+search.callback(nil, search.editBoxData._EditBoxCtrl, "reused")
+equal(4, showCount, "delayed edits do not touch a control reused by another menu")
+search.callback(nil, newEditBox(), "16")
+equal(2, #moveRows, "search state is retained inside the currently open header menu")
 
 local ruleRows = scrollSubmenus[ruleTitle]
-equal(9, ruleRows[1].entryType, "Rule begins with the LSM slider")
-equal(10, ruleRows[1].sliderData.value)
-ruleRows[1].callback(nil, nil, 33)
+equal(LibScrollableMenu.LSM_ENTRY_TYPE_HEADER, ruleRows[1].entryType, "Rule begins with an LSM header")
+equal("Solo", ruleRows[1].name, "Rule title is the visible name, not the synthetic path")
+equal(nil, ruleRows[1].callback, "the title is not clickable")
+equal(9, ruleRows[2].entryType, "the slider follows the title")
+equal(10, ruleRows[2].sliderData.value)
+ruleRows[2].callback(nil, nil, 33)
 equal(33, priority, "the slider callback remains wired")
-equal(2, ruleRows[2].entryType, "the slider is followed by an LSM divider")
-equal(nil, ruleRows[2].callback, "the divider is not clickable")
-equal("true", ruleRows[3].name, "the rule text follows the divider")
+equal(2, ruleRows[3].entryType, "the slider is followed by an LSM divider")
+equal(nil, ruleRows[3].callback, "the divider is not clickable")
+equal("true", ruleRows[4].name, "the rule text follows the divider")
 
 local copyRows = scrollSubmenus[copyTitle]
 equal(3, #copyRows, "two destinations followed by the copy action")
@@ -351,5 +438,10 @@ equal(true, copyRows[1].checked(), "the checkbox state is retained when the subm
 equal(nil, applied, "selecting is separate from applying")
 copyRows[3].callback()
 equal(true, applied, "the final action applies the selection")
+
+openHeader(clickedHeader)
+local reopened = scrollSubmenus[moveTitle]()
+equal(19, #reopened, "a new right click opens the full destination list")
+equal("", reopened[1].editBoxData.text(), "a new right click resets the search")
 
 print("PASS: " .. assertions .. " assertions (HeaderFoldMenu)")

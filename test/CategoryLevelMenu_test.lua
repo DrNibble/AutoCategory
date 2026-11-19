@@ -179,9 +179,10 @@ local testMenu = {
         capturedItems[#capturedItems + 1] = { label = text, callback = callback }
     end,
     addDivider = function() capturedOrder[#capturedOrder + 1] = "-" end,
-    addSubMenu = function(text, entries, apply)
+    addSubMenu = function(text, entries, options)
         capturedOrder[#capturedOrder + 1] = text
-        capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries, apply = apply }
+        capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries,
+            apply = options and options.copyAction, searchable = options and options.searchable }
     end,
 }
 
@@ -468,7 +469,7 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 capturedSubmenus = {}
 capturedItems = {}
 capturedOrder = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu)
+AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu, "Nom affiché")
 equal("-", capturedOrder[1], "divider comes immediately before Rule")
 equal("Rule", capturedOrder[2], "Rule follows the divider")
 equal(2, #capturedItems, "creation and removal entries for an operable header")
@@ -478,8 +479,11 @@ equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
 equal("Rule", capturedSubmenus[1].text,
     "the rule submenu comes first")
 local ruleMenu = capturedSubmenus[1].entries
-equal(2, #ruleMenu, "the rule submenu holds the priority and the rule text")
-local slider = ruleMenu[1].slider
+equal(3, #ruleMenu, "the rule submenu holds the title, priority and rule text")
+equal(true, ruleMenu[1].isHeader, "the title is a header row")
+equal("Nom affiché", ruleMenu[1].label, "use the actual display name, not the synthetic path")
+equal(nil, ruleMenu[1].callback, "the category title isn't clickable")
+local slider = ruleMenu[2].slider
 equal("Execution Priority", slider.label, "the rule submenu shows the priority slider")
 equal(5, slider.data.value(), "the slider starts at the bag rule's execution priority")
 equal(0, slider.data.min, "the slider starts at zero")
@@ -491,7 +495,7 @@ slider.callback(nil, nil, 9.6)
 equal(10, bags[12].rules[1].runpriority, "the slider rounds valid input")
 equal(5, bags[12].rules[1].showpriority, "display priority is untouched")
 equal(callsBefore + 1, refreshCalls.cacheInitialize, "the changed slider refreshes once")
-equal("true", ruleMenu[2].label, "the rule submenu shows the rule text")
+equal("true", ruleMenu[3].label, "the rule submenu shows the rule text")
 equal("Level", capturedSubmenus[2].text, "the level operations sit in their own submenu")
 local levelMenu = capturedSubmenus[2].entries
 equal(1, #levelMenu, "Kid is Normal and alone: no Decrease entry, no move entries")
@@ -743,12 +747,12 @@ capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu)
 equal(3, #capturedSubmenus, "the rule submenu is there for a long rule too")
 local longMenu = capturedSubmenus[1].entries
-equal(true, #longMenu > 3, "a long rule is wrapped over several entries")
+equal(true, #longMenu > 4, "a long rule is wrapped over several entries")
 local joined = {}
-for i = 2, #longMenu do joined[#joined + 1] = longMenu[i].label end
+for i = 3, #longMenu do joined[#joined + 1] = longMenu[i].label end
 equal(rKid.rule, table.concat(joined, " "),
     "the wrapped entries joined back give the rule again")
-for i = 2, #longMenu do
+for i = 3, #longMenu do
     equal(true, #longMenu[i].label <= 75, "each wrapped line fits the menu width")
 end
 
@@ -832,7 +836,15 @@ capturedSubmenus = {}
 AutoCategory.AddCategoryLevelMenuEntries("Indent source", 23, testMenu)
 local indentEntries
 for _, submenu in ipairs(capturedSubmenus) do
-    if submenu.text == "Move To" then indentEntries = submenu.entries end
+    if submenu.text == "Move To" then
+        indentEntries = submenu.entries
+        equal(true, submenu.searchable, "the Move To renderer is asked to provide a search field")
+    else
+        equal(nil, submenu.searchable, "sibling submenus are not searchable")
+        if submenu.text == "Rule" then
+            equal("Indent source", submenu.entries[1].label, "fall back to the rule name when needed")
+        end
+    end
 end
 equal(4, #indentEntries, "level five still cannot be a destination")
 equal("Indent L1", indentEntries[1].label)

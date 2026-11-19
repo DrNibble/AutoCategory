@@ -1450,6 +1450,70 @@ function AC_ItemRowHeader_OnMouseClicked(header)
     AutoCat.RefreshCurrentList()
 end
 
+-- LSM's built-in filter belongs to the root menu. Use an edit row and
+-- dynamic entries so only this submenu is updated while typing.
+local function searchableHeaderSubmenu(destinations)
+    local lib = LibScrollableMenu
+    local lower = LocaleAwareToLower or string.lower
+    local query, needle = "", ""
+    local searchLabel = GetString(SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT)
+    local searchRow = {
+        name = searchLabel, entryType = lib.LSM_ENTRY_TYPE_EDITBOX,
+        editBoxData = {
+            hideLabel = true, defaultText = searchLabel,
+            text = function() return query end,
+        },
+    }
+    local noResults = {
+        name = GetString(SI_SORT_FILTER_LIST_NO_RESULTS),
+        entryType = lib.LSM_ENTRY_TYPE_NORMAL, enabled = false,
+    }
+    local names = {}
+    for i, destination in ipairs(destinations) do names[i] = lower(destination.name) end
+
+    local function onTextChanged(_, editBox, text)
+        local row = editBox.rowControl
+        local submenu = row and row.m_owner
+        if text == query or editBox.callback ~= onTextChanged
+                or editBox ~= searchRow.editBoxData._EditBoxCtrl or not submenu
+                or not submenu.isSubmenu or row:IsHidden()
+                or not submenu:IsDropdownVisible() then return end
+
+        query = text
+        local newNeedle = lower(text:match("^%s*(.-)%s*$"))
+        if needle == newNeedle then return end
+        needle = newNeedle
+
+        -- Redraw the open submenu in place: the generic LSM refresh can
+        -- reopen it after the pointer leaves. A redraw recycles edit rows.
+        local cursor = editBox:HasFocus() and editBox:GetCursorPosition()
+        local dropdown = submenu.m_dropdownObject.control
+        local minWidth = submenu.containerMinWidth
+        submenu.containerMinWidth = dropdown:GetWidth()
+        submenu:RefreshSortedItems(submenu.openingControl)
+        submenu:Show()
+        submenu.containerMinWidth = minWidth
+        local currentEditBox = searchRow.editBoxData._EditBoxCtrl
+        if cursor and currentEditBox and currentEditBox.callback == onTextChanged
+                and not currentEditBox.rowControl:IsHidden() and submenu:IsDropdownVisible() then
+            currentEditBox:TakeFocus()
+            currentEditBox:SetCursorPosition(cursor)
+        end
+    end
+    searchRow.callback = onTextChanged
+
+    return function()
+        local rows = { searchRow }
+        for i, destination in ipairs(destinations) do
+            if needle == "" or names[i]:find(needle, 1, true) then
+                rows[#rows + 1] = destination
+            end
+        end
+        if #rows == 1 then rows[2] = noResults end
+        return rows
+    end
+end
+
 -- Use one LSM context menu so the header's four submenus share its hover
 -- navigation. The inventory-item context menu continues to use LibCustomMenu.
 local function createHeaderScrollableMenu()
@@ -1457,13 +1521,16 @@ local function createHeaderScrollableMenu()
     return {
         addItem = AddCustomScrollableMenuEntry,
         addDivider = AddCustomScrollableMenuDivider,
-        addSubMenu = function(title, entries, copyAction)
+        addSubMenu = function(title, entries, options)
+            local copyAction = options and options.copyAction
             local rows = {}
             for _, entry in ipairs(entries) do
                 local slider = entry.slider
                 local label = entry.label
                 if label == lib.DIVIDER then label = " " .. label end
-                if slider then
+                if entry.isHeader then
+                    rows[#rows + 1] = { name = label, entryType = lib.LSM_ENTRY_TYPE_HEADER }
+                elseif slider then
                     rows[#rows + 1] = {
                         name = slider.label, entryType = lib.LSM_ENTRY_TYPE_SLIDER,
                         callback = slider.callback, sliderData = slider.data,
@@ -1488,15 +1555,15 @@ local function createHeaderScrollableMenu()
             if copyAction then
                 rows[#rows + 1] = {
                     name = GetString(SI_AC_MENU_CM_COPY_SELECTED), callback = copyAction,
-                    doNotFilter = true,
                 }
             end
+            if options and options.searchable then rows = searchableHeaderSubmenu(rows) end
             AddCustomScrollableSubMenuEntry(title, rows)
         end,
     }
 end
 
-local function showHeaderContextMenu(header, cateName, bagTypeId)
+local function showHeaderContextMenu(header, cateName, bagTypeId, displayName)
     ClearMenu()
     ClearCustomScrollableMenu()
     local addItem = AddCustomScrollableMenuEntry
@@ -1591,21 +1658,21 @@ local function showHeaderContextMenu(header, cateName, bagTypeId)
     -- submenu, the "Move To" and "Copy To" submenus, the category
     -- creation and the removal from the bag (a no-op for headers
     -- with no operable backing rule, except for New Category)
-    AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, createHeaderScrollableMenu())
-    -- LSM filters submenu entries through the search field in the root menu.
+    AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, createHeaderScrollableMenu(), displayName)
     ShowCustomScrollableMenu(header, {
         sortEntries = false, visibleRowsDropdown = 15, visibleRowsSubmenu = 15,
-        enableFilter = true, minDropdownWidth = 380,
+        enableFilter = false, minDropdownWidth = 380,
     })
 end
 
 -- Called from AutoCategory.xml on right mouse-up over a category header.
 function AC_ItemRowHeader_OnShowContextMenu(header)
-    local cateName = header.slot.dataEntry.data.AC_categoryName
+    local data = header.slot.dataEntry.data
+    local cateName, displayName = data.AC_categoryName, data.AC_displayName
     local bagTypeId = getBagTypeId(header)
     -- Open after LSM's global mouse-up has processed this right-click.
     zo_callLater(function()
-        showHeaderContextMenu(header, cateName, bagTypeId)
+        showHeaderContextMenu(header, cateName, bagTypeId, displayName)
     end, 0)
 end
 

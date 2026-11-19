@@ -1001,7 +1001,7 @@ end
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
-function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
+function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, displayName)
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
     local addItem, addSubMenu = menu.addItem, menu.addSubMenu
@@ -1060,6 +1060,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
             end
         end
         if #ruleEntries > 0 then
+            table.insert(ruleEntries, 1, { label = displayName or rule.name, isHeader = true })
             menu.addDivider()
             addSubMenu(GetString(SI_AC_MENU_CM_RULE), ruleEntries)
         end
@@ -1187,7 +1188,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
             end
         end
         if #moveEntries > 0 then
-            addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries)
+            addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries, { searchable = true })
         end
 
         -- Stage multiple destinations; only a marked bag can overwrite.
@@ -1229,7 +1230,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
         end
         if #copyEntries > 0 then
             local title = GetString(SI_AC_MENU_CM_COPY_SUBMENU)
-            addSubMenu(title, copyEntries, function()
+            addSubMenu(title, copyEntries, { copyAction = function()
                 local changed = false
                 for _, entry in ipairs(copyEntries) do
                     if entry.selected then
@@ -1238,7 +1239,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
                     end
                 end
                 if changed then refreshAfterChange() end
-            end)
+            end })
         end
     end
 

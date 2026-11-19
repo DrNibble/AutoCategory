@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-11-19: parent items before subcategories
+
+- In categorized bags, items assigned directly to a parent are displayed
+  immediately under its header, before its subcategories and their items.
+  This also applies at deeper levels. Display priority orders sibling
+  sections, and rule matching is unchanged.
+- The same order is used in keyboard and gamepad lists. No new translation
+  strings. Not tested in ESO.
+
 ## 2026-11-19: search in Move To
 
 - The category header's "Move To" list uses LibScrollableMenu's built-in

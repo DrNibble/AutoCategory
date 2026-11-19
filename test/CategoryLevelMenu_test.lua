@@ -455,25 +455,23 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 -- Part 7: the context menu itself
 -- ---------------------------------------------------------------------------
 
--- a header of a category of the bag gets the run priority, the Level
+-- a header of a category of the bag gets the Rule submenu, the Level
 -- submenu and the Copy To submenu (Kid is Normal and alone in the
 -- bag here: no Decrease entry, no move entries; three copy entries
 -- for the three bags of the stub other than the clicked one)
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
-equal(3, #capturedItems, "priority, creation and removal entries for an operable header")
-equal("Execution Priority: 5", capturedItems[1].label,
-    "the header menu shows the category's execution priority")
-equal("Remove from display", capturedItems[2].label, "the removal entry comes after the operations")
-equal("New Category", capturedItems[3].label, "creation comes last")
+equal(2, #capturedItems, "creation and removal entries for an operable header")
+equal("Remove from display", capturedItems[1].label, "the removal entry comes after the operations")
+equal("New Category", capturedItems[2].label, "creation comes last")
 equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
 equal("Rule", capturedSubmenus[1].text,
-    "the rule submenu comes right after the priority display")
+    "the rule submenu comes first")
 local ruleMenu = capturedSubmenus[1].entries
 equal(2, #ruleMenu, "the rule submenu holds the priority and the rule text")
 equal("Execution Priority: 5", ruleMenu[1].label,
-    "the rule submenu repeats the execution priority")
+    "the rule submenu shows the execution priority")
 equal("true", ruleMenu[2].label, "the rule submenu shows the rule text")
 equal("Level", capturedSubmenus[2].text, "the level operations sit in their own submenu")
 local levelMenu = capturedSubmenus[2].entries
@@ -495,7 +493,7 @@ equal(1, refreshCalls.cacheInitialize, "the callbacks refresh the caches")
 -- the removal callback removes the category from the inventory
 -- list of the clicked bag only: the global rule stays
 refreshCalls.cacheInitialize = 0
-capturedItems[2].callback()
+capturedItems[1].callback()
 equal(1, refreshCalls.cacheInitialize, "the removal callback refreshes the caches")
 equal(0, #AutoCategory.saved.bags[12].rules, "the category leaves the bag list")
 equal(true, rKid ~= nil, "the global rule is kept")
@@ -516,11 +514,10 @@ setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Pred", 13)
-equal(3, #capturedItems, "priority, removal and creation for a predefined rule")
-equal("Execution Priority: 1", capturedItems[1].label)
-equal("Remove from display", capturedItems[2].label,
+equal(2, #capturedItems, "removal and creation for a predefined rule")
+equal("Remove from display", capturedItems[1].label,
     "a predefined rule is offered the removal")
-equal("New Category", capturedItems[3].label)
+equal("New Category", capturedItems[2].label)
 equal(3, #capturedSubmenus,
     "a Rule, a Level and a Copy To submenu for a predefined rule")
 equal("Rule", capturedSubmenus[1].text, "the predefined rule text shows too")
@@ -535,7 +532,7 @@ equal(3, #capturedSubmenus[3].entries, "the copy entries are offered for a prede
 -- the removal of a predefined category only takes it out of the
 -- inventory list of the clicked bag: the protected rule is kept
 refreshCalls.cacheInitialize = 0
-capturedItems[2].callback()
+capturedItems[1].callback()
 equal(1, refreshCalls.cacheInitialize, "the removal callback refreshes the caches")
 equal(0, #AutoCategory.saved.bags[13].rules, "the predefined category leaves the bag list")
 equal(true, ruleList[ruleNames["Pred"]] ~= nil, "the protected rule is kept")
@@ -553,10 +550,9 @@ setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Deep", 14)
-equal(3, #capturedItems, "priority, creation and removal at level 5")
-equal("Execution Priority: 1", capturedItems[1].label)
-equal("Remove from display", capturedItems[2].label)
-equal("New Category", capturedItems[3].label)
+equal(2, #capturedItems, "creation and removal at level 5")
+equal("Remove from display", capturedItems[1].label)
+equal("New Category", capturedItems[2].label)
 equal(4, #capturedSubmenus, "Rule, Level, Move To and Copy To submenus at level 5")
 equal("Rule", capturedSubmenus[1].text)
 equal("Level", capturedSubmenus[2].text)
@@ -677,10 +673,9 @@ equal("D", rE.parent, "the children keep their parent")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Mid", 20)
-equal(3, #capturedItems, "priority, creation and removal entries")
-equal("Execution Priority: 30", capturedItems[1].label)
-equal("Remove from display", capturedItems[2].label)
-equal("New Category", capturedItems[3].label)
+equal(2, #capturedItems, "creation and removal entries")
+equal("Remove from display", capturedItems[1].label)
+equal("New Category", capturedItems[2].label)
 equal(4, #capturedSubmenus, "a Rule, a Level, a Move To and a Copy To submenu")
 equal("Level", capturedSubmenus[2].text)
 equal(4, #capturedSubmenus[2].entries, "all four level operations for a mid-level category")

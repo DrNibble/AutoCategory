@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Parent items before subcategories (2026-11-19)[/COLOR]:
+[LIST]
+[*] In categorized bags, a parent header is followed by its own items, then each subcategory and its items. Display priority still orders siblings, and rule matching is unchanged. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Search in Move To (2026-11-19)[/COLOR]:
 [LIST]
 [*] The Move To list uses LibScrollableMenu's search box to filter destinations by name as you type. The 15-row limit and original fallback submenu are unchanged. Not tested in ESO.

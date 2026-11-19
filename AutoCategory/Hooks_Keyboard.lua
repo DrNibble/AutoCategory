@@ -317,7 +317,7 @@ local function runRulesOnEntry(itemEntry, specialType)
 	local bagId = data.bagId
 	local slotIndex = data.slotIndex
 
-	local matched, categoryName, categoryPriority, showPriority, bagTypeId, isHidden 
+	local matched, categoryName, categoryPriority, showPriority, bagTypeId, isHidden, sortKey
 				= AutoCategory:MatchCategoryRules(bagId, slotIndex, specialType)
 	data.AC_matched = matched
 	data.AC_bagTypeId = bagTypeId
@@ -328,7 +328,7 @@ local function runRulesOnEntry(itemEntry, specialType)
 		data.AC_categoryName = categoryName
 		data.AC_parentName = CategoryTree.ParentOf(categoryName)
 		-- use string.format for the zero-padding ability to maintain a fixed-width numeric prefix.
-		data.AC_sortPriorityName = CategoryTree.BuildSortKey(showPriority, categoryName,
+		data.AC_sortPriorityName = sortKey or CategoryTree.BuildSortKey(showPriority, categoryName,
 			AutoCategory.GetCategorySortName(categoryName))
 		data.AC_isHidden = isHidden
 
@@ -630,14 +630,17 @@ local function createNewScrollData(scrollData)
     -- Create the zero-count category entry of a bag rule that matched no
     -- item, and feed its ancestors (zero) so the intermediate headers are
     -- created too. Shared by both empty-category display modes below.
+    local bagRuleDisplayResolvers = {}
     local function addEmptyCategoryHeader(bagTypeId, bagrule)
-        local categoryName = bagrule.name
-        local priority = bagrule.showpriority
-            or bagrule.runpriority or 0
+        local resolveDisplay = bagRuleDisplayResolvers[bagTypeId]
+        if not resolveDisplay then
+            resolveDisplay = AutoCategory.MakeBagRuleDisplayResolver(bagTypeId)
+            bagRuleDisplayResolvers[bagTypeId] = resolveDisplay
+        end
+        local categoryName, sortKey = resolveDisplay(bagrule)
+        if cnsd_categoryList[categoryName] then return false end
         local catInfo = {
-            AC_sortPriorityName = CategoryTree.BuildSortKey(
-                priority, categoryName,
-                AutoCategory.GetCategorySortName(categoryName)),
+            AC_sortPriorityName = sortKey,
             AC_categoryName     = categoryName,
             AC_bagTypeId        = bagTypeId,
             AC_catCount         = 0,
@@ -659,6 +662,7 @@ local function createNewScrollData(scrollData)
         -- headers are created too.
         feedAncestors(categoryName, bagTypeId,
             catInfo.AC_sortPriorityName, 0)
+        return true
     end
 
     -- the bags present in the list (a fully empty list is not rebuilt
@@ -688,8 +692,7 @@ local function createNewScrollData(scrollData)
                     local bagrule = bagRules[i]
                     if bagrule and type(bagrule.name) == "string"
                             and bagrule.name ~= ""
-                            and not bagrule.isHidden
-                            and cnsd_categoryList[bagrule.name] == nil then
+                            and not bagrule.isHidden then
                         addEmptyCategoryHeader(bagTypeId, bagrule)
                     end
                 end
@@ -721,12 +724,10 @@ local function createNewScrollData(scrollData)
                                 and bagrule.name ~= ""
                                 and not bagrule.isHidden
                                 and createdThisSession[bagrule.name] then
-                            if cnsd_categoryList[bagrule.name] then
+                            if not addEmptyCategoryHeader(bagTypeId, bagrule) then
                                 -- items landed: the category shows on
                                 -- its own, the marker's job is done
                                 createdThisSession[bagrule.name] = nil
-                            else
-                                addEmptyCategoryHeader(bagTypeId, bagrule)
                             end
                         end
                     end

@@ -35,13 +35,13 @@ function AutoCategory.SetCategoryCollapsed(bagTypeId, categoryName, collapsed)
     collapses[bagTypeId][categoryName] = collapsed or nil
 end
 
-local matchMap = {} -- [slotIndex] = { category, showpriority }
+local matchMap = {} -- [slotIndex] = { category, showpriority, sortKey }
 function AutoCategory:MatchCategoryRules(bagId, slotIndex, specialType)
     local match = matchMap[slotIndex]
     if not match then
         return false, "", 0, 0, 1, false
     end
-    return true, match.category, 10, match.showpriority or 10, 1, false
+    return true, match.category, 10, match.showpriority or 10, 1, false, match.sortKey
 end
 AutoCategory.CategorySortNames = {}
 function AutoCategory.GetCategorySortName(categoryName)
@@ -54,6 +54,11 @@ end
 -- ---------------------------------------------------------------------------
 assert(loadfile("AutoCategory_Tree.lua"))()
 local CategoryTree = AutoCategory.CategoryTree
+local matchStub = AutoCategory.MatchCategoryRules
+assert(loadfile("AutoCategory_API.lua"))()
+AutoCategory.MatchCategoryRules = matchStub
+local configuredRules = {}
+function AutoCategory.GetRuleByName(name) return configuredRules[name] end
 
 equal("Potions", (CategoryTree.Split("Potions")), "flat split parent")
 equal(nil, select(2, CategoryTree.Split("Potions")), "flat split child")
@@ -415,9 +420,12 @@ AutoCategory.SetCategoryCollapsed(1, "Potions", false)
 -- Each fake item announces which category name a rule produced.
 local threeItems = {}
 for slotIndex = 7, 9 do threeItems[#threeItems + 1] = itemEntry(slotIndex) end
-matchMap[7] = { category = "Armes----Épées----Lourdes" }
-matchMap[8] = { category = "Armes----Épées" }
-matchMap[9] = { category = "Armes----Boucliers" }
+matchMap[7] = { category = "Armes----Épées----Lourdes", showpriority = 30,
+    sortKey = "0990Armes\0010980Épées\0010970Lourdes" }
+matchMap[8] = { category = "Armes----Épées", showpriority = 20,
+    sortKey = "0990Armes\0010980Épées" }
+matchMap[9] = { category = "Armes----Boucliers", showpriority = 40,
+    sortKey = "0990Armes\0010960Boucliers" }
 runRules(threeItems)
 
 built = H.createNewScrollData(threeItems)
@@ -447,7 +455,42 @@ built = H.createNewScrollData(threeItems)
 sortEntries(built)
 equalList({ "(1)Armes" }, built, "collapsed top hides subtree")
 AutoCategory.SetCategoryCollapsed(1, "Armes", false)
-matchMap[7], matchMap[8], matchMap[9] = nil, nil, nil
+
+-- A parent row with several direct items comes first even when a deeper
+-- rule outranks it. Empty categories remain nested under the right branch.
+matchMap[10] = { category = "Armes", showpriority = 10 }
+matchMap[11] = { category = "Armes", showpriority = 10 }
+threeItems[4], threeItems[5] = itemEntry(11), itemEntry(10)
+runRules({ threeItems[4], threeItems[5] })
+AutoCategory.saved.general = { SHOW_EMPTY_CATEGORIES = true }
+configuredRules["Épées"] = { name = "Épées", level = 2, parent = "Armes" }
+configuredRules["Légères"] = { name = "Légères", level = 3, parent = "Épées" }
+configuredRules["Armes"] = { name = "Armes" }
+AutoCategory.saved.bags[1] = { rules = {
+    { name = "Armes", showpriority = 10 },
+    { name = "Épées", showpriority = 20 },
+    { name = "Légères", showpriority = 60 },
+} }
+local grouped = H.createNewScrollData(threeItems)
+sortEntries(grouped)
+equalList({ "(1)Armes", "10", "11", "(2)Boucliers", "9", "(2)Épées", "8",
+    "(3)Légères", "(3)Lourdes", "7" }, grouped,
+    "parent items first at every level, with empty headers ordered among siblings")
+for _, row in ipairs(grouped) do
+    if row.typeId == CATEGORY_HEADER and row.data.AC_categoryName == "Armes" then
+        equal(5, row.data.AC_catCount, "parent total includes own and descendant items")
+    end
+end
+AutoCategory.saved.general.SHOW_EMPTY_CATEGORIES = false
+AutoCategory.SetCategoryCollapsed(1, "Armes", true)
+local folded = H.createNewScrollData(threeItems)
+sortEntries(folded)
+equalList({ "(1)Armes" }, folded, "folding hides both direct and descendant items")
+folded = H.createNewScrollData(folded)
+equal(5, folded[1].data.AC_catCount, "folded total survives a second rebuild")
+equal("0990Armes", folded[1].data.AC_sortPriorityName, "folded parent keeps its sort key")
+AutoCategory.SetCategoryCollapsed(1, "Armes", false)
+for slot = 7, 11 do matchMap[slot] = nil end
 
 -- ---------------------------------------------------------------------------
 -- Old-format headers in scrollData still rebuild as flat categories

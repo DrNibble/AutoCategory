@@ -341,6 +341,8 @@ local function extractFunction(source, name)
         "Function not found: " .. name)
 end
 AC_BAG_TYPE_BACKPACK = 1
+BAG_GUILDBANK, AC_BAG_TYPE_GUILDBANK = 6, 21
+AC_BAG_TYPE_CRAFTSTATION = 22
 LibSFUtils = { safeCall = pcall }
 local bagRules = {
     { name = "arena", showpriority = 10, runpriority = 10 },
@@ -428,20 +430,35 @@ local gamepadChunk = assert(loadstring(
     assert(gamepadSource:match("(local CUSTOM_GAMEPAD_ITEM_SORT%s*=%s*{.-\n})")) .. "\n"
     .. extractFunction(gamepadSource, "AutoCategory_ItemSortComparator") .. "\n"
     .. extractFunction(gamepadSource, "ZO_GamepadInventoryList_AddSlotDataToTable") .. "\n"
-    .. extractFunction(gamepadSource, "gci_AddSlotDataToTable1") .. [[
+    .. extractFunction(gamepadSource, "gci_AddSlotDataToTable1") .. "\n"
+    .. extractFunction(gamepadSource, "gci_GenerateCraftingInventoryEntryData") .. "\n" .. [[
     return ZO_GamepadInventoryList_AddSlotDataToTable, gci_AddSlotDataToTable1,
-        AutoCategory_ItemSortComparator
+        AutoCategory_ItemSortComparator, gci_GenerateCraftingInventoryEntryData
 ]]))
-local runGamepadRules, runGamepadCraftRules, gamepadComparator = gamepadChunk()
+local runGamepadRules, runGamepadTradeRules, gamepadComparator, runGamepadCraftRules = gamepadChunk()
+GetItemName = function() return "fixture item" end
+GetItemInfo = function() return "" end
+zo_strformat = function(_, name) return name end
+ZO_InventorySlot_SetType = function() end
+ZO_GamepadEntryData = { New = function()
+    return { InitializeCraftingInventoryVisualData = function(self, _, slotIndex)
+        self.slotIndex = slotIndex
+    end }
+end }
 
-local function checkOrder(expected, label)
-    local keyboard, gamepad, crafting = {}, {}, {}
+local function checkOrder(expected, label, bagId, specialType)
+    bagId = bagId or 1
+    local keyboard, gamepad, trade = {}, {}, {}
     for slotIndex = 1, #expected do
-        local row = { typeId = 1, data = { bagId = 1, slotIndex = slotIndex } }
-        runKeyboardRules(row)
+        local row = { typeId = 1, data = { bagId = bagId, slotIndex = slotIndex } }
+        runKeyboardRules(row, specialType)
         keyboard[#keyboard + 1] = row
-        runGamepadRules({}, gamepad, 1, slotIndex)
-        runGamepadCraftRules({}, crafting, 1, slotIndex)
+        if specialType == AC_BAG_TYPE_CRAFTSTATION then
+            gamepad[slotIndex] = runGamepadCraftRules({}, bagId, slotIndex, 1, row.data)
+        else
+            runGamepadRules({}, gamepad, bagId, slotIndex)
+            runGamepadTradeRules({}, trade, bagId, slotIndex)
+        end
         -- Both views derive the same two-level key from the category name.
         equal(row.data.AC_sortPriorityName, gamepad[slotIndex].sortPriorityName,
             "shared key across views")
@@ -450,11 +467,13 @@ local function checkOrder(expected, label)
         return keyboardComparator({}, left, right)
     end)
     table.sort(gamepad, gamepadComparator)
-    table.sort(crafting, gamepadComparator)
+    table.sort(trade, gamepadComparator)
     for index, slotIndex in ipairs(expected) do
         equal(slotIndex, keyboard[index].data.slotIndex, label .. " keyboard")
         equal(slotIndex, gamepad[index].slotIndex, label .. " gamepad")
-        equal(slotIndex, crafting[index].slotIndex, label .. " gamepad crafting")
+        if #trade > 0 then
+            equal(slotIndex, trade[index].slotIndex, label .. " gamepad trade")
+        end
     end
     -- The displayed label stays readable and never contains the separator.
     equal(nil, keyboard[1].data.AC_categoryName:find("\001", 1, true), "display unchanged")
@@ -511,9 +530,9 @@ checkOrder({ 4, 3, 6, 1, 2, 5 }, "category name leads the grouping")
 rules.arena.name, rules.otherSets.name = "AAA parent", "ZZZ parent"
 checkOrder({ 2, 5, 4, 3, 6, 1 }, "category name leads the grouping, reversed")
 rules.arena.name, rules.otherSets.name = "Sets", "Sets"
--- Original display priority still takes precedence over the alphabetical key.
+-- Two rules that generate the same root still use one common sort prefix.
 bagRules[2].showpriority = 50
-checkOrder({ 4, 3, 6, 1, 2, 5 }, "display priority preserved")
+checkOrder({ 2, 5, 4, 3, 6, 1 }, "shared display root stays together")
 bagRules[2].showpriority = 10
 AutoCategory.CategorySortNames.Ordinary = "stale"
 local matched, ordinaryName = AutoCategory:MatchCategoryRules(1, 7)
@@ -522,9 +541,52 @@ equal("Ordinary", ordinaryName, "ordinary rule label")
 equal(nil, AutoCategory.CategorySortNames.Ordinary, "stale dynamic key cleared")
 equal("Ordinary", AutoCategory.GetCategorySortName(ordinaryName), "ordinary order retained")
 
+-- Real matching, different display priorities at each depth, and an
+-- unrelated category whose priority would otherwise split the family.
+rules.Parent = { name = "Parent", key = function() return 4 end }
+rules.Middle = { name = "Middle", level = 2, parent = "Parent", key = function() return 5 end }
+rules.Leaf = { name = "Leaf", level = 3, parent = "Middle", key = function() return 6 end }
+rules.Other = { name = "Other", key = function() return 7 end }
+rules.ZSibling = { name = "ZSibling", level = 2, parent = "Parent", key = function() return 8 end }
+AutoCategory.compiledRules[4] = function()
+    -- Real parents cannot use an alias that would separate their own
+    -- items from the section. The ordinary category may still use one.
+    AutoCategory.AdditionCategorySortName = "zzz parent alias"
+    return currentType ~= 4
+end
+AutoCategory.compiledRules[5] = function() return setName == "beta" or setName == "zulu" end
+AutoCategory.compiledRules[6] = function() return setName == "zulu" end
+AutoCategory.compiledRules[7] = function()
+    AutoCategory.AdditionCategorySortName = "aaa other alias"
+    return currentType == 4
+end
+AutoCategory.compiledRules[8] = function() return setName == "alpha" end
+do
+    -- One direct item at each level, a second sibling branch and an
+    -- unrelated category. At equal priority ZSibling would sort after Middle.
+    inventory[2].type, inventory[4].type = 4, 1
+    local function layout(rootPriority, siblingPriority)
+        return { rules = {
+            { name = "Parent", showpriority = rootPriority },
+            { name = "Middle", showpriority = 60 },
+            { name = "Leaf", showpriority = 90 },
+            { name = "Other", showpriority = 30 },
+            { name = "ZSibling", showpriority = siblingPriority },
+        } }
+    end
+    AutoCategory.saved.bags[1] = layout(10, 70)
+    AutoCategory.saved.bags[AC_BAG_TYPE_GUILDBANK] = layout(50, 70)
+    AutoCategory.saved.bags[AC_BAG_TYPE_CRAFTSTATION] = layout(10, 50)
+    checkOrder({ 2, 3, 5, 4, 1 }, "backpack: parent items then priority-ordered descendants")
+    checkOrder({ 3, 5, 4, 1, 2 }, "guild bank: local root priority", BAG_GUILDBANK)
+    checkOrder({ 2, 3, 4, 1, 5 }, "craft station: local sibling priority", 1, AC_BAG_TYPE_CRAFTSTATION)
+    local _, _, _, _, _, _, standaloneKey = AutoCategory:MatchCategoryRules(1, 2)
+    equal("0970aaa other alias", standaloneKey, "standalone sort alias is preserved")
+end
+
 local _, gamepadSites = gamepadSource:gsub(
-    'CategoryTree%.BuildSortKey%(showPriority, categoryName,%s*AutoCategory%.GetCategorySortName%(categoryName%)%)', "")
-equal(5, gamepadSites, "all matched gamepad key generation sites combine both helpers")
+    'sortKey or CategoryTree%.BuildSortKey%(showPriority, categoryName,%s*AutoCategory%.GetCategorySortName%(categoryName%)%)', "")
+equal(5, gamepadSites, "all matched gamepad paths use the hierarchical key")
 
 print("PASS: " .. assertions .. " assertions (" .. _VERSION
     .. (arg and arg[1] and ", actual LibSets constants/translations)" or ", fixtures)"))

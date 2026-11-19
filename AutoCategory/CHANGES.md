@@ -1,5 +1,18 @@
 # Changes
 
+## 2026-11-19: hover submenus for category headers
+
+- Rule, Level, Move To and Copy To open as side submenus with
+  LibScrollableMenu. The header menu has a divider before Rule, and
+  the Rule submenu has a divider after the execution-priority slider.
+- Move To indents each destination by two spaces per nested level
+  without changing the eligible destinations or their order. The search
+  field is now at the top of the header menu and can find destinations
+  inside the submenus. Copy To keeps its checkboxes and overwrite warning.
+- Without LibScrollableMenu, the native submenus remain available with
+  the main divider and the same indentation. No translation changes.
+  Not tested in ESO.
+
 ## 2026-11-19: select multiple bags in Copy To
 
 - With LibScrollableMenu, check the destination bags and use the copy

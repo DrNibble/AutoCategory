@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Hover submenus for category headers (2026-11-19)[/COLOR]:
+[LIST]
+[*] Rule, Level, Move To and Copy To open as side submenus with LibScrollableMenu. Added a divider before Rule and another after its execution-priority slider. Move To indents destinations by two spaces per nested level. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Select multiple bags in Copy To (2026-11-19)[/COLOR]:
 [LIST]
 [*] With LibScrollableMenu, select one or more destination bags and apply the selection once. Red bags already contain the category and can be selected to overwrite matching per-bag entries. The native fallback still skips existing entries.

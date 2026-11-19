@@ -1315,10 +1315,13 @@ end
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
-function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSubMenu, addRuleSubMenu, addCopySubMenu)
+function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
     if not AutoCategory.CategoryLevelMenu then return end
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
+    local addItem = menu and menu.addItem or AddCustomMenuItem
+    local addSubMenu = menu and menu.addSubMenu or AddCustomSubMenuItem
+    local divider = LibCustomMenu and LibCustomMenu.DIVIDER or "-"
 
     local rule = CLM.HeaderRule(cateName)
 
@@ -1378,12 +1381,12 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
             end
         end
         if #ruleEntries > 0 then
-            local title = GetString(SI_AC_MENU_CM_RULE)
-            if ruleEntries[1].slider and addRuleSubMenu then
-                addRuleSubMenu(title, ruleEntries)
+            if menu then
+                menu.addDivider()
             else
-                AddCustomSubMenuItem(title, ruleEntries)
+                AddCustomMenuItem(divider, nil, MENU_ADD_OPTION_LABEL)
             end
+            addSubMenu(GetString(SI_AC_MENU_CM_RULE), ruleEntries)
         end
 
         -- the level and display-position operations of the
@@ -1443,7 +1446,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
             }
         end
         if #levelEntries > 0 then
-            AddCustomSubMenuItem(GetString(SI_AC_MENU_CM_LEVEL_SUBMENU),
+            addSubMenu(GetString(SI_AC_MENU_CM_LEVEL_SUBMENU),
                 levelEntries)
         end
 
@@ -1493,9 +1496,12 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
 
             for i = 1, #ordered do
                 local name = ordered[i].name
-                if not excluded[name] and moveDelta(subtree, name) ~= nil then
+                local target = not excluded[name] and AutoCategory.GetRuleByName(name)
+                if target and moveDelta(subtree, name) ~= nil then
+                    local label = string.rep("  ", CLM.EffectiveLevel(target) - 1) .. name
+                    if label == divider then label = " " .. label end
                     moveEntries[#moveEntries + 1] = {
-                        label = name,
+                        label = label,
                         callback = function()
                             if CLM.MoveSubtreeToParent(bagTypeId,
                                     rule.name, name) then
@@ -1507,7 +1513,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
             end
         end
         if #moveEntries > 0 then
-            local addSubMenu = addMoveSubMenu or AddCustomSubMenuItem
             addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries)
         end
 
@@ -1542,7 +1547,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
                             end
                         end,
                     }
-                    if addCopySubMenu then
+                    if menu then
                         local overwrite = findBagrule(bagId, rule.name) ~= nil
                         entry.overwriteTooltip = overwrite and GetString(SI_AC_TIP_CM_COPY_OVERWRITE) or nil
                         entry.onChecked = function(_, _, _, checked)
@@ -1558,8 +1563,8 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
         end
         if #copyEntries > 0 then
             local title = GetString(SI_AC_MENU_CM_COPY_SUBMENU)
-            if addCopySubMenu then
-                addCopySubMenu(title, copyEntries, function()
+            if menu then
+                addSubMenu(title, copyEntries, function()
                     local changed = false
                     for _, entry in ipairs(copyEntries) do
                         if entry.selected then
@@ -1570,7 +1575,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
                     if changed then refreshAfterChange() end
                 end)
             else
-                AddCustomSubMenuItem(title, copyEntries)
+                addSubMenu(title, copyEntries)
             end
         end
     end
@@ -1581,18 +1586,17 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, addMoveSu
     -- it only leaves the display of the clicked bag) and the
     -- categories nested under it move up one level
     if rule then
-        AddCustomMenuItem(GetString(SI_AC_MENU_CM_REMOVE_DISPLAY),
+        addItem(GetString(SI_AC_MENU_CM_REMOVE_DISPLAY),
             function()
                 if CLM.DeleteLevelInBag(bagTypeId, rule.name) then
                     refreshAfterChange()
                 end
-            end, MENU_ADD_OPTION_LABEL)
+            end)
     end
     
     -- creation does not modify the clicked rule or inherit its
     -- level; offered on ungrouped/predefined headers and at level 5
     -- as well
-    AddCustomMenuItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
-        function() CLM.OpenNewCategoryDialog(bagTypeId) end,
-        MENU_ADD_OPTION_LABEL)
+    addItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
+        function() CLM.OpenNewCategoryDialog(bagTypeId) end)
 end

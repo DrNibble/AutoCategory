@@ -742,16 +742,13 @@ function AutoCat.cache.AddRule(rule)
 end
 
 -- Keep the native context menu intact; open only this list with LSM.
-local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, enableFilter, copyAction)
+local function addScrollableContextSubMenu(title, entries, anchor, visibleRows)
 	if #entries == 0 then return end
 
-	local hasSlider = entries[1].slider ~= nil
 	if not LibScrollableMenu
 		or type(ClearCustomScrollableMenu) ~= "function"
 		or type(AddCustomScrollableMenuEntry) ~= "function"
-		or type(ShowCustomScrollableMenu) ~= "function"
-		or (hasSlider and type(AddCustomScrollableMenuSlider) ~= "function")
-		or (copyAction and type(AddCustomScrollableMenuCheckbox) ~= "function") then
+		or type(ShowCustomScrollableMenu) ~= "function" then
 		AddCustomSubMenuItem(title, entries)
 		return
 	end
@@ -762,32 +759,15 @@ local function addScrollableContextSubMenu(title, entries, anchor, visibleRows, 
 		zo_callLater(function()
 			ClearCustomScrollableMenu()
 			for _, entry in ipairs(entries) do
-				local slider = entry.slider
-				if slider then
-					AddCustomScrollableMenuSlider(slider.label, slider.callback,
-						slider.data, { tooltip = slider.tooltip })
-				else
-					-- LSM treats its divider token as a separator, not a category.
-					local label = entry.label
-					if label == LibScrollableMenu.DIVIDER then label = " " .. label end
-					if copyAction then
-						if entry.overwriteTooltip then label = "|cFF5555" .. label .. "|r" end
-						AddCustomScrollableMenuCheckbox(label, entry.onChecked, false,
-							{ tooltip = entry.overwriteTooltip, closeOnSelect = false })
-					else
-						AddCustomScrollableMenuEntry(label, entry.callback)
-					end
-				end
-			end
-			if copyAction then
-				AddCustomScrollableMenuEntry(GetString(SI_AC_MENU_CM_COPY_SELECTED),
-					copyAction, nil, nil, { closeOnSelect = true })
+				-- LSM treats its divider token as a separator, not a category.
+				local label = entry.label
+				if label == LibScrollableMenu.DIVIDER then label = " " .. label end
+				AddCustomScrollableMenuEntry(label, entry.callback)
 			end
 			ShowCustomScrollableMenu(anchor, {
 				sortEntries = false,
 				visibleRowsDropdown = visibleRows,
-				enableFilter = enableFilter == true,
-				minDropdownWidth = hasSlider and 460 or nil,
+				enableFilter = false,
 			})
 		end, 0)
 	end, MENU_ADD_OPTION_LABEL)
@@ -1478,17 +1458,71 @@ function AC_ItemRowHeader_OnMouseClicked(header)
     AutoCat.RefreshCurrentList()
 end
 
--- called from AutoCategory.xml
--- context menu for collapse/expand on category headers
-function AC_ItemRowHeader_OnShowContextMenu(header)
+-- Use one LSM context menu so the header's four submenus share its hover
+-- navigation. The inventory-item context menu continues to use LibCustomMenu.
+local function createHeaderScrollableMenu()
+    local lib = LibScrollableMenu
+    if not lib or type(ClearCustomScrollableMenu) ~= "function"
+        or type(AddCustomScrollableMenuEntry) ~= "function"
+        or type(AddCustomScrollableSubMenuEntry) ~= "function"
+        or type(AddCustomScrollableMenuDivider) ~= "function"
+        or type(ShowCustomScrollableMenu) ~= "function"
+        or not lib.LSM_ENTRY_TYPE_SLIDER or not lib.LSM_ENTRY_TYPE_CHECKBOX
+        or not lib.LSM_ENTRY_TYPE_DIVIDER then
+        return nil
+    end
+
+    return {
+        addItem = AddCustomScrollableMenuEntry,
+        addDivider = AddCustomScrollableMenuDivider,
+        addSubMenu = function(title, entries, copyAction)
+            local rows = {}
+            for _, entry in ipairs(entries) do
+                local slider = entry.slider
+                local label = entry.label
+                if label == lib.DIVIDER then label = " " .. label end
+                if slider then
+                    rows[#rows + 1] = {
+                        name = slider.label, entryType = lib.LSM_ENTRY_TYPE_SLIDER,
+                        callback = slider.callback, sliderData = slider.data,
+                        tooltip = slider.tooltip,
+                    }
+                    rows[#rows + 1] = {
+                        name = lib.DIVIDER, entryType = lib.LSM_ENTRY_TYPE_DIVIDER,
+                    }
+                elseif copyAction then
+                    if entry.overwriteTooltip then label = "|cFF5555" .. label .. "|r" end
+                    rows[#rows + 1] = {
+                        name = label, entryType = lib.LSM_ENTRY_TYPE_CHECKBOX,
+                        callback = entry.onChecked,
+                        checked = function() return entry.selected == true end,
+                        tooltip = entry.overwriteTooltip,
+                        additionalData = { closeOnSelect = false },
+                    }
+                else
+                    rows[#rows + 1] = { name = label, callback = entry.callback }
+                end
+            end
+            if copyAction then
+                rows[#rows + 1] = {
+                    name = GetString(SI_AC_MENU_CM_COPY_SELECTED), callback = copyAction,
+                    doNotFilter = true,
+                }
+            end
+            AddCustomScrollableSubMenuEntry(title, rows)
+        end,
+    }
+end
+
+local function showHeaderContextMenu(header, cateName, bagTypeId, menu)
     ClearMenu()
-    local cateName = header.slot.dataEntry.data.AC_categoryName
-    local bagTypeId = getBagTypeId(header)
+    if menu then ClearCustomScrollableMenu() end
+    local addItem = menu and menu.addItem or AddMenuItem
 
 	-- add either single Expand or Collapse to menu as appropriate for category state
     local collapsed = AutoCat.IsCategoryCollapsed(bagTypeId, cateName)
     if collapsed then
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_EXPAND),
             function()
                 setCategoryCollapsed(bagTypeId, cateName, false)
@@ -1497,7 +1531,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         )
 
     else
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_COLLAPSE),
             function()
                 setCategoryCollapsed(bagTypeId, cateName, true)
@@ -1520,7 +1554,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
         end
     end
     if #subLevels > 0 then
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_COLLAPSE_LEVEL_ALL),
             function()
                 for _, name in ipairs(subLevels) do
@@ -1534,7 +1568,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     -- and every folded sub-level with it
     if anySubCollapsed
             or AutoCat.IsCategoryCollapsed(bagTypeId, cateName) then
-        AddMenuItem(
+        addItem(
             L(SI_CONTEXT_MENU_EXPAND_LEVEL_ALL),
             function()
                 setCategoryCollapsed(bagTypeId, cateName, false)
@@ -1547,7 +1581,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     end
 
 	-- add Expand All to menu
-    AddMenuItem(
+    addItem(
         L(SI_CONTEXT_MENU_EXPAND_ALL),
         function()
             for k, _ in pairs(AutoCat.saved.collapses[bagTypeId]) do
@@ -1561,7 +1595,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
 	-- only the already folded ones (the collapses table holds only
 	-- those), so the names come from the displayed headers and from
 	-- the chains of the bag rules
-    AddMenuItem(
+    addItem(
         L(SI_CONTEXT_MENU_COLLAPSE_ALL),
         function()
             for _, name in ipairs(bagCategoryNames(bagTypeId)) do
@@ -1576,15 +1610,32 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     -- creation and the removal from the bag (a no-op for headers
     -- with no operable backing rule, except for New Category)
     if AutoCategory.AddCategoryLevelMenuEntries then
-        AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, function(title, entries)
-            addScrollableContextSubMenu(title, entries, header, 15, true)
-        end, function(title, entries)
-            addScrollableContextSubMenu(title, entries, header, 12)
-        end, function(title, entries, copyAction)
-            addScrollableContextSubMenu(title, entries, header, 12, false, copyAction)
-        end)
+        AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu)
     end
-    ShowMenu()
+    if menu then
+        -- LSM filters submenu entries through the search field in the root menu.
+        ShowCustomScrollableMenu(header, {
+            sortEntries = false, visibleRowsDropdown = 15, visibleRowsSubmenu = 15,
+            enableFilter = true, minDropdownWidth = 380,
+        })
+    else
+        ShowMenu()
+    end
+end
+
+-- Called from AutoCategory.xml on right mouse-up over a category header.
+function AC_ItemRowHeader_OnShowContextMenu(header)
+    local cateName = header.slot.dataEntry.data.AC_categoryName
+    local bagTypeId = getBagTypeId(header)
+    local menu = createHeaderScrollableMenu()
+    if menu then
+        -- Open after LSM's global mouse-up has processed this right-click.
+        zo_callLater(function()
+            showHeaderContextMenu(header, cateName, bagTypeId, menu)
+        end, 0)
+    else
+        showHeaderContextMenu(header, cateName, bagTypeId)
+    end
 end
 
 -- called from binding.xml

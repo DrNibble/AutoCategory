@@ -171,10 +171,14 @@ CHAT_ROUTER = {
 -- context menu capture
 local capturedSubmenus = {}
 local capturedItems = {}
+local capturedOrder = {}
 function AddCustomSubMenuItem(text, entries)
+    capturedOrder[#capturedOrder + 1] = text
     capturedSubmenus[#capturedSubmenus + 1] = { text = text, entries = entries }
 end
 function AddCustomMenuItem(text, callback)
+    capturedOrder[#capturedOrder + 1] = text
+    if text == "-" and not callback then return end
     capturedItems[#capturedItems + 1] = { label = text, callback = callback }
 end
 function AddMenuItem() end
@@ -463,7 +467,10 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 -- for the three bags of the stub other than the clicked one)
 capturedSubmenus = {}
 capturedItems = {}
+capturedOrder = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12)
+equal("-", capturedOrder[1], "native divider comes immediately before Rule")
+equal("Rule", capturedOrder[2], "native Rule follows the divider")
 equal(2, #capturedItems, "creation and removal entries for an operable header")
 equal("Remove from display", capturedItems[1].label, "the removal entry comes after the operations")
 equal("New Category", capturedItems[2].label, "creation comes last")
@@ -707,19 +714,24 @@ equal("Leaf", moveMenu[3].label)
 equal("Other", moveMenu[4].label)
 
 -- A custom renderer gets exactly the eligible destinations of the
--- native Move To submenu; the other submenus remain native.
+-- native Move To submenu, plus the other submenus in their usual order.
 capturedSubmenus = {}
 local renderedMoveMenu
-AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, function(title, entries)
-    equal(SI_AC_MENU_CM_MOVE_SUBMENU, title, "custom renderer uses the localized Move To title")
-    renderedMoveMenu = entries
-end)
+local customOrder = {}
+AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, {
+    addItem = AddCustomMenuItem,
+    addDivider = function() customOrder[#customOrder + 1] = "-" end,
+    addSubMenu = function(title, entries)
+        customOrder[#customOrder + 1] = title
+        if title == SI_AC_MENU_CM_MOVE_SUBMENU then renderedMoveMenu = entries end
+    end,
+})
 equal(#moveMenu, #renderedMoveMenu, "custom renderer receives the same number of destinations")
 for i, entry in ipairs(moveMenu) do
     equal(entry.label, renderedMoveMenu[i].label, "destination in the same order at row " .. i)
 end
-equal(3, #capturedSubmenus, "only the Move To submenu switches renderers")
-equal("Copy To", capturedSubmenus[3].text, "Copy To stays a native submenu")
+equal(0, #capturedSubmenus, "all submenus switch renderers")
+equal("-,Rule,Level,Move To,Copy To", table.concat(customOrder, ","), "divider and submenu order")
 
 -- the move callback moves and refreshes
 refreshCalls.cacheInitialize = 0
@@ -769,10 +781,13 @@ setBag(7, { descendantOnly })
 setBag(8, { deselected })
 
 local destinations, apply
-AutoCategory.AddCategoryLevelMenuEntries("P----M", 5, nil, nil, function(title, entries, callback)
-    equal("Copy To", title)
-    destinations, apply = entries, callback
-end)
+AutoCategory.AddCategoryLevelMenuEntries("P----M", 5, {
+    addItem = AddCustomMenuItem,
+    addDivider = function() end,
+    addSubMenu = function(title, entries, callback)
+        if title == "Copy To" then destinations, apply = entries, callback end
+    end,
+})
 equal(3, #destinations, "the source bag is excluded")
 equal("Matching root", destinations[1].label)
 equal(SI_AC_TIP_CM_COPY_OVERWRITE, destinations[1].overwriteTooltip, "the matching root is marked")
@@ -812,5 +827,36 @@ equal(messageCount + 2, #chatMessages, "applying again does not repeat the batch
 -- The native callback continues to skip duplicates even on a marked entry.
 destinations[3].callback()
 equal(600, deselected.runpriority, "native fallback does not authorize overwriting")
+
+-- Indent by two literal spaces per nested level. The indent is display
+-- only: the action must still resolve the destination by its real name.
+newRule("Indent source")
+newRule("Indent L1", 1)
+newRule("Indent L2", 2, "Indent L1")
+newRule("Indent L3", 3, "Indent L2")
+newRule("Indent L4", 4, "Indent L3")
+newRule("Indent L5", 5, "Indent L4")
+setBag(23, {
+    { name = "Indent source", runpriority = 60, showpriority = 60 },
+    { name = "Indent L1", runpriority = 50, showpriority = 50 },
+    { name = "Indent L2", runpriority = 40, showpriority = 40 },
+    { name = "Indent L3", runpriority = 30, showpriority = 30 },
+    { name = "Indent L4", runpriority = 20, showpriority = 20 },
+    { name = "Indent L5", runpriority = 10, showpriority = 10 },
+})
+capturedSubmenus = {}
+AutoCategory.AddCategoryLevelMenuEntries("Indent source", 23)
+local indentEntries
+for _, submenu in ipairs(capturedSubmenus) do
+    if submenu.text == "Move To" then indentEntries = submenu.entries end
+end
+equal(4, #indentEntries, "level five still cannot be a destination")
+equal("Indent L1", indentEntries[1].label)
+equal("  Indent L2", indentEntries[2].label)
+equal("    Indent L3", indentEntries[3].label)
+equal("      Indent L4", indentEntries[4].label)
+indentEntries[4].callback()
+equal("Indent L4", AutoCategory.GetRuleByName("Indent source").parent, "move resolves the unindented name")
+equal(5, AutoCategory.GetRuleByName("Indent source").level, "move still nests under the selected level")
 
 print("CategoryLevelMenu_test: " .. assertions .. " assertions passed")

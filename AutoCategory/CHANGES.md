@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-19: search in Move To
+
+- The category header's "Move To" list uses LibScrollableMenu's built-in
+  search box to filter destinations by name as you type. The 15-row limit,
+  destination order and native fallback are unchanged. No new translation
+  strings. Not tested in ESO.
+
 ## 2026-11-19: scrollable Move To menu
 
 - The category header's "Move To" entry opens a scrollable list of up to

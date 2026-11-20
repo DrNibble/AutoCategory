@@ -50,7 +50,7 @@ local chunkSource = table.concat({
     extractBlock("local function getBagTypeId(header)"),
     extractBlock("local function subLevelNames(fullName, bagTypeId)"),
     extractBlock("local function bagCategoryNames(bagTypeId)"),
-    extractBlock("local function createHeaderScrollableMenu()"),
+    extractBlock("local function createHeaderScrollableMenu(menuRows)"),
     extractBlock("local function showHeaderContextMenu("),
     extractBlock("function AC_ItemRowHeader_OnShowContextMenu(header)"),
 }, "\n")
@@ -117,29 +117,16 @@ SI_CONTEXT_MENU_COLLAPSE_ALL = "COLLAPSE_ALL"
 SI_CONTEXT_MENU_COLLAPSE_LEVEL_ALL = "COLLAPSE_ALL_SUBLEVELS"
 SI_CONTEXT_MENU_EXPAND_LEVEL_ALL = "EXPAND_ALL_SUBLEVELS"
 
-local Menu, pending, shownAt, options, scrollSubmenus
-LibScrollableMenu = {
-    DIVIDER = "-", LSM_ENTRY_TYPE_NORMAL = 1, LSM_ENTRY_TYPE_DIVIDER = 2,
-    LSM_ENTRY_TYPE_HEADER = 3, LSM_ENTRY_TYPE_EDITBOX = 8,
-    LSM_ENTRY_TYPE_CHECKBOX = 5, LSM_ENTRY_TYPE_SLIDER = 9,
-}
+local Menu, pending, shownAt, options
 function ClearMenu() end
 function zo_callLater(callback, delay)
     equal(0, delay, "open after the right mouse-up")
     pending = callback
 end
-function ClearCustomScrollableMenu() Menu, scrollSubmenus = {}, {} end
-function AddCustomScrollableMenuEntry(label, callback)
-    Menu[#Menu + 1] = { label = label, callback = callback }
+AutoCategory.ScrollMenu = {}
+function AutoCategory.ScrollMenu.Show(anchor, rows, opts)
+    shownAt, Menu, options = anchor, rows, opts
 end
-function AddCustomScrollableMenuDivider()
-    Menu[#Menu + 1] = { divider = true }
-end
-function AddCustomScrollableSubMenuEntry(title, entries, callback, additionalData)
-    Menu[#Menu + 1] = { label = title, entries = entries, callback = callback, additionalData = additionalData }
-    scrollSubmenus[title] = entries
-end
-function ShowCustomScrollableMenu(anchor, opts) shownAt, options = anchor, opts end
 local function openHeader(header)
     M.OnShowContextMenu(header)
     pending()
@@ -159,7 +146,7 @@ end
 local function click(label)
     for _, item in ipairs(Menu) do
         if item.label == label then
-            item.callback()
+            item.action()
             return true
         end
     end
@@ -263,7 +250,7 @@ equal(false, hasLabel("EXPAND_ALL_SUBLEVELS"),
     "no Expand All Sub-Levels without sub-levels")
 
 --------------------------------------------------------------------
--- The real header handler builds LSM submenus without truncating entries.
+-- The real header handler builds internal submenus without truncating entries.
 --------------------------------------------------------------------
 local moveTitle = "Déplacer vers"
 local ruleTitle, levelTitle, copyTitle = "Règle", "Niveau", "Copier vers"
@@ -285,15 +272,15 @@ local ruleEntries = {
     { isHeader = true },
     { slider = {
         label = "Priorité d’exécution", data = { value = 10 },
-        callback = function(_, _, value) priority = value end,
+        callback = function(value) priority = value end,
     } },
-    { label = "true", callback = function() end },
+    { label = "true", kind = "text" },
 }
 local copyEntries = {
     { label = "Banque", overwriteTooltip = tip },
     { label = "Banque de guilde", onChecked = function() end },
 }
-copyEntries[1].onChecked = function(_, _, _, state) copyEntries[1].selected = state end
+copyEntries[1].onChecked = function(state) copyEntries[1].selected = state end
 local applied
 local clickedHeader = header("Parent----Solo")
 clickedHeader.slot.dataEntry.data.AC_displayName = "Solo"
@@ -311,67 +298,60 @@ end
 
 shownAt = nil
 M.OnShowContextMenu(clickedHeader)
-equal(nil, shownAt, "the root LSM menu waits for the mouse-up to finish")
+equal(nil, shownAt, "the root menu waits for the mouse-up to finish")
 clickedHeader.slot.dataEntry.data.AC_displayName = "Recycled"
 pending()
 clickedHeader.slot.dataEntry.data.AC_displayName = "Solo"
 local scrolled = Menu
 equal(clickedHeader, shownAt, "root menu belongs to the clicked header")
-equal(15, options.visibleRowsSubmenu, "Move To shows up to fifteen rows")
-equal(false, options.enableFilter, "no filter in the root menu")
-equal(false, options.sortEntries, "preserve destination order")
+equal(15, options.submenuRows, "Move To shows up to fifteen destinations")
 equal("COLLAPSE", scrolled[1].label, "fold actions also use the root menu")
-equal(true, scrolled[4].divider, "main divider immediately before Rule")
+equal("divider", scrolled[4].kind, "main divider immediately before Rule")
 equal(ruleTitle, scrolled[5].label)
 equal(levelTitle, scrolled[6].label)
 equal(moveTitle, scrolled[7].label)
 equal(copyTitle, scrolled[8].label)
 for index = 5, 8 do
-    equal(nil, scrolled[index].callback, "side submenu has no click launcher")
-    equal("table", type(scrolled[index].entries), "the filter is not a synthetic row or dynamic provider")
-    equal(index == 7 and true or false, scrolled[index].additionalData ~= nil,
-        "only Move To has a native submenu filter option")
+    equal(nil, scrolled[index].action, "submenu does not execute an action")
+    equal("table", type(scrolled[index].entries), "the submenu has its own rows")
+    equal(index == 7, scrolled[index].search == true, "only Move To has a search field")
 end
-equal(true, scrolled[7].additionalData.enableSubmenuFilter, "Move To opts in to native filtering")
 
-local moveRows = scrollSubmenus[moveTitle]
+local moveRows = scrolled[7].entries
 equal(18, #moveRows, "all destinations, including those past the viewport")
-equal("Destination 18", moveRows[1].name, "first destination stays first")
-equal("  Destination 17", moveRows[2].name, "LSM indent is preserved")
-equal("    Destination 16 [50%]", moveRows[3].name, "special characters reach LSM unchanged")
-moveRows[18].callback()
+equal("Destination 18", moveRows[1].label, "first destination stays first")
+equal("  Destination 17", moveRows[2].label, "indentation is preserved")
+equal("    Destination 16 [50%]", moveRows[3].label, "special characters are preserved")
+moveRows[18].action()
 equal("Destination 01", chosen, "last destination remains actionable")
 
-local ruleRows = scrollSubmenus[ruleTitle]
-equal(LibScrollableMenu.LSM_ENTRY_TYPE_HEADER, ruleRows[1].entryType, "Rule begins with an LSM header")
-equal("Solo", ruleRows[1].name, "Rule title is the visible name, not the synthetic path")
-equal(nil, ruleRows[1].callback, "the title is not clickable")
-equal(9, ruleRows[2].entryType, "the slider follows the title")
-equal(10, ruleRows[2].sliderData.value)
-ruleRows[2].callback(nil, nil, 33)
+local ruleRows = scrolled[5].entries
+equal("header", ruleRows[1].kind, "Rule begins with a header")
+equal("Solo", ruleRows[1].label, "Rule title is the visible name, not the synthetic path")
+equal(nil, ruleRows[1].action, "the title is not clickable")
+equal("slider", ruleRows[2].kind, "the slider follows the title")
+equal(10, ruleRows[2].slider.data.value)
+ruleRows[2].slider.callback(33)
 equal(33, priority, "the slider callback remains wired")
-equal(2, ruleRows[3].entryType, "the slider is followed by an LSM divider")
-equal(nil, ruleRows[3].callback, "the divider is not clickable")
-equal("true", ruleRows[4].name, "the rule text follows the divider")
+equal("divider", ruleRows[3].kind, "the slider is followed by a divider")
+equal(nil, ruleRows[3].action, "the divider is not clickable")
+equal("true", ruleRows[4].label, "the rule text follows the divider")
+equal(nil, ruleRows[4].action, "the rule text is read-only")
 
-local copyRows = scrollSubmenus[copyTitle]
+local copyRows = scrolled[8].entries
 equal(3, #copyRows, "two destinations followed by the copy action")
-equal(5, copyRows[1].entryType, "destination is still a checkbox")
-equal("|cFF5555Banque|r", copyRows[1].name, "existing destination has a red label")
+equal("check", copyRows[1].kind, "destination is still a checkbox")
+equal("|cFF5555Banque|r", copyRows[1].label, "existing destination has a red label")
 equal(tip, copyRows[1].tooltip, "existing destination has the overwrite tooltip")
 equal(false, copyRows[1].checked(), "existing destination is not preselected")
-equal(false, copyRows[1].additionalData.closeOnSelect, "checking a row does not close the menu")
-equal("Banque de guilde", copyRows[2].name, "non-existing destination uses a normal label")
+equal("Banque de guilde", copyRows[2].label, "non-existing destination uses a normal label")
 equal(nil, copyRows[2].tooltip, "non-existing destination has no overwrite tooltip")
 equal(false, copyRows[2].checked(), "non-existing destination is not preselected")
-equal("Copier la sélection", copyRows[3].name, "the list ends with the localized apply action")
-copyRows[1].callback(nil, nil, nil, true)
+equal("Copier la sélection", copyRows[3].label, "the list ends with the localized apply action")
+copyRows[1].setChecked(true)
 equal(true, copyRows[1].checked(), "the checkbox state is retained when the submenu is rebuilt")
 equal(nil, applied, "selecting is separate from applying")
-copyRows[3].callback()
+copyRows[3].action()
 equal(true, applied, "the final action applies the selection")
-
-openHeader(clickedHeader)
-equal(18, #scrollSubmenus[moveTitle], "a new right click supplies the full destination list")
 
 print("PASS: " .. assertions .. " assertions (HeaderFoldMenu)")

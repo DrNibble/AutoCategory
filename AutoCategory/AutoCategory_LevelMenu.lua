@@ -862,8 +862,6 @@ local function setupNewCategoryDialog(dialog)
     local combo = dialog.tagCombo
     combo:ClearItems()
     local function addTag(label, tag, creatingTag)
-        -- LSM reserves "-" for dividers; it is also a valid tag name.
-        if label == LibScrollableMenu.DIVIDER then label = " " .. label end
         local entry = combo:CreateItemEntry(label, function()
             dialog.tag = tag
             dialog.creatingTag = creatingTag
@@ -931,11 +929,9 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
         dialog.newTag = dialog:GetNamedChild("NewTag")
         dialog.tagName = dialog.newTag:GetNamedChild("Backdrop"):GetNamedChild("Edit")
         local container = dialog:GetNamedChild("Tag")
-        AddCustomScrollableComboBoxDropdownMenu(dialog, container, {
-            sortEntries = false,
-            visibleRowsDropdown = 10,
-        })
         dialog.tagCombo = ZO_ComboBox_ObjectFromContainer(container)
+        -- The native keyboard combo box is already scrollable.
+        dialog.tagCombo:SetSortsItems(false)
 
         ZO_Dialogs_RegisterCustomDialog(NEW_CATEGORY_DIALOG, {
             customControl = dialog,
@@ -1034,14 +1030,12 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
                 slider = {
                     label = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY),
                     tooltip = GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY_TOOLTIP),
-                    data = { min = 0, max = 1000, step = 1, value = currentPriority,
-                        showValueLabel = true, labelWidth = 195 },
-                    callback = function(_, _, value)
+                    data = { min = 0, max = 1000, step = 1, value = currentPriority },
+                    callback = function(value)
                         if type(value) ~= "number" or value ~= value
                             or findBagRule(bagTypeId, ruleName) ~= infoBagrule then return end
                         local priority = clampPriority(value)
-                        -- LSM can invoke this when it initializes or redraws
-                        -- the slider. Do not save or refresh an unchanged value.
+                        -- Do not save or refresh an unchanged value.
                         if priority == currentPriority() then return end
                         infoBagrule.runpriority = priority
                         refreshAfterChange()
@@ -1055,7 +1049,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
             for _, line in ipairs(wrapRuleText(ruleText)) do
                 ruleEntries[#ruleEntries + 1] = {
                     label = line,
-                    callback = function() end,
+                    kind = "text",
                 }
             end
         end
@@ -1221,7 +1215,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
                             return copyToBag(bagId, bagName, overwrite)
                         end,
                     }
-                    entry.onChecked = function(_, _, _, checked)
+                    entry.onChecked = function(checked)
                         entry.selected = checked == true
                     end
                     copyEntries[#copyEntries + 1] = entry

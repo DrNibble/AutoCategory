@@ -1,0 +1,77 @@
+<GuiXml>
+    <Controls>
+        <Control name="AC_OrderListRow" virtual="true" mouseEnabled="true">
+            <Dimensions y="25"/>
+            <Controls>
+                <Backdrop name="$(parent)Highlight" inherits="ZO_SelectionHighlight" hidden="true">
+                    <AnchorFill/>
+                </Backdrop>
+                <Label name="$(parent)Text" font="ZoFontGame" maxLineCount="1" wrapMode="ELLIPSIS">
+                    <Anchor point="LEFT" offsetX="7"/>
+                    <Anchor point="RIGHT" offsetX="-5"/>
+                </Label>
+            </Controls>
+        </Control>
+
+        <TopLevelControl name="AC_OrderListDragLabel" hidden="true" mouseEnabled="false" tier="HIGH" level="25">
+            <Dimensions x="360" y="25"/>
+            <Anchor point="LEFT" relativeTo="GuiMouse" relativePoint="RIGHT" offsetX="12"/>
+            <Controls>
+                <Label name="$(parent)Text" font="ZoFontGameShadow" maxLineCount="1" wrapMode="ELLIPSIS">
+                    <AnchorFill/>
+                </Label>
+            </Controls>
+        </TopLevelControl>
+
+        <Button name="AC_OrderListArrow" inherits="ZO_DefaultButton" virtual="true">
+            <Dimensions x="28" y="28"/>
+        </Button>
+
+        <Control name="AC_OrderListHost" hidden="true" virtual="true">
+            <Controls>
+                <Backdrop name="$(parent)Backdrop" inherits="ZO_DefaultBackdrop">
+                    <AnchorFill/>
+                </Backdrop>
+                <Control name="$(parent)Filter" hidden="true">
+                    <Dimensions y="33"/>
+                    <Anchor point="TOPLEFT" offsetX="8" offsetY="7"/>
+                    <Anchor point="TOPRIGHT" offsetX="-8" offsetY="7"/>
+                    <Controls>
+                        <Button name="$(parent)Reset" inherits="AC_OrderListArrow" text="×">
+                            <Anchor point="RIGHT"/>
+                        </Button>
+                        <Backdrop name="$(parent)Input" inherits="ZO_SingleLineEditBackdrop_Keyboard">
+                            <Anchor point="LEFT"/>
+                            <Anchor point="RIGHT" relativeTo="$(parent)Reset" relativePoint="LEFT" offsetX="-6"/>
+                            <Controls>
+                                <EditBox name="$(parent)Edit" inherits="ZO_DefaultEditForBackdrop" defaultText="SI_SEARCH_FILTER_BY"/>
+                            </Controls>
+                        </Backdrop>
+                    </Controls>
+                </Control>
+                <Control name="$(parent)List" inherits="ZO_ScrollList"/>
+                <Label name="$(parent)Empty" font="ZoFontGame" text="SI_SORT_FILTER_LIST_NO_RESULTS">
+                    <Anchor point="CENTER" relativeTo="$(parent)List" relativePoint="CENTER"/>
+                </Label>
+                <Control name="$(parent)Arrows" hidden="true">
+                    <Dimensions x="28" y="124"/>
+                    <Anchor point="RIGHT" offsetX="-7"/>
+                    <Controls>
+                        <Button name="$(parent)First" inherits="AC_OrderListArrow" text="⇈">
+                            <Anchor point="TOP"/>
+                        </Button>
+                        <Button name="$(parent)Up" inherits="AC_OrderListArrow" text="↑">
+                            <Anchor point="TOP" offsetY="32"/>
+                        </Button>
+                        <Button name="$(parent)Down" inherits="AC_OrderListArrow" text="↓">
+                            <Anchor point="TOP" offsetY="64"/>
+                        </Button>
+                        <Button name="$(parent)Last" inherits="AC_OrderListArrow" text="⇊">
+                            <Anchor point="TOP" offsetY="96"/>
+                        </Button>
+                    </Controls>
+                </Control>
+            </Controls>
+        </Control>
+    </Controls>
+</GuiXml>

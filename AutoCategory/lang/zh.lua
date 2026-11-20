@@ -232,7 +232,6 @@ AutoCategory_localization_strings["zh"] = {
     SI_AC_CATEGORY_MANAGER_CONFIRM = "应用",
     SI_AC_CATEGORY_MANAGER_STALE = "分类已更改。请取消后重新打开此窗口。",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "此顺序超出优先级范围（0 至 1000）。",
-    SI_AC_CATEGORY_MANAGER_REQUIRES_LSM = "管理分类需要 LibScrollableMenu 2.50 或更高版本。",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "请输入唯一名称。新分类将在当前背包中创建，层级为普通，规则为 false，并具有最高显示优先级。",
     SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "请输入非空的分类名称。",
     SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "已存在同名分类，请选择其他名称。",

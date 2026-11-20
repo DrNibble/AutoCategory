@@ -250,7 +250,6 @@ AutoCategory_localization_strings["es"] = {
     SI_AC_CATEGORY_MANAGER_CONFIRM = "Aplicar",
     SI_AC_CATEGORY_MANAGER_STALE = "Las categorías han cambiado. Cancela y vuelve a abrir esta ventana.",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "Este orden no cabe en el intervalo de prioridades (de 0 a 1000).",
-    SI_AC_CATEGORY_MANAGER_REQUIRES_LSM = "La gestión de categorías requiere LibScrollableMenu 2.50 o posterior.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Introduce un nombre único. La categoría se creará en esta bolsa con nivel Normal, la regla false y la máxima prioridad de visualización.",
     SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Introduce un nombre de categoría que no esté vacío.",
     SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Ya existe una categoría con este nombre. Elige otro nombre.",
@@ -267,4 +266,3 @@ AutoCategory_localization_strings["es"] = {
     SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categorías añadidas a %s (%d sobrescritas).",
 
 }
-

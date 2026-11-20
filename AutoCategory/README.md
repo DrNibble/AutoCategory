@@ -1,6 +1,4 @@
-[B][COLOR="DarkOrange"]Requires LibAddonMenu, LibCustomMenu, LibSFUtils, LibMediaProvider, LibDebugLogger and LibScrollableMenu 2.50. Install these libraries separately.[/COLOR][/B]
-
-For this development branch, install `LibScrollableMenu` from the [manual-entry-order branch](https://github.com/DrNibble/eso-LibScrollableMenu/tree/feat/manual-entry-order). The category manager needs that branch's native submenu search and embedded lists.
+[B][COLOR="DarkOrange"]Requires LibAddonMenu-2.0, LibCustomMenu, LibSFUtils, LibMediaProvider and LibDebugLogger. Install these libraries separately. LibScrollableMenu is not required.[/COLOR][/B]
 
 [b]Features[/b]
 [list]

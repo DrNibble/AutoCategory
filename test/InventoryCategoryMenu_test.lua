@@ -95,17 +95,10 @@ assert(loadstring(table.concat({
 }, "\n")))()
 
 local backpack = { bag = 1, slot = 4 }
-LibScrollableMenu = { DIVIDER = "-" }
-ClearCustomScrollableMenu = function()
-    scrolled = {}
-    events[#events + 1] = "clear"
-end
-AddCustomScrollableMenuEntry = function(label, callback)
-    scrolled[#scrolled + 1] = { label = label, callback = callback }
-end
 local anchoredTo, options
-function ShowCustomScrollableMenu(row, opts)
-    anchoredTo, options = row, opts
+AutoCategory.ScrollMenu = {}
+function AutoCategory.ScrollMenu.Show(row, entries, opts)
+    anchoredTo, scrolled, options = row, entries, opts
     events[#events + 1] = "scrollable"
 end
 registered(backpack)
@@ -115,25 +108,23 @@ equal(0, #pending, "no scrollable list on right-click alone")
 native.AutoCategory()
 equal(1, #events, "defer opening until after the native menu click")
 pending[1]()
-equal("clear,scrollable", table.concat(events, ",", 2), "clear LSM before displaying")
+equal("scrollable", table.concat(events, ",", 2), "show the internal scrollable list")
 equal(backpack, anchoredTo, "scrollable list belongs to clicked row")
-equal(false, options.sortEntries, "LSM must not sort the display order")
-equal(12, options.visibleRowsDropdown, "long lists have a fixed viewport")
-equal(false, options.enableFilter, "the item category menu does not gain a search box")
+equal(12, options.visibleRows, "long lists have a fixed viewport")
 equal(3, #scrolled, "filter out protected and missing rules")
 equal("Zèbre", scrolled[1].label, "highest visual priority comes first")
 equal("    Enfant", scrolled[2].label, "child follows its parent with indentation")
-equal(" -", scrolled[3].label, "divider-like name is still clickable")
+equal("-", scrolled[3].label, "a hyphen is a literal category name")
 equal("Enfant", bagRules[1].name, "saved list was not reordered")
 
 backpack.slot = 9
-scrolled[2].callback({}, "    Enfant", {})
+scrolled[2].action()
 equal(104, rules.Enfant.itemId, "selection targets the item right-clicked originally")
 equal(nil, rules["Zèbre"].itemId, "selection only changes the chosen category")
-equal("compile,cache,dropdowns,controls,list", table.concat(events, ",", 4),
+equal("compile,cache,dropdowns,controls,list", table.concat(events, ",", 3),
     "rule change recompiles and refreshes in original order")
-scrolled[2].callback()
-equal(8, #events, "duplicate item ID does not refresh")
+scrolled[2].action()
+equal(7, #events, "duplicate item ID does not refresh")
 
 local bank = { bag = 2, slot = 1 }
 registered(bank)

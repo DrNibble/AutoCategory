@@ -1,7 +1,7 @@
 [COLOR="DeepSkyBlue"] Manage inventory categories (2026-11-20)[/COLOR]:
 [LIST]
 [*] The inventory header menu opens a persistent category manager with two 15-row scrollable lists. Search and add from the left; reorder on the right with arrows or dragging, or right-click to remove. Apply commits the draft for that inventory only.
-[*] Both category lists use LibScrollableMenu 2.50's native OrderListBox widget. Move To keeps LibScrollableMenu's independent submenu filter.
+[*] No LibScrollableMenu dependency. Both category lists and the context menus use internal Lua/XML controls. Move To keeps its own filter. The tag selector uses ESO's native scrollable combo box. Not tested in ESO.
 [*] The game's System Menu and Inventory shortcuts close Manage Categories and discard the draft, just like Cancel.
 [/LIST]
 

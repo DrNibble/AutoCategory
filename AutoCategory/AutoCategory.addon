@@ -7,7 +7,7 @@
 ## IsLibrary: false
 ## SavedVariables: AutoCategorySavedVars AutoCatRules
 ## DependsOn: LibAddonMenu-2.0>=43 LibCustomMenu>=730 LibSFUtils>=77 LibMediaProvider>=36 
-## DependsOn: LibDebugLogger>=307 LibScrollableMenu>=020500
+## DependsOn: LibDebugLogger>=307
 ## OptionalDependsOn: GearChangerByIakoni FCOItemSaver QuickMenu ItemSaver ItemSaverLite ItemMarker UnknownTracker
 ## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom LibSets
 
@@ -21,7 +21,11 @@ AutoCategory_Global.lua
 AutoCategory_Defaults.lua
 AutoCategory_Tree.lua
 Plugin_API.lua
+AutoCategory_OrderList.xml
 AutoCategory.xml
+AutoCategory_ScrollMenu.xml
+AutoCategory_ScrollMenu.lua
+AutoCategory_OrderList.lua
 Hooks_Keyboard.lua
 Hooks_Gamepad.lua
 classes/CVT.lua

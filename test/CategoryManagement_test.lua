@@ -1,5 +1,5 @@
 -- From AutoCategory/: lua5.1 ../test/CategoryManagement_test.lua
--- Set LSM_REPO to a LibScrollableMenu checkout to exercise actual widget code.
+-- Exercises the actual hosted list code with simulated ESO UI controls.
 local checks = 0
 local function equal(expected, actual, message)
     checks = checks + 1
@@ -99,10 +99,7 @@ equal(4, #bag.rules, "failed validation made no writes")
 apple.runpriority = 59
 
 -- Window wiring: preserve an open draft when focus changes and confirm once.
-local lists, children, refreshes = {}, {}, 0
-local repo = os.getenv("LSM_REPO")
-local UI
-if repo then UI = assert(loadfile(repo .. "/tests/order_list_box_mock.lua"))(repo) end
+local lists, refreshes = {}, 0
 local layerName = "AutoCategoryCategoryManagement"
 local layerActive = false
 function PushActionLayerByName(name)
@@ -129,56 +126,104 @@ local function press(action)
     return binding()
 end
 
-local function control()
-    return {
-        hidden = true,
-        SetText = function(self, value) self.text = value end,
-        SetHandler = function(self, event, fn) self[event] = fn end,
-        SetHidden = function(self, value)
-            local wasHidden = self.hidden
-            self.hidden = value
-            if not wasHidden and value and self.OnEffectivelyHidden then self.OnEffectivelyHidden() end
-        end,
-        IsHidden = function(self) return self.hidden end,
-        BringWindowToTop = function() end,
-    }
+local function control(name)
+    local c = { hidden = true, name = name, children = {}, handlers = {}, text = "" }
+    function c:Fire(event, ...) if self.handlers[event] then return self.handlers[event](self, ...) end end
+    function c:SetText(value) self.text = value; self:Fire("OnTextChanged") end
+    function c:GetText() return self.text end
+    function c:GetName() return self.name end
+    function c:SetHandler(event, fn) self.handlers[event] = fn end
+    function c:SetHidden(value)
+        local wasHidden = self.hidden
+        self.hidden = value
+        if not wasHidden and value then self:Fire("OnEffectivelyHidden") end
+    end
+    function c:IsHidden() return self.hidden end
+    function c:BringWindowToTop() end
+    function c:LoseFocus() self.focused = false end
+    function c:SetEnabled(value) self.enabled = value end
+    function c:SetAnchor(point, _, _, x, y) self[point] = { x, y } end
+    function c:GetLeft() return 0 end
+    function c:GetRight() return 350 end
+    function c:GetTop() return 0 end
+    function c:GetBottom() return 375 end
+    function c:GetNamedChild(key)
+        if not self.children[key] then self.children[key] = control(self.name .. key) end
+        return self.children[key]
+    end
+    return c
 end
-AC_CategoryManagementWindow = UI and UI.control("AC_CategoryManagementWindow") or control()
-AC_CategoryManagementWindow:SetHidden(true)
-function AC_CategoryManagementWindow:GetNamedChild(name)
-    if not children[name] then children[name] = UI and UI.add(self, name) or control() end
-    return children[name]
+
+TOPLEFT, BOTTOMRIGHT, LEFT = 1, 2, 3
+MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
+EVENT_GLOBAL_MOUSE_UP = 99
+local mouseOver, events, shift, tooltip = nil, {}, false, nil
+local pointerX, pointerY = 10, 365
+EVENT_MANAGER = {}
+function EVENT_MANAGER:RegisterForEvent(key, id, callback)
+    equal(EVENT_GLOBAL_MOUSE_UP, id)
+    events[key] = callback
 end
-LibScrollableMenu = LibScrollableMenu or {}
-local create = LibScrollableMenu.CreateOrderListBox or function(host, options)
-    local list = { host = host, options = options }
-    if options.enableFilter then list.edit = control() end
-    function list:SetItems(items) self.items = items end
-    function list:Show() self.shown = true end
-    function list:Hide() self.shown = false end
-    return list
+function EVENT_MANAGER:UnregisterForEvent(key, id)
+    equal(EVENT_GLOBAL_MOUSE_UP, id)
+    events[key] = nil
 end
-function LibScrollableMenu.CreateOrderListBox(host, options)
+WINDOW_MANAGER = { GetMouseOverControl = function() return mouseOver end }
+function IsShiftKeyDown() return shift end
+function GetUIMousePosition() return pointerX, pointerY end
+function GetFrameTimeSeconds() return 1 end
+function ZO_Tooltips_ShowTextTooltip(_, _, text) tooltip = text end
+function ZO_Tooltips_HideTextTooltip() tooltip = nil end
+function ZO_ScrollList_AddDataType(list, id, template, height, setup, hide)
+    equal(1, id)
+    equal("AC_OrderListRow", template)
+    list.height, list.setup, list.hide, list.rows = height, setup, hide, {}
+end
+function ZO_ScrollList_CreateDataEntry(_, data) return data end
+function ZO_ScrollList_Clear(list) list.data = {} end
+function ZO_ScrollList_GetDataList(list) return list.data end
+function ZO_ScrollList_ResetToTop(list) list.offset = 0 end
+function ZO_ScrollList_ScrollDataIntoView(list, index) list.revealed = index end
+function ZO_ScrollList_ScrollRelative(list, delta) list.offset = (list.offset or 0) + delta end
+function ZO_ScrollList_Commit(list)
+    for _, row in ipairs(list.rows) do list.hide(row); row:SetHidden(true) end
+    for i, data in ipairs(list.data) do
+        local row = list.rows[i] or control(list.name .. i)
+        list.rows[i] = row
+        list.setup(row, data)
+        row:SetHidden(false)
+    end
+end
+
+AC_CategoryManagementWindow = control("Manager")
+AC_OrderListDragLabel = control("DragLabel")
+dofile("AutoCategory_OrderList.lua")
+local create = AutoCategory.OrderList.New
+function AutoCategory.OrderList.New(host, options)
     local list = create(host, options)
     lists[#lists + 1] = list
     return list
 end
 local function button(key)
-    if UI then children[key]:Fire("OnClicked") else children[key].OnClicked() end
+    return AC_CategoryManagementWindow:GetNamedChild(key):Fire("OnClicked")
 end
 local function rowClick(list, index, right)
-    if UI then
-        list.scroll.rows[index]:Fire("OnMouseUp", right and MOUSE_BUTTON_INDEX_RIGHT or MOUSE_BUTTON_INDEX_LEFT, true)
-    elseif right then
-        list.items[index].rightClickCallback()
-    else
-        list.items[index].callback()
-    end
+    list.scroll.rows[index]:Fire("OnMouseUp", right and MOUSE_BUTTON_INDEX_RIGHT or MOUSE_BUTTON_INDEX_LEFT, true)
 end
-local function fireEdit(event, ...)
-    local edit = lists[1].edit
-    if UI then return edit:Fire(event, ...) end
-    if edit[event] then return edit[event](edit, ...) end
+local function drag(list, index, target)
+    list.scroll.rows[index]:Fire("OnDragStart", MOUSE_BUTTON_INDEX_LEFT)
+    equal(false, AC_OrderListDragLabel:IsHidden())
+    local offset = list.scroll.offset or 0
+    list.host:Fire("OnUpdate", 1)
+    equal(offset + 25, list.scroll.offset, "holding near the lower edge scrolls")
+    local release = assert(events[list.eventName])
+    mouseOver = target
+    release(EVENT_GLOBAL_MOUSE_UP, MOUSE_BUTTON_INDEX_RIGHT)
+    equal(false, AC_OrderListDragLabel:IsHidden(), "right release does not end a left drag")
+    release(EVENT_GLOBAL_MOUSE_UP, MOUSE_BUTTON_INDEX_LEFT)
+    equal(true, AC_OrderListDragLabel:IsHidden())
+    equal(nil, events[list.eventName], "drag handler is removed")
+    mouseOver = nil
 end
 local function refreshInventory() refreshes = refreshes + 1 end
 equal(false, M.Cancel(), "a closed manager must not consume key presses")
@@ -187,23 +232,28 @@ equal(true, layerActive)
 equal(false, AC_CategoryManagementWindow:IsHidden())
 equal(true, lists[1].shown)
 equal(true, lists[2].shown)
-equal(true, lists[1].options.enableFilter)
-equal(true, lists[2].options.enableManualOrder)
-equal(15, lists[1].options.visibleRows)
-equal(15, lists[2].options.visibleRows)
+equal(true, lists[1].edit ~= nil, "available list has search")
+equal(nil, lists[2].edit, "present list does not filter reorder indices")
+equal(25, lists[1].scroll.height)
+equal(25, lists[2].scroll.height)
+equal(46, lists[1].scroll[TOPLEFT][2], "space for the search box")
 equal("Bear", lists[1].items[1].name)
 equal("[1000] dog", lists[2].items[1].label)
-if UI then
-    equal("Bear", lists[1].scroll.rows[1]:GetText())
-    equal("[1000] dog", lists[2].scroll.rows[1]:GetText())
-    lists[2].scroll.rows[2]:Fire("OnMouseEnter")
-    equal("Apple |cFF0000(lecture seule)|r\nquality() == ITEM_QUALITY_NORMAL", UI.tooltip)
-    lists[1].edit:SetText("bear")
-    lists[1].edit:LoseFocus()
-    equal(false, AC_CategoryManagementWindow:IsHidden())
-    equal(1, #lists[1].scroll.data)
-    equal("Bear", lists[1].scroll.rows[1]:GetText())
-end
+local function rowText(list, index) return list.scroll.rows[index]:GetNamedChild("Text"):GetText() end
+equal("Bear", rowText(lists[1], 1))
+equal("[1000] dog", rowText(lists[2], 1))
+lists[2].scroll.rows[2]:Fire("OnMouseEnter")
+equal("Apple |cFF0000(lecture seule)|r\nquality() == ITEM_QUALITY_NORMAL", tooltip)
+lists[1].edit:SetText("  bEAr ")
+lists[1].edit:LoseFocus()
+equal(false, AC_CategoryManagementWindow:IsHidden())
+equal(1, #lists[1].scroll.data)
+equal("Bear", rowText(lists[1], 1))
+lists[1].edit:SetText("[missing%]")
+equal(0, #lists[1].scroll.data)
+equal(false, lists[1].empty.hidden, "show no-results state")
+lists[1].host:GetNamedChild("Filter"):GetNamedChild("Reset"):Fire("OnClicked")
+equal(2, #lists[1].scroll.data, "reset restores all categories")
 rowClick(lists[1], 1)
 equal(4, #bag.rules, "click to add does not save")
 M.Open(2, refreshInventory)
@@ -241,34 +291,50 @@ rowClick(lists[1], 1)
 local edit = lists[1].edit
 edit.focused = true
 edit:SetText("inventory")
-fireEdit("OnKeyDown", 18, false, true, false, false)
+edit:Fire("OnKeyDown", 18, false, true, false, false)
 equal(false, AC_CategoryManagementWindow:IsHidden(), "typing and raw Alt must not cancel")
-equal(true, fireEdit("OnEscape"))
+equal(true, edit:Fire("OnEscape"))
 expectCancelled()
-if UI then
-    equal("", edit:GetText())
-    equal(false, edit.focused)
-end
+equal("", edit:GetText())
+equal(false, edit.focused)
 
 M.Open(1, refreshInventory)
 rowClick(lists[1], 1)
+lists[2].scroll.rows[4]:Fire("OnDragStart", MOUSE_BUTTON_INDEX_LEFT)
+equal(false, AC_OrderListDragLabel.hidden)
 AC_CategoryManagementWindow:SetHidden(true)
+equal(true, AC_OrderListDragLabel.hidden, "closing cancels an active drag")
+equal(nil, events[lists[2].eventName])
 expectCancelled()
 
 M.Open(1, refreshInventory)
-if UI then
-    equal("", lists[1].edit:GetText())
-    equal(2, #lists[1].scroll.rows)
-end
+equal("", lists[1].edit:GetText())
+equal(2, #lists[1].scroll.data)
+local present = lists[2]
 rowClick(lists[1], 1)
-if UI then
-    rowClick(lists[2], 4)
-    lists[2].buttons[1]:Fire("OnClicked")
-    equal("Zebra", ZO_ScrollList_GetSelectedData(lists[2].scroll).key)
-    equal("[1000] Zebra", lists[2].scroll.rows[1]:GetText())
-else
-    lists[2].options.onOrderChanged(nil, nil, nil, 4, 1)
-end
+drag(present, 4, lists[1].scroll.rows[1])
+equal("Zebra", present.items[4].key, "dropping in the available list does not reorder")
+drag(present, 4, present.scroll.rows[1])
+equal("Zebra", present.items[1].key, "dragging reorders the draft")
+equal("Zebra", present.selected)
+equal(1, present.scroll.revealed)
+equal(false, present.arrows:GetNamedChild("First").enabled, "first row cannot move up")
+equal(true, present.arrows:GetNamedChild("Down").enabled)
+present.arrows:GetNamedChild("Down"):Fire("OnClicked")
+equal("Zebra", present.items[2].key, "Down moves a category one position")
+shift = true
+present.arrows:GetNamedChild("Down"):Fire("OnClicked")
+shift = false
+equal("Zebra", present.items[4].key, "Shift+Down moves to the end")
+equal(false, present.arrows:GetNamedChild("Last").enabled)
+equal(true, M.Cancel(), "discard the reorder tests before verifying the commit")
+
+M.Open(1, refreshInventory)
+rowClick(lists[1], 1)
+rowClick(present, 4)
+present.arrows:GetNamedChild("First"):Fire("OnClicked")
+equal("Zebra", present.selected, "the selected category stays selected")
+equal("[1000] Zebra", rowText(present, 1))
 rowClick(lists[2], 3, true)
 equal(4, #bag.rules, "move and remove also stay in the draft")
 button("Confirm")
@@ -281,4 +347,5 @@ equal("Bear", bag.rules[4].name)
 equal(1000, zebra.runpriority)
 button("Confirm")
 equal(1, refreshes, "the same draft cannot commit twice")
+equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

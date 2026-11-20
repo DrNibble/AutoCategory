@@ -82,18 +82,14 @@ function comboBox:SelectItem(entry, ignoreCallback)
     if not ignoreCallback then entry.callback() end
 end
 function comboBox:HideDropdown() self.open = false end
-function ZO_ComboBox_ObjectFromContainer(control)
-    return assert(control.comboBox, "the tag dropdown was not initialized with LSM")
+function comboBox:SetSortsItems(sort)
+    equal(false, sort, "native combo box preserves the order of special choices")
 end
-local lsmInitializations = 0
-LibScrollableMenu = { DIVIDER = "-" }
-function AddCustomScrollableComboBoxDropdownMenu(parent, container, options)
-    equal(AC_NewCategoryDialog, parent, "LSM attached to the dedicated window")
-    equal(comboControl, container, "LSM wraps the tag combobox")
-    equal(false, options.sortEntries, "LSM preserves the ordering of special choices")
-    equal(10, options.visibleRowsDropdown, "long tag lists scroll")
-    lsmInitializations = lsmInitializations + 1
-    container.comboBox = comboBox
+local comboInitializations = 0
+function ZO_ComboBox_ObjectFromContainer(control)
+    equal(comboControl, control, "get the native tag selector from the dialog")
+    comboInitializations = comboInitializations + 1
+    return comboBox
 end
 
 local registered, registrations, displayed, releases = {}, 0, nil, 0
@@ -157,7 +153,7 @@ equal(2, #comboBoxItems, "second request did not rebuild the open list")
 submit("  Ma catégorie  ")
 equal(1, releases, "valid name closes the first popup")
 CLM.OpenNewCategoryDialog(1)
-equal(1, lsmInitializations, "the LSM attachment is reused")
+equal(1, comboInitializations, "the native combo box is reused")
 equal(1, displayed.data.bagTypeId, "reopened form captures its own bag")
 equal("", nameEditBox:GetText(), "new form clears the previous name")
 equal(SI_AC_DIALOG_CATEGORY_NAME_PROMPT, displayed.errorText, "new form restores the prompt")
@@ -281,7 +277,7 @@ nameEditBox:SetText("Cancelled name")
 comboBox.open = true
 ZO_Dialogs_ReleaseDialog(displayed)
 equal(count, #AutoCategory.RulesW.ruleList, "cancel does not create")
-equal(false, comboBox.open, "cancel closes the LSM dropdown")
+equal(false, comboBox.open, "cancel closes the native dropdown")
 CLM.OpenNewCategoryDialog(3)
 equal("", nameEditBox:GetText(), "reopening drops the cancelled name")
 equal("", tagEditBox:GetText(), "reopening drops the cancelled tag")
@@ -296,11 +292,11 @@ equal(count, #AutoCategory.RulesW.ruleList, "stale bag leaves no orphan rule")
 AutoCategory.saved.bags[3] = bag
 ZO_Dialogs_ReleaseDialog(displayed)
 
--- A tag matching LSM's separator marker is still selectable.
-AutoCategory.RulesW.tags = { LibScrollableMenu.DIVIDER }
+-- A single hyphen remains selectable, without altering its label.
+AutoCategory.RulesW.tags = { "-" }
 AutoCategory.saved.bags[9] = { rules = {} }
 CLM.OpenNewCategoryDialog(9)
-equal(" -", comboBoxItems[1].label, "divider-like tag has a safe label")
+equal("-", comboBoxItems[1].label, "hyphen tag has a literal label")
 comboBox:SelectItem(comboBoxItems[1])
 submit("Divider tag")
 equal("-", AutoCategory.GetRuleByName("Divider tag").tag, "original tag value is preserved")

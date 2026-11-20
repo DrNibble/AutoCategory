@@ -498,9 +498,9 @@ equal(5, slider.data.value(), "the slider starts at the bag rule's execution pri
 equal(0, slider.data.min, "the slider starts at zero")
 equal(1000, slider.data.max, "the slider is bounded by 1000")
 local callsBefore = refreshCalls.cacheInitialize
-slider.callback(nil, nil, 5)
+slider.callback(5)
 equal(callsBefore, refreshCalls.cacheInitialize, "initial value does not refresh")
-slider.callback(nil, nil, 9.6)
+slider.callback(9.6)
 equal(10, bags[12].rules[1].runpriority, "the slider rounds valid input")
 equal(5, bags[12].rules[1].showpriority, "display priority is untouched")
 equal(callsBefore + 1, refreshCalls.cacheInitialize, "the changed slider refreshes once")
@@ -617,7 +617,7 @@ for i = 1, #menu do
 end
 equal(true, copyEntry ~= nil, "the copy entries list the other bags")
 chatMessages = {}
-copyEntry.onChecked(nil, nil, nil, true)
+copyEntry.onChecked(true)
 capturedSubmenus[3].apply()
 equal("CopyMe", bagNames(1)[#bagNames(1)],
     "the copy target bag received the category")
@@ -799,10 +799,10 @@ local messageCount, refreshCount = #chatMessages, refreshCalls.cacheInitialize
 apply()
 equal(messageCount, #chatMessages, "an empty selection does not copy")
 equal(refreshCount, refreshCalls.cacheInitialize, "an empty selection does not refresh")
-destinations[1].onChecked(nil, nil, nil, true)
-destinations[2].onChecked(nil, nil, nil, true)
-destinations[3].onChecked(nil, nil, nil, true)
-destinations[3].onChecked(nil, nil, nil, false)
+destinations[1].onChecked(true)
+destinations[2].onChecked(true)
+destinations[3].onChecked(true)
+destinations[3].onChecked(false)
 equal(1, existingM.runpriority, "checking a bag alone does not overwrite")
 equal("S", table.concat(bagNames(7), ","), "copy only happens on apply")
 apply()

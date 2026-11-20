@@ -239,19 +239,11 @@ local function setup()
         if changed and callback then callback() end
     end)
 
-    local function makeList(key, options)
-        local host = window:GetNamedChild(key)
-        options.visibleRows = 15
-        return LibScrollableMenu.CreateOrderListBox(host, options)
-    end
-    availableList = makeList("Available", { enableFilter = true })
+    availableList = AC.OrderList.New(window:GetNamedChild("Available"), { searchable = true })
     -- Regular keys are left to the search box. It can receive Escape before the action layer.
-    if availableList.edit then
-        availableList.edit:SetHandler("OnEscape", Management.Cancel)
-    end
-    presentList = makeList("Present", {
-        enableManualOrder = true,
-        onOrderChanged = function(_, _, _, fromIndex, toIndex)
+    availableList.edit:SetHandler("OnEscape", Management.Cancel)
+    presentList = AC.OrderList.New(window:GetNamedChild("Present"), {
+        onMove = function(fromIndex, toIndex)
             if not draft then return end
             local moved = Management.Move(draft, fromIndex, toIndex)
             refresh()
@@ -261,10 +253,6 @@ local function setup()
 end
 
 function Management.Open(bagId, refreshInventory)
-    if not LibScrollableMenu.CreateOrderListBox then
-        d(GetString(SI_AC_CATEGORY_MANAGER_REQUIRES_LSM))
-        return
-    end
     if not window then setup() end
     -- Don't discard a pending draft just because another header was clicked.
     if draft and not window:IsHidden() then

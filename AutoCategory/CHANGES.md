@@ -1,5 +1,18 @@
 # Changes
 
+## 2026-11-20: manage categories in the selected inventory
+
+- Move To now uses an independent native LibScrollableMenu filter. Its
+  destination order and indentation are unchanged.
+- Manage Categories opens a persistent window with two 15-row lists.
+  Search and click on the left to add. On the right, reorder by
+  execution priority using the arrows or by dragging, or right-click to
+  remove. Apply saves changes for this bag; Cancel discards them.
+- Reordering decrements lower priorities by one, adjusting at ties and
+  at the priority limits when needed. Existing display priorities and
+  global rules are unchanged. The manager uses the LibScrollableMenu
+  2.49 development branch. Not tested in ESO.
+
 ## 2026-11-19: search only in Move To and category title in Rule
 
 - Move To has its own search field, above the indented destinations. The

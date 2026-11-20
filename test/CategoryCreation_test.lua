@@ -8,7 +8,7 @@ local function equal(expected, actual, message)
 end
 
 for _, key in ipairs({
-    "SI_AC_MENU_CM_NEW_CATEGORY", "SI_AC_DEFAULT_NAME_EMPTY_TAG",
+    "SI_AC_MENU_CM_NEW_CATEGORY", "SI_AC_MENU_CM_MANAGE_CATEGORIES", "SI_AC_DEFAULT_NAME_EMPTY_TAG",
     "SI_AC_DIALOG_CATEGORY_NAME_PROMPT", "SI_AC_DIALOG_CATEGORY_NAME_EMPTY",
     "SI_AC_DIALOG_CATEGORY_NAME_EXISTS", "SI_AC_DIALOG_CATEGORY_CREATE_FAILED",
     "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_FIELD",
@@ -132,7 +132,7 @@ local function submit(text)
 end
 
 AutoCategory.AddCategoryLevelMenuEntries("Others", 3, menu)
-equal(1, #items, "creation available on header without backing rule")
+equal(2, #items, "creation and management available on header without backing rule")
 equal(SI_AC_MENU_CM_NEW_CATEGORY, items[1].label, "new label")
 items[1].callback()
 equal(1, registrations, "popup registered once")

@@ -22,6 +22,7 @@ SI_AC_MENU_CM_LEVEL_SHALLOWER = "Decrease Level ←"
 SI_AC_MENU_CM_LEVEL_MOVE_DOWN = "Move Down ↓"
 SI_AC_MENU_CM_REMOVE_DISPLAY = "Remove from display"
 SI_AC_MENU_CM_NEW_CATEGORY = "New Category"
+SI_AC_MENU_CM_MANAGE_CATEGORIES = "Manage Categories"
 SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Empty name"
 SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Duplicate name"
 SI_AC_DIALOG_CATEGORY_CREATE_FAILED = "Invalid bag"
@@ -472,9 +473,17 @@ capturedOrder = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu, "Nom affiché")
 equal("-", capturedOrder[1], "divider comes immediately before Rule")
 equal("Rule", capturedOrder[2], "Rule follows the divider")
-equal(2, #capturedItems, "creation and removal entries for an operable header")
+equal(3, #capturedItems, "removal, creation and management for an operable header")
 equal("Remove from display", capturedItems[1].label, "the removal entry comes after the operations")
-equal("New Category", capturedItems[2].label, "creation comes last")
+equal("New Category", capturedItems[2].label)
+equal("Manage Categories", capturedItems[3].label, "management comes last")
+local openedBag
+AutoCategory.CategoryManagement = { Open = function(bagId, refresh)
+    openedBag = bagId
+    equal("function", type(refresh), "refresh callback is passed to the manager")
+end }
+capturedItems[3].callback()
+equal(12, openedBag, "manager uses the clicked bag")
 equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
 equal("Rule", capturedSubmenus[1].text,
     "the rule submenu comes first")
@@ -521,11 +530,11 @@ equal(1, refreshCalls.cacheInitialize, "the removal callback refreshes the cache
 equal(0, #AutoCategory.saved.bags[12].rules, "the category leaves the bag list")
 equal(true, rKid ~= nil, "the global rule is kept")
 
--- A header with no backing rule only gets category creation.
+-- A header with no backing rule still gets category creation and management.
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Others", 12, testMenu)
-equal(1, #capturedItems, "creation is offered on ungrouped headers")
+equal(2, #capturedItems, "creation and management are offered on ungrouped headers")
 equal(0, #capturedSubmenus, "no submenu for a category without a rule")
 
 -- a predefined (protected) rule: its level and its priorities can be
@@ -537,7 +546,7 @@ setBag(13, { { name = "Pred", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Pred", 13, testMenu)
-equal(2, #capturedItems, "removal and creation for a predefined rule")
+equal(3, #capturedItems, "removal, creation and management for a predefined rule")
 equal("Remove from display", capturedItems[1].label,
     "a predefined rule is offered the removal")
 equal("New Category", capturedItems[2].label)
@@ -564,7 +573,7 @@ equal(true, ruleList[ruleNames["Pred"]] ~= nil, "the protected rule is kept")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root", 13, testMenu)
-equal(1, #capturedItems, "creation only needs the captured bag")
+equal(2, #capturedItems, "creation and management only need the captured bag")
 equal(0, #capturedSubmenus, "no submenu outside the bag of the header")
 
 -- At level 5 only increase is left out; creation is independent.
@@ -573,7 +582,7 @@ setBag(14, { { name = "Deep", runpriority = 1, showpriority = 1 } })
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Deep", 14, testMenu)
-equal(2, #capturedItems, "creation and removal at level 5")
+equal(3, #capturedItems, "removal, creation and management at level 5")
 equal("Remove from display", capturedItems[1].label)
 equal("New Category", capturedItems[2].label)
 equal(4, #capturedSubmenus, "Rule, Level, Move To and Copy To submenus at level 5")
@@ -697,7 +706,7 @@ equal("D", rE.parent, "the children keep their parent")
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, testMenu)
-equal(2, #capturedItems, "creation and removal entries")
+equal(3, #capturedItems, "removal, creation and management entries")
 equal("Remove from display", capturedItems[1].label)
 equal("New Category", capturedItems[2].label)
 equal(4, #capturedSubmenus, "a Rule, a Level, a Move To and a Copy To submenu")

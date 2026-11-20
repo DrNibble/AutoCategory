@@ -242,6 +242,15 @@ AutoCategory_localization_strings["es"] = {
     SI_AC_MENU_CM_LEVEL_SHALLOWER = "Reducir nivel ←",
     SI_AC_MENU_CM_LEVEL_MOVE_DOWN = "Bajar ↓",
     SI_AC_MENU_CM_NEW_CATEGORY = "Nueva categoría",
+    SI_AC_MENU_CM_MANAGE_CATEGORIES = "Gestionar categorías",
+    SI_AC_CATEGORY_MANAGER_AVAILABLE = "Categorías no utilizadas en este inventario",
+    SI_AC_CATEGORY_MANAGER_PRESENT = "Categorías asignadas por prioridad de ejecución",
+    SI_AC_CATEGORY_MANAGER_READ_ONLY = "solo lectura",
+    SI_AC_CATEGORY_MANAGER_HINT = "Haz clic a la izquierda para añadir. A la derecha, usa las flechas o arrastra para reordenar y haz clic derecho para quitar.",
+    SI_AC_CATEGORY_MANAGER_CONFIRM = "Aplicar",
+    SI_AC_CATEGORY_MANAGER_STALE = "Las categorías han cambiado. Cancela y vuelve a abrir esta ventana.",
+    SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "Este orden no cabe en el intervalo de prioridades (de 0 a 1000).",
+    SI_AC_CATEGORY_MANAGER_REQUIRES_LSM = "La gestión de categorías requiere la versión de desarrollo de LibScrollableMenu 2.49.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Introduce un nombre único. La categoría se creará en esta bolsa con nivel Normal, la regla false y la máxima prioridad de visualización.",
     SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Introduce un nombre de categoría que no esté vacío.",
     SI_AC_DIALOG_CATEGORY_NAME_EXISTS = "Ya existe una categoría con este nombre. Elige otro nombre.",
@@ -258,5 +267,4 @@ AutoCategory_localization_strings["es"] = {
     SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categorías añadidas a %s (%d sobrescritas).",
 
 }
-
 

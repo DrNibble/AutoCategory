@@ -1450,70 +1450,6 @@ function AC_ItemRowHeader_OnMouseClicked(header)
     AutoCat.RefreshCurrentList()
 end
 
--- LSM's built-in filter belongs to the root menu. Use an edit row and
--- dynamic entries so only this submenu is updated while typing.
-local function searchableHeaderSubmenu(destinations)
-    local lib = LibScrollableMenu
-    local lower = LocaleAwareToLower or string.lower
-    local query, needle = "", ""
-    local searchLabel = GetString(SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT)
-    local searchRow = {
-        name = searchLabel, entryType = lib.LSM_ENTRY_TYPE_EDITBOX,
-        editBoxData = {
-            hideLabel = true, defaultText = searchLabel,
-            text = function() return query end,
-        },
-    }
-    local noResults = {
-        name = GetString(SI_SORT_FILTER_LIST_NO_RESULTS),
-        entryType = lib.LSM_ENTRY_TYPE_NORMAL, enabled = false,
-    }
-    local names = {}
-    for i, destination in ipairs(destinations) do names[i] = lower(destination.name) end
-
-    local function onTextChanged(_, editBox, text)
-        local row = editBox.rowControl
-        local submenu = row and row.m_owner
-        if text == query or editBox.callback ~= onTextChanged
-                or editBox ~= searchRow.editBoxData._EditBoxCtrl or not submenu
-                or not submenu.isSubmenu or row:IsHidden()
-                or not submenu:IsDropdownVisible() then return end
-
-        query = text
-        local newNeedle = lower(text:match("^%s*(.-)%s*$"))
-        if needle == newNeedle then return end
-        needle = newNeedle
-
-        -- Redraw the open submenu in place: the generic LSM refresh can
-        -- reopen it after the pointer leaves. A redraw recycles edit rows.
-        local cursor = editBox:HasFocus() and editBox:GetCursorPosition()
-        local dropdown = submenu.m_dropdownObject.control
-        local minWidth = submenu.containerMinWidth
-        submenu.containerMinWidth = dropdown:GetWidth()
-        submenu:RefreshSortedItems(submenu.openingControl)
-        submenu:Show()
-        submenu.containerMinWidth = minWidth
-        local currentEditBox = searchRow.editBoxData._EditBoxCtrl
-        if cursor and currentEditBox and currentEditBox.callback == onTextChanged
-                and not currentEditBox.rowControl:IsHidden() and submenu:IsDropdownVisible() then
-            currentEditBox:TakeFocus()
-            currentEditBox:SetCursorPosition(cursor)
-        end
-    end
-    searchRow.callback = onTextChanged
-
-    return function()
-        local rows = { searchRow }
-        for i, destination in ipairs(destinations) do
-            if needle == "" or names[i]:find(needle, 1, true) then
-                rows[#rows + 1] = destination
-            end
-        end
-        if #rows == 1 then rows[2] = noResults end
-        return rows
-    end
-end
-
 -- Use one LSM context menu so the header's four submenus share its hover
 -- navigation. The inventory-item context menu continues to use LibCustomMenu.
 local function createHeaderScrollableMenu()
@@ -1557,8 +1493,8 @@ local function createHeaderScrollableMenu()
                     name = GetString(SI_AC_MENU_CM_COPY_SELECTED), callback = copyAction,
                 }
             end
-            if options and options.searchable then rows = searchableHeaderSubmenu(rows) end
-            AddCustomScrollableSubMenuEntry(title, rows)
+            local additionalData = options and options.searchable and { enableSubmenuFilter = true } or nil
+            AddCustomScrollableSubMenuEntry(title, rows, nil, additionalData)
         end,
     }
 end

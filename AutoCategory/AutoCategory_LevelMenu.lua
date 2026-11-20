@@ -1262,4 +1262,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
     -- as well
     addItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
         function() CLM.OpenNewCategoryDialog(bagTypeId) end)
+    addItem(GetString(SI_AC_MENU_CM_MANAGE_CATEGORIES),
+        function() AutoCategory.CategoryManagement.Open(bagTypeId, refreshAfterChange) end)
 end

@@ -1,5 +1,60 @@
 <GuiXml>
     <Controls> 
+        <TopLevelControl name="AC_CategoryManagementWindow" hidden="true" mouseEnabled="true" movable="true" clampedToScreen="true" tier="HIGH">
+            <Dimensions x="880" y="664"/>
+            <Anchor point="CENTER" relativeTo="GuiRoot" relativePoint="CENTER"/>
+            <OnMouseDown>
+                self:BringWindowToTop()
+            </OnMouseDown>
+            <Controls>
+                <Backdrop name="$(parent)Backdrop" inherits="ZO_DefaultBackdrop" mouseEnabled="false">
+                    <AnchorFill/>
+                </Backdrop>
+                <Label name="$(parent)Title" font="ZoFontWinH1" horizontalAlignment="CENTER">
+                    <Anchor point="TOPLEFT" offsetX="18" offsetY="12"/>
+                    <Anchor point="TOPRIGHT" offsetX="-18" offsetY="12"/>
+                </Label>
+                <Label name="$(parent)Inventory" font="ZoFontGameMedium" horizontalAlignment="CENTER">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Title" relativePoint="BOTTOMLEFT" offsetY="2"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Title" relativePoint="BOTTOMRIGHT" offsetY="2"/>
+                </Label>
+                <Label name="$(parent)AvailableTitle" font="ZoFontWinH4" horizontalAlignment="CENTER">
+                    <Dimensions x="410" y="50"/>
+                    <Anchor point="TOPLEFT" offsetX="18" offsetY="70"/>
+                </Label>
+                <Label name="$(parent)PresentTitle" font="ZoFontWinH4" horizontalAlignment="CENTER">
+                    <Dimensions x="410" y="50"/>
+                    <Anchor point="TOPRIGHT" offsetX="-18" offsetY="70"/>
+                </Label>
+                <Control name="$(parent)Available">
+                    <Dimensions x="410" y="1"/>
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)AvailableTitle" relativePoint="BOTTOMLEFT"/>
+                </Control>
+                <Control name="$(parent)Present">
+                    <Dimensions x="410" y="1"/>
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)PresentTitle" relativePoint="BOTTOMLEFT"/>
+                </Control>
+                <Label name="$(parent)Hint" font="ZoFontGameSmall" horizontalAlignment="CENTER" verticalAlignment="CENTER">
+                    <Dimensions y="38"/>
+                    <Anchor point="BOTTOMLEFT" offsetX="18" offsetY="-68"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-18" offsetY="-68"/>
+                </Label>
+                <Label name="$(parent)Status" font="ZoFontGameSmall" color="FF6666" horizontalAlignment="CENTER" verticalAlignment="CENTER">
+                    <Dimensions y="26"/>
+                    <Anchor point="BOTTOMLEFT" offsetX="18" offsetY="-42"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-18" offsetY="-42"/>
+                </Label>
+                <Button name="$(parent)Confirm" inherits="ZO_DefaultButton">
+                    <Dimensions x="176" y="30"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-204" offsetY="-10"/>
+                </Button>
+                <Button name="$(parent)Cancel" inherits="ZO_DefaultButton">
+                    <Dimensions x="176" y="30"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-18" offsetY="-10"/>
+                </Button>
+            </Controls>
+        </TopLevelControl>
+
         <TopLevelControl name="AC_NewCategoryDialog" inherits="ZO_CustomDialogBase">
             <Controls>
                 <Label name="$(parent)Title" override="true">

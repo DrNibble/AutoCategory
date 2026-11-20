@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Manage inventory categories (2026-11-20)[/COLOR]:
+[LIST]
+[*] The inventory header menu opens a persistent category manager with two 15-row scrollable lists. Search and add from the left; reorder on the right with arrows or dragging, or right-click to remove. Apply commits the draft for that inventory only.
+[*] Move To uses LibScrollableMenu's native submenu filter. The manager requires the LibScrollableMenu 2.49 development branch.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Search only in Move To and category title in Rule (2026-11-19)[/COLOR]:
 [LIST]
 [*] Move To filters only its own destinations, keeping their order and indentation.

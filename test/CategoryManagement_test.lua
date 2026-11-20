@@ -142,6 +142,12 @@ local function control(name)
     function c:BringWindowToTop() end
     function c:LoseFocus() self.focused = false end
     function c:SetEnabled(value) self.enabled = value end
+    function c:SetNormalTexture(value) self.normalTexture = value end
+    function c:SetMouseOverTexture(value) self.mouseOverTexture = value end
+    function c:SetPressedMouseOverTexture(value) self.pressedMouseOverTexture = value end
+    function c:SetPressedTexture(value) self.pressedTexture = value end
+    function c:SetDisabledTexture(value) self.disabledTexture = value end
+    function c:SetTextureCoords(...) self.textureCoords = table.concat({ ... }, ",") end
     function c:SetAnchor(point, _, _, x, y) self[point] = { x, y } end
     function c:GetLeft() return 0 end
     function c:GetRight() return 350 end
@@ -237,6 +243,21 @@ equal(nil, lists[2].edit, "present list does not filter reorder indices")
 equal(25, lists[1].scroll.height)
 equal(25, lists[2].scroll.height)
 equal(46, lists[1].scroll[TOPLEFT][2], "space for the search box")
+for _, spec in ipairs({
+    { "First", "/esoui/art/chatwindow/chat_scrollbar_endarrow_", "disabled", "1,0,1,0" },
+    { "Up", "/esoui/art/buttons/scrollbox_uparrow_", "up_disabled" },
+    { "Down", "/esoui/art/buttons/scrollbox_downarrow_", "up_disabled" },
+    { "Last", "/esoui/art/chatwindow/chat_scrollbar_endarrow_", "disabled" },
+}) do
+    local button = lists[2].arrows:GetNamedChild(spec[1])
+    local prefix = spec[2]
+    equal(prefix .. "up.dds", button.normalTexture, spec[1] .. " normal")
+    equal(prefix .. "over.dds", button.mouseOverTexture, spec[1] .. " hovered")
+    equal(prefix .. "down.dds", button.pressedTexture, spec[1] .. " pressed")
+    equal(prefix .. "down.dds", button.pressedMouseOverTexture, spec[1] .. " pressed while hovered")
+    equal(prefix .. spec[3] .. ".dds", button.disabledTexture, spec[1] .. " disabled")
+    equal(spec[4], button.textureCoords, spec[1] .. " orientation")
+end
 equal("Bear", lists[1].items[1].name)
 equal("[1000] dog", lists[2].items[1].label)
 local function rowText(list, index) return list.scroll.rows[index]:GetNamedChild("Text"):GetText() end

@@ -23,7 +23,7 @@
             </Controls>
         </TopLevelControl>
 
-        <Button name="AC_OrderListArrow" inherits="ZO_DefaultButton" virtual="true">
+        <Button name="AC_OrderListArrow" inherits="ZO_ButtonBehaviorClickSound" mouseEnabled="true" virtual="true">
             <Dimensions x="28" y="28"/>
         </Button>
 
@@ -37,7 +37,8 @@
                     <Anchor point="TOPLEFT" offsetX="8" offsetY="7"/>
                     <Anchor point="TOPRIGHT" offsetX="-8" offsetY="7"/>
                     <Controls>
-                        <Button name="$(parent)Reset" inherits="AC_OrderListArrow" text="×">
+                        <Button name="$(parent)Reset" inherits="ZO_DefaultButton" text="×">
+                            <Dimensions x="28" y="28"/>
                             <Anchor point="RIGHT"/>
                         </Button>
                         <Backdrop name="$(parent)Input" inherits="ZO_SingleLineEditBackdrop_Keyboard">
@@ -57,16 +58,16 @@
                     <Dimensions x="28" y="124"/>
                     <Anchor point="RIGHT" offsetX="-7"/>
                     <Controls>
-                        <Button name="$(parent)First" inherits="AC_OrderListArrow" text="⇈">
+                        <Button name="$(parent)First" inherits="AC_OrderListArrow">
                             <Anchor point="TOP"/>
                         </Button>
-                        <Button name="$(parent)Up" inherits="AC_OrderListArrow" text="↑">
+                        <Button name="$(parent)Up" inherits="AC_OrderListArrow">
                             <Anchor point="TOP" offsetY="32"/>
                         </Button>
-                        <Button name="$(parent)Down" inherits="AC_OrderListArrow" text="↓">
+                        <Button name="$(parent)Down" inherits="AC_OrderListArrow">
                             <Anchor point="TOP" offsetY="64"/>
                         </Button>
-                        <Button name="$(parent)Last" inherits="AC_OrderListArrow" text="⇊">
+                        <Button name="$(parent)Last" inherits="AC_OrderListArrow">
                             <Anchor point="TOP" offsetY="96"/>
                         </Button>
                     </Controls>

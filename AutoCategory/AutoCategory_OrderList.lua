@@ -6,6 +6,25 @@ AutoCategory.OrderList = List
 
 local ROW_HEIGHT = 25
 local moveButtons = { "First", "Up", "Down", "Last" }
+local scrollboxUpTexture       = "/esoui/art/buttons/scrollbox_uparrow_%s.dds"
+local scrollboxDownTexture     = "/esoui/art/buttons/scrollbox_downarrow_%s.dds"
+local scrollbarEndArrowTexture = "/esoui/art/chatwindow/chat_scrollbar_endarrow_%s.dds"
+
+local function setArrowTextures(button, name)
+    local isEnd = name == "First" or name == "Last"
+    local texture = isEnd and scrollbarEndArrowTexture
+        or (name == "Up" and scrollboxUpTexture or scrollboxDownTexture)
+    local pressed = string.format(texture, "down")
+    button:SetNormalTexture(string.format(texture, "up"))
+    button:SetMouseOverTexture(string.format(texture, "over"))
+    button:SetPressedMouseOverTexture(pressed)
+    button:SetPressedTexture(pressed)
+    button:SetDisabledTexture(string.format(texture, isEnd and "disabled" or "up_disabled"))
+    if name == "First" then
+        -- ESO supplies the end arrow facing down. Rotate it for the first row.
+        button:SetTextureCoords(1, 0, 1, 0)
+    end
+end
 
 local function searchText(text)
     return (LocaleAwareToLower or string.lower)(text:match("^%s*(.-)%s*$"))
@@ -177,7 +196,9 @@ function List.New(host, options)
     end
     if self.onMove then
         for i, name in ipairs(moveButtons) do
-            self.arrows:GetNamedChild(name):SetHandler("OnClicked", function()
+            local button = self.arrows:GetNamedChild(name)
+            setArrowTextures(button, name)
+            button:SetHandler("OnClicked", function()
                 local index = self:SelectedIndex()
                 if not index then return end
                 local target

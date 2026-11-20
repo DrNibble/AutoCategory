@@ -2,7 +2,7 @@
 [LIST]
 [*] The inventory header menu opens a persistent category manager with two 15-row scrollable lists. Search and add from the left; reorder on the right with arrows or dragging, or right-click to remove. Apply commits the draft for that inventory only.
 [*] Both category lists use LibScrollableMenu 2.50's native OrderListBox widget. Move To keeps LibScrollableMenu's independent submenu filter.
-[*] Esc and Alt close Manage Categories and discard the draft, just like Cancel.
+[*] The game's System Menu and Inventory shortcuts close Manage Categories and discard the draft, just like Cancel.
 [/LIST]
 
 [COLOR="DeepSkyBlue"] Search only in Move To and category title in Rule (2026-11-19)[/COLOR]:

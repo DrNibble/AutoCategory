@@ -245,12 +245,9 @@ local function setup()
         return LibScrollableMenu.CreateOrderListBox(host, options)
     end
     availableList = makeList("Available", { enableFilter = true })
-    -- The focused search box can receive keys before the active action layer.
+    -- Regular keys are left to the search box. It can receive Escape before the action layer.
     if availableList.edit then
         availableList.edit:SetHandler("OnEscape", Management.Cancel)
-        availableList.edit:SetHandler("OnKeyDown", function(_, key, ctrl, _alt, shift, command)
-            if key == KEY_ALT and not (ctrl or shift or command) then return Management.Cancel() end
-        end)
     end
     presentList = makeList("Present", {
         enableManualOrder = true,

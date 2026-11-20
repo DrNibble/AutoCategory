@@ -105,7 +105,6 @@ local UI
 if repo then UI = assert(loadfile(repo .. "/tests/order_list_box_mock.lua"))(repo) end
 local layerName = "AutoCategoryCategoryManagement"
 local layerActive = false
-KEY_ALT = 18
 function PushActionLayerByName(name)
     equal(layerName, name)
     equal(false, layerActive, "don't stack the cancel layer")
@@ -125,8 +124,9 @@ for attributes, content in layer:gmatch("<Action ([^>]+)>(.-)</Action>") do
     bindingByAction[inheritedAction] = assert(loadstring(assert(content:match("<Down>(.-)</Down>")), "@Bindings.xml"))
 end
 local function press(action)
-    if not layerActive then return false end
-    return assert(bindingByAction[action])()
+    local binding = bindingByAction[action]
+    if not layerActive or not binding then return false end
+    return binding()
 end
 
 local function control()
@@ -178,7 +178,7 @@ end
 local function fireEdit(event, ...)
     local edit = lists[1].edit
     if UI then return edit:Fire(event, ...) end
-    return edit[event](edit, ...)
+    if edit[event] then return edit[event](edit, ...) end
 end
 local function refreshInventory() refreshes = refreshes + 1 end
 equal(false, M.Cancel(), "a closed manager must not consume key presses")
@@ -225,30 +225,29 @@ local function expectCancelled()
     button("Confirm")
     equal(0, refreshes, "no pending callback after cancelling")
 end
-for _, action in ipairs({ "TOGGLE_SYSTEM", "TOGGLE_GAME_CAMERA_UI_MODE" }) do
+for _, action in ipairs({ "TOGGLE_SYSTEM", "TOGGLE_INVENTORY" }) do
     M.Open(1, refreshInventory)
     equal("Bear", lists[1].items[1].name, "reopen restores the original draft")
     rowClick(lists[1], 1)
+    equal(false, press("TOGGLE_GAME_CAMERA_UI_MODE"), "do not intercept the camera/UI shortcut")
+    equal(false, AC_CategoryManagementWindow:IsHidden())
     equal(true, press(action), "consume the game key only while cancelling")
     expectCancelled()
     equal(false, press(action))
 end
 
-for _, event in ipairs({ "OnEscape", "OnKeyDown" }) do
-    M.Open(1, refreshInventory)
-    rowClick(lists[1], 1)
-    local edit = lists[1].edit
-    edit.focused = true
-    edit:SetText("cat")
-    fireEdit("OnKeyDown", 65, false, false, false, false)
-    fireEdit("OnKeyDown", KEY_ALT, true, true, false, false)
-    equal(false, AC_CategoryManagementWindow:IsHidden(), "ordinary text and modifier chords must not cancel")
-    equal(true, fireEdit(event, KEY_ALT, false, true, false, false))
-    expectCancelled()
-    if UI then
-        equal("", edit:GetText())
-        equal(false, edit.focused)
-    end
+M.Open(1, refreshInventory)
+rowClick(lists[1], 1)
+local edit = lists[1].edit
+edit.focused = true
+edit:SetText("inventory")
+fireEdit("OnKeyDown", 18, false, true, false, false)
+equal(false, AC_CategoryManagementWindow:IsHidden(), "typing and raw Alt must not cancel")
+equal(true, fireEdit("OnEscape"))
+expectCancelled()
+if UI then
+    equal("", edit:GetText())
+    equal(false, edit.focused)
 end
 
 M.Open(1, refreshInventory)

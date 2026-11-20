@@ -1,4 +1,5 @@
 -- From AutoCategory/: lua5.1 ../test/CategoryManagement_test.lua
+-- Set LSM_REPO to a LibScrollableMenu checkout to exercise actual widget code.
 local checks = 0
 local function equal(expected, actual, message)
     checks = checks + 1
@@ -99,29 +100,50 @@ apple.runpriority = 59
 
 -- Window wiring: preserve an open draft when focus changes and confirm once.
 local lists, children, refreshes = {}, {}, 0
+local repo = os.getenv("LSM_REPO")
+local UI
+if repo then UI = assert(loadfile(repo .. "/tests/order_list_box_mock.lua"))(repo) end
 local function control()
     return {
         hidden = true,
         SetText = function(self, value) self.text = value end,
         SetHandler = function(self, event, fn) self[event] = fn end,
-        GetWidth = function() return 410 end,
         SetHidden = function(self, value) self.hidden = value end,
         IsHidden = function(self) return self.hidden end,
         BringWindowToTop = function() end,
     }
 end
-AC_CategoryManagementWindow = control()
+AC_CategoryManagementWindow = UI and UI.control("AC_CategoryManagementWindow") or control()
+AC_CategoryManagementWindow:SetHidden(true)
 function AC_CategoryManagementWindow:GetNamedChild(name)
-    if not children[name] then children[name] = control() end
+    if not children[name] then children[name] = UI and UI.add(self, name) or control() end
     return children[name]
 end
-LibScrollableMenu = { CreateEmbeddedList = function(host, options)
+LibScrollableMenu = LibScrollableMenu or {}
+local create = LibScrollableMenu.CreateOrderListBox or function(host, options)
     local list = { host = host, options = options }
     function list:SetItems(items) self.items = items end
     function list:Show() self.shown = true end
+    function list:Hide() self.shown = false end
+    return list
+end
+function LibScrollableMenu.CreateOrderListBox(host, options)
+    local list = create(host, options)
     lists[#lists + 1] = list
     return list
-end }
+end
+local function button(key)
+    if UI then children[key]:Fire("OnClicked") else children[key].OnClicked() end
+end
+local function rowClick(list, index, right)
+    if UI then
+        list.scroll.rows[index]:Fire("OnMouseUp", right and MOUSE_BUTTON_INDEX_RIGHT or MOUSE_BUTTON_INDEX_LEFT, true)
+    elseif right then
+        list.items[index].rightClickCallback()
+    else
+        list.items[index].callback()
+    end
+end
 local function refreshInventory() refreshes = refreshes + 1 end
 M.Open(1, refreshInventory)
 equal(false, AC_CategoryManagementWindow:IsHidden())
@@ -129,26 +151,52 @@ equal(true, lists[1].shown)
 equal(true, lists[2].shown)
 equal(true, lists[1].options.enableFilter)
 equal(true, lists[2].options.enableManualOrder)
-equal(15, lists[1].options.visibleRowsDropdown)
-equal(15, lists[2].options.visibleRowsDropdown)
+equal(15, lists[1].options.visibleRows)
+equal(15, lists[2].options.visibleRows)
 equal("Bear", lists[1].items[1].name)
-lists[1].items[1].callback()
+equal("[1000] dog", lists[2].items[1].label)
+if UI then
+    equal("Bear", lists[1].scroll.rows[1]:GetText())
+    equal("[1000] dog", lists[2].scroll.rows[1]:GetText())
+    lists[2].scroll.rows[2]:Fire("OnMouseEnter")
+    equal("Apple |cFF0000(lecture seule)|r\nquality() == ITEM_QUALITY_NORMAL", UI.tooltip)
+    lists[1].edit:SetText("bear")
+    lists[1].edit:LoseFocus()
+    equal(false, AC_CategoryManagementWindow:IsHidden())
+    equal(1, #lists[1].scroll.data)
+    equal("Bear", lists[1].scroll.rows[1]:GetText())
+end
+rowClick(lists[1], 1)
 equal(4, #bag.rules, "click to add does not save")
 M.Open(2, refreshInventory)
 equal("cat", lists[1].items[1].name, "opening another bag keeps the pending draft")
-children.Cancel.OnClicked()
+button("Cancel")
 equal(true, AC_CategoryManagementWindow:IsHidden())
 equal(4, #bag.rules, "cancel discards the addition")
 equal(0, refreshes, "cancel doesn't refresh the inventory")
 M.Open(1, refreshInventory)
-lists[1].items[1].callback()
-lists[2].options.onOrderChanged(nil, nil, nil, 3, 1)
-lists[2].items[2].rightClickCallback()
+if UI then
+    equal("", lists[1].edit:GetText())
+    equal(2, #lists[1].scroll.rows)
+end
+rowClick(lists[1], 1)
+if UI then
+    rowClick(lists[2], 4)
+    lists[2].buttons[1]:Fire("OnClicked")
+    equal("Zebra", ZO_ScrollList_GetSelectedData(lists[2].scroll).key)
+    equal("[1000] Zebra", lists[2].scroll.rows[1]:GetText())
+else
+    lists[2].options.onOrderChanged(nil, nil, nil, 4, 1)
+end
+rowClick(lists[2], 3, true)
 equal(4, #bag.rules, "move and remove also stay in the draft")
-children.Confirm.OnClicked()
+button("Confirm")
 equal(true, AC_CategoryManagementWindow:IsHidden())
 equal(1, refreshes)
 equal(4, #bag.rules, "one add and one remove committed")
-children.Confirm.OnClicked()
+equal(nil, (function() for _, entry in ipairs(bag.rules) do if entry.name == "dog" then return entry end end end)())
+equal("Bear", bag.rules[4].name)
+equal(1000, zebra.runpriority)
+button("Confirm")
 equal(1, refreshes, "the same draft cannot commit twice")
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

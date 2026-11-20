@@ -27,11 +27,11 @@
                     <Anchor point="TOPRIGHT" offsetX="-18" offsetY="70"/>
                 </Label>
                 <Control name="$(parent)Available">
-                    <Dimensions x="410" y="1"/>
+                    <Dimensions x="410" y="426"/>
                     <Anchor point="TOPLEFT" relativeTo="$(parent)AvailableTitle" relativePoint="BOTTOMLEFT"/>
                 </Control>
                 <Control name="$(parent)Present">
-                    <Dimensions x="410" y="1"/>
+                    <Dimensions x="410" y="385"/>
                     <Anchor point="TOPLEFT" relativeTo="$(parent)PresentTitle" relativePoint="BOTTOMLEFT"/>
                 </Control>
                 <Label name="$(parent)Hint" font="ZoFontGameSmall" horizontalAlignment="CENTER" verticalAlignment="CENTER">

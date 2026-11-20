@@ -175,6 +175,8 @@ end
 
 local function close()
     draft, onCommit = nil, nil
+    availableList:Hide()
+    presentList:Hide()
     window:SetHidden(true)
     ZO_Tooltips_HideTextTooltip()
 end
@@ -183,7 +185,7 @@ local function refresh()
     local available, present = {}, {}
     for _, name in ipairs(Management.GetAvailable(draft, AC.RulesW.ruleList)) do
         available[#available + 1] = {
-            name = name, selectable = false, additionalData = { closeOnSelect = false },
+            key = name, name = name,
             tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),
             callback = function()
                 if draft and Management.Add(draft, name) then refresh() end
@@ -193,7 +195,8 @@ local function refresh()
     for _, row in ipairs(draft.rows) do
         local name = row.name
         present[#present + 1] = {
-            name = string.format("[%d] %s", row.priority, name), tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),
+            key = name, name = name, label = string.format("[%d] %s", row.priority, name),
+            tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),
             rightClickCallback = function()
                 if draft and Management.Remove(draft, name) then refresh() end
             end,
@@ -227,11 +230,8 @@ local function setup()
 
     local function makeList(key, options)
         local host = window:GetNamedChild(key)
-        options.visibleRowsDropdown = 15
-        options.sortEntries = false
-        options.minDropdownWidth = host:GetWidth()
-        options.maxDropdownWidth = host:GetWidth()
-        return LibScrollableMenu.CreateEmbeddedList(host, options)
+        options.visibleRows = 15
+        return LibScrollableMenu.CreateOrderListBox(host, options)
     end
     availableList = makeList("Available", { enableFilter = true })
     presentList = makeList("Present", {
@@ -246,7 +246,7 @@ local function setup()
 end
 
 function Management.Open(bagId, refreshInventory)
-    if not LibScrollableMenu.CreateEmbeddedList then
+    if not LibScrollableMenu.CreateOrderListBox then
         d(GetString(SI_AC_CATEGORY_MANAGER_REQUIRES_LSM))
         return
     end

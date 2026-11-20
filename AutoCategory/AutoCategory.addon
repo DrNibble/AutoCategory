@@ -7,7 +7,7 @@
 ## IsLibrary: false
 ## SavedVariables: AutoCategorySavedVars AutoCatRules
 ## DependsOn: LibAddonMenu-2.0>=43 LibCustomMenu>=730 LibSFUtils>=77 LibMediaProvider>=36 
-## DependsOn: LibDebugLogger>=307 LibScrollableMenu>=020409
+## DependsOn: LibDebugLogger>=307 LibScrollableMenu>=020500
 ## OptionalDependsOn: GearChangerByIakoni FCOItemSaver QuickMenu ItemSaver ItemSaverLite ItemMarker UnknownTracker
 ## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom LibSets
 

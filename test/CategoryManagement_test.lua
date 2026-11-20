@@ -103,12 +103,42 @@ local lists, children, refreshes = {}, {}, 0
 local repo = os.getenv("LSM_REPO")
 local UI
 if repo then UI = assert(loadfile(repo .. "/tests/order_list_box_mock.lua"))(repo) end
+local layerName = "AutoCategoryCategoryManagement"
+local layerActive = false
+KEY_ALT = 18
+function PushActionLayerByName(name)
+    equal(layerName, name)
+    equal(false, layerActive, "don't stack the cancel layer")
+    layerActive = true
+end
+function RemoveActionLayerByName(name)
+    equal(layerName, name)
+    layerActive = false
+end
+local bindingsFile = assert(io.open("Bindings.xml"))
+local bindings = bindingsFile:read("*a")
+bindingsFile:close()
+local layer = assert(bindings:match('<Layer name="' .. layerName .. '">(.-)</Layer>'))
+local bindingByAction = {}
+for attributes, content in layer:gmatch("<Action ([^>]+)>(.-)</Action>") do
+    local inheritedAction = assert(attributes:match('inheritsBindFrom="([^"]+)"'))
+    bindingByAction[inheritedAction] = assert(loadstring(assert(content:match("<Down>(.-)</Down>")), "@Bindings.xml"))
+end
+local function press(action)
+    if not layerActive then return false end
+    return assert(bindingByAction[action])()
+end
+
 local function control()
     return {
         hidden = true,
         SetText = function(self, value) self.text = value end,
         SetHandler = function(self, event, fn) self[event] = fn end,
-        SetHidden = function(self, value) self.hidden = value end,
+        SetHidden = function(self, value)
+            local wasHidden = self.hidden
+            self.hidden = value
+            if not wasHidden and value and self.OnEffectivelyHidden then self.OnEffectivelyHidden() end
+        end,
         IsHidden = function(self) return self.hidden end,
         BringWindowToTop = function() end,
     }
@@ -122,6 +152,7 @@ end
 LibScrollableMenu = LibScrollableMenu or {}
 local create = LibScrollableMenu.CreateOrderListBox or function(host, options)
     local list = { host = host, options = options }
+    if options.enableFilter then list.edit = control() end
     function list:SetItems(items) self.items = items end
     function list:Show() self.shown = true end
     function list:Hide() self.shown = false end
@@ -144,8 +175,15 @@ local function rowClick(list, index, right)
         list.items[index].callback()
     end
 end
+local function fireEdit(event, ...)
+    local edit = lists[1].edit
+    if UI then return edit:Fire(event, ...) end
+    return edit[event](edit, ...)
+end
 local function refreshInventory() refreshes = refreshes + 1 end
+equal(false, M.Cancel(), "a closed manager must not consume key presses")
 M.Open(1, refreshInventory)
+equal(true, layerActive)
 equal(false, AC_CategoryManagementWindow:IsHidden())
 equal(true, lists[1].shown)
 equal(true, lists[2].shown)
@@ -172,8 +210,52 @@ M.Open(2, refreshInventory)
 equal("cat", lists[1].items[1].name, "opening another bag keeps the pending draft")
 button("Cancel")
 equal(true, AC_CategoryManagementWindow:IsHidden())
+equal(false, layerActive)
 equal(4, #bag.rules, "cancel discards the addition")
 equal(0, refreshes, "cancel doesn't refresh the inventory")
+
+local function expectCancelled()
+    equal(true, AC_CategoryManagementWindow:IsHidden())
+    equal(false, layerActive)
+    equal(false, lists[1].shown)
+    equal(false, lists[2].shown)
+    equal(4, #bag.rules, "keyboard cancel discards changes")
+    equal("dog", bag.rules[4].name)
+    equal(0, refreshes)
+    button("Confirm")
+    equal(0, refreshes, "no pending callback after cancelling")
+end
+for _, action in ipairs({ "TOGGLE_SYSTEM", "TOGGLE_GAME_CAMERA_UI_MODE" }) do
+    M.Open(1, refreshInventory)
+    equal("Bear", lists[1].items[1].name, "reopen restores the original draft")
+    rowClick(lists[1], 1)
+    equal(true, press(action), "consume the game key only while cancelling")
+    expectCancelled()
+    equal(false, press(action))
+end
+
+for _, event in ipairs({ "OnEscape", "OnKeyDown" }) do
+    M.Open(1, refreshInventory)
+    rowClick(lists[1], 1)
+    local edit = lists[1].edit
+    edit.focused = true
+    edit:SetText("cat")
+    fireEdit("OnKeyDown", 65, false, false, false, false)
+    fireEdit("OnKeyDown", KEY_ALT, true, true, false, false)
+    equal(false, AC_CategoryManagementWindow:IsHidden(), "ordinary text and modifier chords must not cancel")
+    equal(true, fireEdit(event, KEY_ALT, false, true, false, false))
+    expectCancelled()
+    if UI then
+        equal("", edit:GetText())
+        equal(false, edit.focused)
+    end
+end
+
+M.Open(1, refreshInventory)
+rowClick(lists[1], 1)
+AC_CategoryManagementWindow:SetHidden(true)
+expectCancelled()
+
 M.Open(1, refreshInventory)
 if UI then
     equal("", lists[1].edit:GetText())
@@ -192,6 +274,7 @@ rowClick(lists[2], 3, true)
 equal(4, #bag.rules, "move and remove also stay in the draft")
 button("Confirm")
 equal(true, AC_CategoryManagementWindow:IsHidden())
+equal(false, layerActive)
 equal(1, refreshes)
 equal(4, #bag.rules, "one add and one remove committed")
 equal(nil, (function() for _, entry in ipairs(bag.rules) do if entry.name == "dog" then return entry end end end)())

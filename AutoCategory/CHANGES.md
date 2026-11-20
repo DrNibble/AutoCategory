@@ -9,6 +9,8 @@
   Search and click on the left to add. On the right, reorder by
   execution priority using the arrows or by dragging, or right-click to
   remove. Apply saves changes for this bag; Cancel discards them.
+- Esc and Alt cancel the category manager without saving, including
+  while the search field has focus.
 - Reordering decrements lower priorities by one, adjusting at ties and
   at the priority limits when needed. Existing display priorities and
   global rules are unchanged. The manager uses the LibScrollableMenu

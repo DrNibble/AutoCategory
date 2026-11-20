@@ -157,6 +157,7 @@ function Management.Tooltip(name, rule)
     return title .. "\n" .. (rule and rule.rule or "")
 end
 
+local CANCEL_ACTION_LAYER = "AutoCategoryCategoryManagement"
 local window, availableList, presentList, draft, onCommit
 
 local function inventoryName(bagId)
@@ -179,6 +180,12 @@ local function close()
     presentList:Hide()
     window:SetHidden(true)
     ZO_Tooltips_HideTextTooltip()
+end
+
+function Management.Cancel()
+    if not draft or window:IsHidden() then return false end
+    close()
+    return true
 end
 
 local function refresh()
@@ -215,7 +222,11 @@ local function setup()
     window:GetNamedChild("Hint"):SetText(GetString(SI_AC_CATEGORY_MANAGER_HINT))
     window:GetNamedChild("Cancel"):SetText(GetString(SI_DIALOG_CANCEL))
     window:GetNamedChild("Confirm"):SetText(GetString(SI_AC_CATEGORY_MANAGER_CONFIRM))
-    window:GetNamedChild("Cancel"):SetHandler("OnClicked", close)
+    window:SetHandler("OnEffectivelyHidden", function()
+        RemoveActionLayerByName(CANCEL_ACTION_LAYER)
+        if draft then close() end
+    end)
+    window:GetNamedChild("Cancel"):SetHandler("OnClicked", Management.Cancel)
     window:GetNamedChild("Confirm"):SetHandler("OnClicked", function()
         if not draft then return end
         local changed = Management.Commit(draft, AC.saved, AC.CreateBagRule)
@@ -234,6 +245,13 @@ local function setup()
         return LibScrollableMenu.CreateOrderListBox(host, options)
     end
     availableList = makeList("Available", { enableFilter = true })
+    -- The focused search box can receive keys before the active action layer.
+    if availableList.edit then
+        availableList.edit:SetHandler("OnEscape", Management.Cancel)
+        availableList.edit:SetHandler("OnKeyDown", function(_, key, ctrl, _alt, shift, command)
+            if key == KEY_ALT and not (ctrl or shift or command) then return Management.Cancel() end
+        end)
+    end
     presentList = makeList("Present", {
         enableManualOrder = true,
         onOrderChanged = function(_, _, _, fromIndex, toIndex)
@@ -266,4 +284,5 @@ function Management.Open(bagId, refreshInventory)
     window:BringWindowToTop()
     availableList:Show()
     presentList:Show()
+    PushActionLayerByName(CANCEL_ACTION_LAYER)
 end

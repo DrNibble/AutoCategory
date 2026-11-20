@@ -6,4 +6,14 @@
 			</Action>
 		</Category>
 	</Layer>
+	<Layer name="AutoCategoryCategoryManagement">
+		<Category>
+			<Action name="AC_CATEGORY_MANAGEMENT_CANCEL_ESCAPE" hideAction="true" rebindable="false" inheritsBindFrom="TOGGLE_SYSTEM">
+				<Down>return AutoCategory.CategoryManagement.Cancel()</Down>
+			</Action>
+			<Action name="AC_CATEGORY_MANAGEMENT_CANCEL_ALT" hideAction="true" rebindable="false" inheritsBindFrom="TOGGLE_GAME_CAMERA_UI_MODE">
+				<Down>return AutoCategory.CategoryManagement.Cancel()</Down>
+			</Action>
+		</Category>
+	</Layer>
 </Bindings>

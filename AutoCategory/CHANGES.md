@@ -11,8 +11,6 @@
   Search and click on the left to add. On the right, reorder by
   execution priority using the arrows or by dragging, or right-click to
   remove. Apply saves changes for this bag; Cancel discards them.
-- The four reorder buttons use ESO's arrow textures for all states
-  instead of text glyphs.
 - The game's System Menu and Inventory shortcuts cancel the category
   manager without saving. The inventory shortcut follows the game's
   keybinding rather than using a hardcoded key. Escape also cancels

@@ -21,9 +21,9 @@ AutoCategory_Global.lua
 AutoCategory_Defaults.lua
 AutoCategory_Tree.lua
 Plugin_API.lua
-AutoCategory_OrderList.xml
-AutoCategory.xml
-AutoCategory_ScrollMenu.xml
+XML/AutoCategory_OrderList.xml
+XML/AutoCategory.xml
+XML/AutoCategory_ScrollMenu.xml
 AutoCategory_ScrollMenu.lua
 AutoCategory_OrderList.lua
 Hooks_Keyboard.lua
@@ -66,4 +66,4 @@ plugins/DressingRoom2018_Plugin.lua
 ; old integration with other addons files
 AutoCategory_Integrations_QuickMenu.lua
 
-Bindings.xml
+XML/Bindings.xml

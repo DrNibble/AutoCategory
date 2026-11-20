@@ -111,14 +111,14 @@ function RemoveActionLayerByName(name)
     equal(layerName, name)
     layerActive = false
 end
-local bindingsFile = assert(io.open("Bindings.xml"))
+local bindingsFile = assert(io.open("XML/Bindings.xml"))
 local bindings = bindingsFile:read("*a")
 bindingsFile:close()
 local layer = assert(bindings:match('<Layer name="' .. layerName .. '">(.-)</Layer>'))
 local bindingByAction = {}
 for attributes, content in layer:gmatch("<Action ([^>]+)>(.-)</Action>") do
     local inheritedAction = assert(attributes:match('inheritsBindFrom="([^"]+)"'))
-    bindingByAction[inheritedAction] = assert(loadstring(assert(content:match("<Down>(.-)</Down>")), "@Bindings.xml"))
+    bindingByAction[inheritedAction] = assert(loadstring(assert(content:match("<Down>(.-)</Down>")), "@XML/Bindings.xml"))
 end
 local function press(action)
     local binding = bindingByAction[action]

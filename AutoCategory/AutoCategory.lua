@@ -1398,7 +1398,7 @@ local function bagCategoryNames(bagTypeId)
     end
     return names
 end
--- called from AutoCategory.xml
+-- called from XML/AutoCategory.xml
 function AC_ItemRowHeader_OnMouseEnter(header)
     local cateName = header.slot.dataEntry.data.AC_categoryName
     local bagTypeId = getBagTypeId(header)
@@ -1421,13 +1421,13 @@ function AC_ItemRowHeader_OnMouseEnter(header)
     end
 end
 
--- called from AutoCategory.xml
+-- called from XML/AutoCategory.xml
 function AC_ItemRowHeader_OnMouseExit(header)
     local markerBG = header:GetNamedChild("CollapseMarkerBG")
     markerBG:SetHidden(true)
 end
 
--- called from AutoCategory.xml
+-- called from XML/AutoCategory.xml
 -- collapse/expand a header by clicking on the -/+ icon
 function AC_ItemRowHeader_OnMouseClicked(header)
     if (AutoCat.acctSaved.general["SHOW_CATEGORY_COLLAPSE_ICON"] == false) then
@@ -1587,7 +1587,7 @@ local function showHeaderContextMenu(header, cateName, bagTypeId, displayName)
     AutoCategory.ScrollMenu.Show(header, rows, { visibleRows = 15, submenuRows = 15 })
 end
 
--- Called from AutoCategory.xml on right mouse-up over a category header.
+-- Called from XML/AutoCategory.xml on right mouse-up over a category header.
 function AC_ItemRowHeader_OnShowContextMenu(header)
     local data = header.slot.dataEntry.data
     local cateName, displayName = data.AC_categoryName, data.AC_displayName
@@ -1598,7 +1598,7 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     end, 0)
 end
 
--- called from binding.xml
+-- called from XML/Bindings.xml
 -- toggle AutoCategory on or off
 function AC_Binding_ToggleCategorize()
     AutoCat.Enabled = not AutoCat.Enabled

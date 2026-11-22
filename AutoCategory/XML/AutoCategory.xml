@@ -124,14 +124,11 @@
             <OnMouseExit>
                 AC_ItemRowHeader_OnMouseExit(self)
             </OnMouseExit>
+            <OnDragStart>
+                AC_ItemRowHeader_OnDragStart(self, button)
+            </OnDragStart>
             <OnMouseUp>
-                if(upInside) then
-					if button == MOUSE_BUTTON_INDEX_LEFT then
-						AC_ItemRowHeader_OnMouseClicked(self)
-					elseif button == MOUSE_BUTTON_INDEX_RIGHT then
-						AC_ItemRowHeader_OnShowContextMenu(self)
-					end
-                end
+                AC_ItemRowHeader_OnMouseUp(self, button, upInside)
             </OnMouseUp>
             <Controls>
                 <Label name="$(parent)HeaderName" font="ZoFontGameShadow" wrapMode="ELLIPSIS" horizontalAlignment="CENTER" verticalAlignment="CENTER">

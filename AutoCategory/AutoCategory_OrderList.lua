@@ -30,12 +30,24 @@ local function searchText(text)
     return (LocaleAwareToLower or string.lower)(text:match("^%s*(.-)%s*$"))
 end
 
+-- The inventory headers and the manager use the same non-interactive
+-- label anchored to the mouse.
+function List.ShowDragLabel(text)
+    AC_OrderListDragLabel:GetNamedChild("Text"):SetText(text)
+    AC_OrderListDragLabel:SetHidden(false)
+    AC_OrderListDragLabel:BringWindowToTop()
+end
+
+function List.HideDragLabel()
+    AC_OrderListDragLabel:SetHidden(true)
+end
+
 function List:StopDrag()
     if not self.drag then return end
     self.drag = nil
     self.host:SetHandler("OnUpdate", nil)
     EVENT_MANAGER:UnregisterForEvent(self.eventName, EVENT_GLOBAL_MOUSE_UP)
-    AC_OrderListDragLabel:SetHidden(true)
+    List.HideDragLabel()
 end
 
 function List:SelectedIndex()
@@ -69,9 +81,7 @@ function List:StartDrag(row, data, button)
     self:StopDrag()
     self.drag = data
     ZO_Tooltips_HideTextTooltip()
-    AC_OrderListDragLabel:GetNamedChild("Text"):SetText(row:GetNamedChild("Text"):GetText())
-    AC_OrderListDragLabel:SetHidden(false)
-    AC_OrderListDragLabel:BringWindowToTop()
+    List.ShowDragLabel(row:GetNamedChild("Text"):GetText())
 
     local elapsed = 0
     self.host:SetHandler("OnUpdate", function()

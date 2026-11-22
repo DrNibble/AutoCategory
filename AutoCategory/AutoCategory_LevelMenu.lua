@@ -135,6 +135,20 @@ local function findBagrule(bagTypeId, ruleName)
     return nil
 end
 
+-- A drop edits a real category of this bag, not a synthetic prefix or
+-- a dynamic sub-header that happens to end in the name of a rule.
+function CLM.HeaderRuleForDrag(bagTypeId, cateName)
+    local rule = CLM.HeaderRule(cateName)
+    if not rule or not findBagrule(bagTypeId, rule.name)
+            or CategoryTree.IsHierarchical(rule.name) then return nil end
+    if cateName == rule.name then return rule end
+    local prefixes = CLM.RuleChainPrefixes(rule)
+    if cateName == prefixes[#prefixes]
+            and CategoryTree.LevelCount(cateName) <= CLM.EffectiveLevel(rule) then
+        return rule
+    end
+end
+
 -- Every category of the bag whose parent chain (the Parent dropdown
 -- chain) contains ruleName: the categories nested under the category,
 -- in the order of the bag's rule list. The category itself is never
@@ -849,6 +863,15 @@ local function refreshAfterChange()
     AutoCategory.RefreshCurrentList()
 end
 
+-- The context menu and inventory drag share the mutation and refresh path.
+function CLM.MoveSubtreeAndRefresh(bagTypeId, ruleName, newParentName)
+    if not CLM.MoveSubtreeToParent(bagTypeId, ruleName, newParentName) then
+        return false
+    end
+    refreshAfterChange()
+    return true
+end
+
 local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
 local newCategoryDialogRegistered = false
 
@@ -1131,9 +1154,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
             moveEntries[#moveEntries + 1] = {
                 label = GetString(SI_AC_MENU_CM_MOVE_TOP),
                 callback = function()
-                    if CLM.MoveSubtreeToParent(bagTypeId, rule.name, nil) then
-                        refreshAfterChange()
-                    end
+                    CLM.MoveSubtreeAndRefresh(bagTypeId, rule.name, nil)
                 end,
             }
         end
@@ -1172,10 +1193,7 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
                     moveEntries[#moveEntries + 1] = {
                         label = label,
                         callback = function()
-                            if CLM.MoveSubtreeToParent(bagTypeId,
-                                    rule.name, name) then
-                                refreshAfterChange()
-                            end
+                            CLM.MoveSubtreeAndRefresh(bagTypeId, rule.name, name)
                         end,
                     }
                 end

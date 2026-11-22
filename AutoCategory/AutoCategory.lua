@@ -1272,6 +1272,76 @@ local function getBagTypeId(header)
 	return bagTypeId
 end
 
+local HEADER_DRAG_EVENT = "AutoCategory_InventoryHeaderDrag"
+local headerDrag
+
+local function inventoryHeaderData(control)
+    local slot = control and control.slot
+    local data = slot and slot.dataEntry and slot.dataEntry.data
+    if data and data.AC_isHeader then return data end
+end
+
+-- Scroll list row controls can be recycled under the pointer. Keep the
+-- source rule name, and resolve the row being hovered only on release.
+function AC_ItemRowHeader_OnDragStart(header, button)
+    if button ~= MOUSE_BUTTON_INDEX_LEFT or headerDrag then return end
+    local data = inventoryHeaderData(header)
+    local contents = header:GetParent()
+    if not data or not contents then return end
+
+    local bagTypeId = getBagTypeId(header)
+    local CLM = AutoCat.CategoryLevelMenu
+    local rule = CLM.HeaderRuleForDrag(bagTypeId, data.AC_categoryName)
+    local drag = { ruleName = rule and rule.name }
+    headerDrag = drag
+    if rule then
+        AutoCat.ScrollMenu.Hide()
+        AutoCat.OrderList.ShowDragLabel(data.AC_displayName or data.AC_categoryName)
+    end
+
+    EVENT_MANAGER:RegisterForEvent(HEADER_DRAG_EVENT, EVENT_GLOBAL_MOUSE_UP, function(_, released)
+        if released ~= MOUSE_BUTTON_INDEX_LEFT then return end
+        EVENT_MANAGER:UnregisterForEvent(HEADER_DRAG_EVENT, EVENT_GLOBAL_MOUSE_UP)
+        if drag.ruleName then AutoCat.OrderList.HideDragLabel() end
+
+        local parentRule
+        if drag.ruleName and not contents:IsControlHidden() then
+            local target = WINDOW_MANAGER:GetMouseOverControl()
+            -- Only a header in the same scroll list can be the target.
+            while target and target ~= contents do
+                local parent = target:GetParent()
+                if parent == contents then
+                    local targetData = not target:IsControlHidden() and inventoryHeaderData(target)
+                    if targetData and getBagTypeId(target) == bagTypeId then
+                        parentRule = CLM.HeaderRuleForDrag(bagTypeId, targetData.AC_categoryName)
+                    end
+                    break
+                end
+                target = parent
+            end
+        end
+
+        -- Let the row's mouse-up finish without toggling its collapsed
+        -- state, regardless of the order of the global and row events.
+        zo_callLater(function()
+            if headerDrag ~= drag then return end
+            headerDrag = nil
+            if parentRule and not contents:IsControlHidden() then
+                CLM.MoveSubtreeAndRefresh(bagTypeId, drag.ruleName, parentRule.name)
+            end
+        end, 0)
+    end)
+end
+
+function AC_ItemRowHeader_OnMouseUp(header, button, upInside)
+    if not upInside or headerDrag then return end
+    if button == MOUSE_BUTTON_INDEX_LEFT then
+        AC_ItemRowHeader_OnMouseClicked(header)
+    elseif button == MOUSE_BUTTON_INDEX_RIGHT then
+        AC_ItemRowHeader_OnShowContextMenu(header)
+    end
+end
+
 -- The names of the sub-levels displayed under a category of a bag: the
 -- ones present in the inventory lists of that bag type (every entry
 -- carries its full level chain), and the folded ones remembered in the

@@ -1,5 +1,17 @@
 # Changes
 
+## 2026-11-22: drag inventory category headers
+
+- In keyboard inventory, hold the left mouse button and drag a category
+  header onto another category header of the same bag to make it a child.
+  This runs the same operation as Move To: descendants move along with
+  the category, while invalid drops (including a cycle or a depth above
+  level 5) leave the layout unchanged.
+- A simple left click still folds or unfolds the header, and right-click
+  still opens its menu. Generated headings without their own bag rule and
+  legacy headings made from separator-delimited category names cannot be
+  dragged or used as parents. Not tested in ESO.
+
 ## 2026-11-20: manage categories in the selected inventory
 
 - AutoCategory no longer requires LibScrollableMenu. Its Lua/XML menus

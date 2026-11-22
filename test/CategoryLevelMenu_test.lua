@@ -864,4 +864,144 @@ indentEntries[4].callback()
 equal("Indent L4", AutoCategory.GetRuleByName("Indent source").parent, "move resolves the unindented name")
 equal(5, AutoCategory.GetRuleByName("Indent source").level, "move still nests under the selected level")
 
+-- Run the shipped XML handlers and header input code against the real
+-- level move, substituting only the ESO UI controls and event dispatch.
+local function readFile(path)
+    local file = assert(io.open(path, "r"))
+    local text = file:read("*a")
+    file:close()
+    return (text:gsub("\r\n", "\n"))
+end
+local inventory = readFile("AutoCategory.lua")
+local first = assert(inventory:find("local function getBagTypeId(header)", 1, true))
+local last = assert(inventory:find("-- The names of the sub-levels displayed", first, true))
+assert(loadstring("local AutoCat = AutoCategory\n" .. inventory:sub(first, last - 1)))()
+local headerXml = assert(readFile("XML/AutoCategory.xml"):match(
+    '<Control name="AC_InventoryItemRowHeader"[^>]*>(.-)<Controls>'))
+local onDragStart = assert(loadstring("local self, button = ...\n"
+    .. assert(headerXml:match("<OnDragStart>(.-)</OnDragStart>"))))
+local onMouseUp = assert(loadstring("local self, button, upInside = ...\n"
+    .. assert(headerXml:match("<OnMouseUp>(.-)</OnMouseUp>"))))
+
+local function control(parent, slot)
+    return {
+        slot = slot, hidden = false,
+        GetParent = function() return parent end,
+        IsControlHidden = function(self) return self.hidden or (parent and parent:IsControlHidden()) end,
+    }
+end
+local contents, otherContents = control(), control()
+local function header(path, bag, parent)
+    return control(parent or contents, { dataEntry = { data = {
+        AC_isHeader = true, AC_categoryName = path, AC_bagTypeId = bag or 20,
+        AC_displayName = CategoryTree.DisplayName(path),
+    } } })
+end
+rMid.parent, rMid.level = "TopB", 2
+rLeaf.parent, rLeaf.level = nil, nil
+local mid = header("TopB----Mid")
+local topA, topB = header("TopA"), header("TopB")
+local leaf = header("Leaf")
+
+MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
+EVENT_GLOBAL_MOUSE_UP = 3
+local mouseOver, globalUp, deferred, dragText
+WINDOW_MANAGER = { GetMouseOverControl = function() return mouseOver end }
+EVENT_MANAGER = {
+    RegisterForEvent = function(_, name, event, handler)
+        equal("AutoCategory_InventoryHeaderDrag", name)
+        equal(EVENT_GLOBAL_MOUSE_UP, event)
+        equal(nil, globalUp, "one listener per gesture")
+        globalUp = handler
+    end,
+    UnregisterForEvent = function() globalUp = nil end,
+}
+function zo_callLater(handler) deferred = handler end
+AutoCategory.OrderList = {
+    ShowDragLabel = function(value) dragText = value end,
+    HideDragLabel = function() dragText = nil end,
+}
+AutoCategory.ScrollMenu = { Hide = function() end }
+local folds, menus = 0, 0
+function AC_ItemRowHeader_OnMouseClicked() folds = folds + 1 end
+function AC_ItemRowHeader_OnShowContextMenu() menus = menus + 1 end
+local function release(source, target, globalFirst)
+    mouseOver = target
+    if globalFirst then globalUp(nil, MOUSE_BUTTON_INDEX_LEFT) end
+    onMouseUp(source, MOUSE_BUTTON_INDEX_LEFT, true)
+    if not globalFirst then globalUp(nil, MOUSE_BUTTON_INDEX_LEFT) end
+    equal(nil, globalUp, "mouse listener removed on release")
+    equal(nil, dragText, "drag label hidden on release")
+end
+local function finish() local work = deferred; deferred = nil; work() end
+local function drop(source, target)
+    onDragStart(source, MOUSE_BUTTON_INDEX_LEFT)
+    release(source, target, false)
+    finish()
+end
+onMouseUp(mid, MOUSE_BUTTON_INDEX_LEFT, true)
+onMouseUp(mid, MOUSE_BUTTON_INDEX_LEFT, false)
+onDragStart(mid, MOUSE_BUTTON_INDEX_RIGHT)
+equal(nil, globalUp, "right drag does not register a left gesture")
+onMouseUp(mid, MOUSE_BUTTON_INDEX_RIGHT, true)
+equal(1, folds, "a simple inside left click toggles once")
+equal(1, menus, "a right click still opens the menu")
+
+local beforeRefresh = refreshCalls.RefreshCurrentList
+onDragStart(leaf, MOUSE_BUTTON_INDEX_LEFT)
+equal("Leaf", dragText)
+globalUp(nil, MOUSE_BUTTON_INDEX_RIGHT)
+equal("Leaf", dragText, "right release does not end left drag")
+-- The original scroll row is reused before release; its new item must
+-- not become the source. The target can be hit through a child control.
+leaf.slot = topB.slot
+release(leaf, control(mid), true)
+equal(nil, rLeaf.parent, "move waits until the mouse-up finishes")
+finish()
+equal("Mid", rLeaf.parent)
+equal(3, rLeaf.level)
+equal(beforeRefresh + 1, refreshCalls.RefreshCurrentList, "one refresh after a valid drop")
+drop(mid, topA)
+equal("TopA", rMid.parent, "move a nested header to a different parent")
+equal("Mid", rLeaf.parent, "descendant moves with its parent")
+local movedMid = header("TopA----Mid")
+local movedLeaf = header("TopA----Mid----Leaf")
+local beforeInvalid = refreshCalls.RefreshCurrentList
+drop(movedMid, movedMid)
+drop(movedMid, movedLeaf)
+drop(movedMid, topA)
+drop(movedMid, nil)
+drop(movedMid, control(contents))
+drop(movedMid, header("TopB", 22))
+drop(movedMid, header("TopB", 20, otherContents))
+drop(movedMid, header("TopB----Leaf"))
+drop(header("Autres"), topB)
+equal("TopA", rMid.parent, "self, cycle, same parent, outside, item, other bag/list and synthetic drops never move")
+equal(beforeInvalid, refreshCalls.RefreshCurrentList)
+equal(1, folds, "neither mouse-up ordering folds a header after dragging")
+
+local deepTarget = header("Indent L1----Indent L2----Indent L3----Indent L4", 23)
+drop(header("Indent L1----Indent L2----Indent L3----Indent L4----Indent source", 23),
+    header("Indent L1----Indent L2", 23))
+local depthSource = header("Indent L1----Indent L2----Indent source", 23)
+drop(depthSource, deepTarget)
+equal(5, AutoCategory.GetRuleByName("Indent source").level, "a drop may reach level five")
+local maxTarget = header("Indent L1----Indent L2----Indent L3----Indent L4----Indent source", 23)
+local atTop = newRule("Drag top-level")
+table.insert(AutoCategory.saved.bags[23].rules, { name = atTop.name })
+drop(header(atTop.name, 23), maxTarget)
+equal(nil, atTop.parent, "a level-five header cannot be a destination")
+drop(maxTarget, header("Indent L1", 23))
+drop(header("Indent L1----Indent L2", 23), header("Indent L1----Indent source", 23))
+equal("Indent L1", AutoCategory.GetRuleByName("Indent L2").parent, "a whole branch may not exceed level five")
+
+onDragStart(movedMid, MOUSE_BUTTON_INDEX_LEFT)
+release(movedMid, topB, true)
+contents.hidden = true
+finish()
+contents.hidden = false
+equal("TopA", rMid.parent, "closing the inventory cancels the pending drop")
+onMouseUp(movedMid, MOUSE_BUTTON_INDEX_LEFT, true)
+equal(2, folds, "normal clicks resume after the drag is cleaned up")
+
 print("CategoryLevelMenu_test: " .. assertions .. " assertions passed")

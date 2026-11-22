@@ -6,10 +6,14 @@ AC.CategoryManagement = Management
 local MAX_PRIORITY = 1000
 local ABSENT_COLOR = { 0.65, 0.65, 0.65, 1 }
 local HIDDEN_COLOR = { 1, 0.35, 0.35, 1 }
-local function priority(entry)
-    local value = tonumber(entry.runpriority)
+local function priority(value)
+    value = tonumber(value)
     if not value then return 0 end
     return math.min(MAX_PRIORITY, math.max(0, math.floor(value)))
+end
+
+local function displayPriority(row)
+    return priority(row.showpriority or row.priority)
 end
 
 local function byPriority(a, b)
@@ -44,7 +48,7 @@ function Management.NewDraft(saved, bagId, getRule)
         }
         draft.snapshot[entry].count = draft.snapshot[entry].count + 1
         if not draft.original[entry.name] and draft.getLayout(entry.name) then
-            local row = { name = entry.name, priority = priority(entry) }
+            local row = { name = entry.name, priority = priority(entry.runpriority), showpriority = entry.showpriority }
             draft.original[entry.name] = {
                 priority = row.priority, showpriority = entry.showpriority, entry = entry,
             }
@@ -79,7 +83,7 @@ function Management.Add(draft, name)
     for _, row in ipairs(draft.rows) do if row.name == name then return false end end
     local original = draft.original[name]
     local value = original and original.priority or MAX_PRIORITY
-    draft.rows[#draft.rows + 1] = { name = name, priority = value }
+    draft.rows[#draft.rows + 1] = { name = name, priority = value, showpriority = original and original.showpriority }
     table.sort(draft.rows, byPriority)
     return true
 end
@@ -94,54 +98,154 @@ function Management.Remove(draft, name)
     return false
 end
 
-function Management.Move(draft, fromIndex, toIndex)
-    local rows = draft.rows
-    if fromIndex == toIndex or not rows[fromIndex] or not rows[toIndex] then return false end
-
-    local values = {}
-    local moved = table.remove(rows, fromIndex)
-    local targetPriority = fromIndex < toIndex and rows[toIndex - 1].priority or rows[toIndex].priority
-    table.insert(rows, toIndex, moved)
-    for i, row in ipairs(rows) do
-        values[i] = i < toIndex and row.priority or (i == toIndex and targetPriority or row.priority - 1)
-        if i > 1 then
-            -- Equal priorities are allowed only when the game's tie-breaker
-            -- would keep these two categories in the requested order.
-            local step = rows[i - 1].name < row.name and 0 or 1
-            values[i] = math.min(values[i], values[i - 1] - step)
-        end
+function Management.OrderedRows(draft)
+    local ordered = {}
+    for i, row in ipairs(draft.rows) do ordered[i] = row end
+    if draft.displayOrder then
+        table.sort(ordered, function(a, b)
+            local first, second = displayPriority(a), displayPriority(b)
+            if first ~= second then return first > second end
+            return a.name < b.name
+        end)
     end
+    return ordered
+end
+
+local function applyOrder(draft, rows, values)
+    for i = 2, #rows do
+        -- Equal priorities are allowed only when the game's tie-breaker
+        -- would keep these two categories in the requested order.
+        local step = rows[i - 1].name < rows[i].name and 0 or 1
+        values[i] = math.min(values[i], values[i - 1] - step)
+    end
+    local minimum = draft.displayOrder and 2 or 0
     -- Repair underflow from the bottom without clamping away a user's move.
     for i = #rows, 1, -1 do
-        values[i] = math.max(values[i], 0)
+        values[i] = math.max(values[i], minimum)
         if i < #rows then
             local step = rows[i].name < rows[i + 1].name and 0 or 1
             values[i] = math.max(values[i], values[i + 1] + step)
         end
     end
-    if values[1] > MAX_PRIORITY then
-        table.insert(rows, fromIndex, table.remove(rows, toIndex))
-        return false
+    if values[1] > MAX_PRIORITY then return false end
+    if draft.displayOrder then
+        for i, row in ipairs(rows) do
+            if displayPriority(row) ~= values[i] then row.showpriority = values[i] end
+        end
+    else
+        for i, row in ipairs(rows) do row.priority = values[i] end
+        draft.rows = rows
     end
-    for i, row in ipairs(rows) do row.priority = values[i] end
     return true
 end
 
-local function layoutSubtree(draft, name)
+local function orderPriority(draft, row)
+    return draft.displayOrder and displayPriority(row) or row.priority
+end
+
+function Management.Move(draft, fromIndex, toIndex)
+    local rows = Management.OrderedRows(draft)
+    if fromIndex == toIndex or not rows[fromIndex] or not rows[toIndex] then return false end
+
+    local values = {}
+    local moved = table.remove(rows, fromIndex)
+    local targetPriority = orderPriority(draft, rows[fromIndex < toIndex and toIndex - 1 or toIndex])
+    table.insert(rows, toIndex, moved)
+    for i, row in ipairs(rows) do
+        local value = orderPriority(draft, row)
+        values[i] = i < toIndex and value or (i == toIndex and targetPriority or value - 1)
+    end
+    return applyOrder(draft, rows, values)
+end
+
+function Management.MoveSelection(draft, indices, delta, toEdge)
+    local rows = Management.OrderedRows(draft)
+    local count = #rows
+    if #indices == 0 or (delta ~= -1 and delta ~= 1) then return end
+    if #indices == 1 then
+        local index = indices[1]
+        local target = toEdge and (delta == -1 and 1 or count) or index + delta
+        if target == index or not rows[target] then return end
+        return Management.Move(draft, index, target)
+    end
+
+    local selected, values, changed = {}, {}, false
+    for _, index in ipairs(indices) do selected[rows[index]] = true end
+    for i, row in ipairs(rows) do values[i] = orderPriority(draft, row) end
+    if toEdge then
+        local first, last = {}, {}
+        local selectedFirst = delta == -1
+        for _, row in ipairs(rows) do
+            local group = (selected[row] == true) == selectedFirst and first or last
+            group[#group + 1] = row
+        end
+        for _, row in ipairs(last) do first[#first + 1] = row end
+        for i, row in ipairs(first) do
+            if row ~= rows[i] then changed = true; break end
+        end
+        rows = first
+    else
+        local first, last = 2, count
+        if delta == 1 then first, last = count - 1, 1 end
+        for i = first, last, -delta do
+            local other = i + delta
+            if selected[rows[i]] and not selected[rows[other]] then
+                rows[i], rows[other] = rows[other], rows[i]
+                changed = true
+            end
+        end
+    end
+    if changed then return applyOrder(draft, rows, values) end
+end
+
+local function planLevels(draft, selected)
     local bagRules = {}
     for _, row in ipairs(draft.rows) do
-        local original = draft.original[row.name]
         bagRules[#bagRules + 1] = {
             name = row.name, runpriority = row.priority,
-            showpriority = original and original.showpriority or nil,
+            showpriority = row.showpriority,
         }
     end
-    return CLM.SubtreeInRules(bagRules, name, draft.getLayout), bagRules
+    local roots, covered, moving, subtrees = {}, {}, {}, {}
+    for _, row in ipairs(draft.rows) do
+        if selected[row.name] then
+            local subtree = CLM.SubtreeInRules(bagRules, row.name, draft.getLayout)
+            roots[#roots + 1] = subtree
+            for i = 2, #subtree do covered[subtree[i].rule.name] = true end
+        end
+    end
+    for _, subtree in ipairs(roots) do
+        if not covered[subtree[1].rule.name] then
+            subtrees[#subtrees + 1] = subtree
+            for _, entry in ipairs(subtree) do
+                if moving[entry.rule.name] then return {}, bagRules, moving end
+                moving[entry.rule.name] = true
+            end
+        end
+    end
+    return subtrees, bagRules, moving
+end
+
+local function canShiftLevels(subtrees, delta)
+    if #subtrees == 0 or (delta ~= -1 and delta ~= 1) then return false end
+    local canShift = delta == 1 and CLM.CanIncrease or CLM.CanDecrease
+    for _, subtree in ipairs(subtrees) do
+        if not canShift(subtree) then return false end
+    end
+    return true
+end
+
+function Management.ShiftSelection(draft, selected, delta)
+    local subtrees, bagRules, moving = planLevels(draft, selected)
+    if not canShiftLevels(subtrees, delta) then return false end
+    for _, subtree in ipairs(subtrees) do
+        CLM.ShiftRuleLevels(bagRules, subtree, delta, draft.getLayout, moving)
+    end
+    return true
 end
 
 function Management.ShiftLevel(draft, name, delta)
-    local subtree, bagRules = layoutSubtree(draft, name)
-    return CLM.ShiftRuleLevels(bagRules, subtree, delta, draft.getLayout)
+    return Management.ShiftSelection(draft, { [name] = true }, delta)
 end
 
 -- Return nil if this bag, its priorities or a layout dependency is stale.
@@ -161,7 +265,7 @@ function Management.Commit(draft, saved, createBagRule)
         if prior.showpriority ~= entry.showpriority then displayOrderChanged = true end
     end
 
-    local selected, added, layouts = {}, {}, {}
+    local selected, added, layouts, displayEdited = {}, {}, {}, false
     for _, row in ipairs(draft.rows) do
         local rule = draft.getRule(row.name)
         if not rule then return nil end
@@ -170,15 +274,17 @@ function Management.Commit(draft, saved, createBagRule)
         if layout.copy.level ~= layout.level or layout.copy.parent ~= layout.parent then
             layouts[#layouts + 1] = layout
         end
-        if not draft.original[row.name] then
-            local entry = createBagRule(rule, row.priority)
+        local original = draft.original[row.name]
+        if row.showpriority ~= (original and original.showpriority) then displayEdited = true end
+        if not original then
+            local entry = createBagRule(rule, row.priority, row.showpriority)
             if not entry then return nil end
             added[#added + 1] = entry
         end
     end
 
+    if displayOrderChanged and (#layouts > 0 or displayEdited) then return nil end
     if #layouts > 0 then
-        if displayOrderChanged then return nil end
         -- A parent/candidate may have changed even if it was not edited here.
         for name, layout in pairs(draft.layouts) do
             local rule = draft.getRule(name)
@@ -194,9 +300,15 @@ function Management.Commit(draft, saved, createBagRule)
         if original and not row then
             table.remove(bag.rules, i)
             changed = true
-        elseif original and row.priority ~= original.priority then
-            entry.runpriority = row.priority
-            changed = true
+        elseif original then
+            if row.priority ~= original.priority then
+                entry.runpriority = row.priority
+                changed = true
+            end
+            if row.showpriority ~= original.showpriority then
+                entry.showpriority = row.showpriority
+                changed = true
+            end
         end
     end
     for _, entry in ipairs(added) do bag.rules[#bag.rules + 1] = entry end
@@ -264,7 +376,7 @@ local function refresh()
             end,
         }
     end
-    for _, row in ipairs(draft.rows) do
+    for _, row in ipairs(Management.OrderedRows(draft)) do
         local name = row.name
         local original = draft.original[name]
         local entry = original and original.entry
@@ -276,7 +388,7 @@ local function refresh()
         end
         local indent = string.rep("   ", CLM.EffectiveLevel(draft.getLayout(name)) - 1)
         present[#present + 1] = {
-            key = name, name = name, label = indent .. string.format("[%d] %s", row.priority, name),
+            key = name, name = name, label = indent .. string.format("[%d] %s", orderPriority(draft, row), name),
             color = color,
             tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),
             rightClickCallback = function()
@@ -298,25 +410,40 @@ local function setupLevels()
         end)
         button:SetHandler("OnMouseExit", ZO_Tooltips_HideTextTooltip)
         button:SetHandler("OnClicked", function()
-            if draft and presentList.selected and Management.ShiftLevel(draft, presentList.selected, delta) then
+            if draft and Management.ShiftSelection(draft, presentList.selection, delta) then
                 refresh()
             end
         end)
     end
     setupButton(shallower, -1, SI_AC_MENU_CM_LEVEL_SHALLOWER)
     setupButton(deeper, 1, SI_AC_MENU_CM_LEVEL_DEEPER)
-    return function(name)
-        local subtree = draft and name and layoutSubtree(draft, name)
-        shallower:SetEnabled(subtree ~= nil and CLM.CanDecrease(subtree))
-        deeper:SetEnabled(subtree ~= nil and CLM.CanIncrease(subtree))
+    return function(selection)
+        local subtrees = draft and next(selection) and planLevels(draft, selection) or {}
+        shallower:SetEnabled(canShiftLevels(subtrees, -1))
+        deeper:SetEnabled(canShiftLevels(subtrees, 1))
     end
+end
+
+local function selectOrder(displayOrder)
+    if not draft then return end
+    draft.displayOrder = displayOrder
+    local modes = window:GetNamedChild("PresentTitle")
+    modes:GetNamedChild("Run"):SetEnabled(displayOrder)
+    modes:GetNamedChild("Display"):SetEnabled(not displayOrder)
+    window:GetNamedChild("Status"):SetText("")
+    refresh()
 end
 
 local function setup()
     window = AC_CategoryManagementWindow
     window:GetNamedChild("Title"):SetText(GetString(SI_AC_MENU_CM_MANAGE_CATEGORIES))
     window:GetNamedChild("AvailableTitle"):SetText(GetString(SI_AC_CATEGORY_MANAGER_AVAILABLE))
-    window:GetNamedChild("PresentTitle"):SetText(GetString(SI_AC_CATEGORY_MANAGER_PRESENT))
+    local modes = window:GetNamedChild("PresentTitle")
+    local run, display = modes:GetNamedChild("Run"), modes:GetNamedChild("Display")
+    run:SetText(GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY))
+    display:SetText(GetString(SI_AC_MENU_BS_SLIDER_CATEGORY_SHOWPRIORITY))
+    run:SetHandler("OnClicked", function() selectOrder(false) end)
+    display:SetHandler("OnClicked", function() selectOrder(true) end)
     window:GetNamedChild("Hint"):SetText(GetString(SI_AC_CATEGORY_MANAGER_HINT))
     window:GetNamedChild("Cancel"):SetText(GetString(SI_DIALOG_CANCEL))
     window:GetNamedChild("Confirm"):SetText(GetString(SI_AC_CATEGORY_MANAGER_CONFIRM))
@@ -349,6 +476,13 @@ local function setup()
             refresh()
             if not moved then showError(SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT) end
         end,
+        onMoveSelection = function(indices, delta, toEdge)
+            if not draft then return end
+            local moved = Management.MoveSelection(draft, indices, delta, toEdge)
+            if moved == nil then return end
+            refresh()
+            if not moved then showError(SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT) end
+        end,
     })
     presentList.edit:SetHandler("OnEscape", Management.Cancel)
 end
@@ -365,8 +499,7 @@ function Management.Open(bagId, refreshInventory, sourceList)
     draft.sourceList = sourceList
     onCommit = refreshInventory
     window:GetNamedChild("Inventory"):SetText(inventoryName(bagId))
-    window:GetNamedChild("Status"):SetText("")
-    refresh()
+    selectOrder(false)
     window:SetHidden(false)
     window:BringWindowToTop()
     availableList:Show()

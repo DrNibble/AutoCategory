@@ -258,7 +258,7 @@ end
 -- automatic parent attachment of Edit Category. The categories of the
 -- subtree are never candidates (the root cannot nest under its own
 -- descendants).
-local function nearestAncestorName(rules, rootRule, targetLevel, subtree, getRule)
+local function nearestAncestorName(rules, rootRule, targetLevel, subtree, getRule, moving)
     if not rules then return nil end
     local excluded = {}
     for i = 1, #subtree do
@@ -271,7 +271,7 @@ local function nearestAncestorName(rules, rootRule, targetLevel, subtree, getRul
             passedSelf = true
         else
             local r = getRule(brule.name)
-            if r and not excluded[r.name]
+            if r and not excluded[r.name] and not (moving and moving[r.name])
                     and CLM.EffectiveLevel(r) == targetLevel then
                 first = first or brule.name
                 if not passedSelf then
@@ -293,7 +293,7 @@ end
 -- was refused (a category of the subtree is already at level 5) or
 -- there was nothing to decrease.
 -- Operate on the supplied rules; the manager passes draft copies.
-function CLM.ShiftRuleLevels(rules, subtree, delta, getRule)
+function CLM.ShiftRuleLevels(rules, subtree, delta, getRule, moving)
     if not subtree or not subtree[1] or (delta ~= 1 and delta ~= -1) then return false end
     if delta == 1 and not CLM.CanIncrease(subtree) then return false end
     if delta == -1 and not CLM.CanDecrease(subtree) then return false end
@@ -305,7 +305,7 @@ function CLM.ShiftRuleLevels(rules, subtree, delta, getRule)
         local root = subtree[1].rule
         if not (type(root.parent) == "string" and root.parent ~= "") then
             newRootParent = nearestAncestorName(rules, root,
-                CLM.EffectiveLevel(root), subtree, getRule)
+                CLM.EffectiveLevel(root), subtree, getRule, moving)
         end
     end
 

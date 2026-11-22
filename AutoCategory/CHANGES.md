@@ -1,5 +1,18 @@
 # Changes
 
+## 2026-11-23: select multiple categories in Manage Categories
+
+- Ctrl+click toggles a category on the right; Shift+click selects a
+  range of filtered rows. Ctrl+Shift+click adds a range. The vertical
+  arrows move the selection without changing its relative order.
+- Switch between execution and display priority above the list.
+  Display priority controls the order of siblings in the inventory;
+  it does not change the order in which rules run.
+- The horizontal arrows shift the selected branches together; selecting
+  both a parent and its child does not shift the child twice. If one
+  branch reaches a level limit, the whole shift is blocked. Changes
+  remain in the draft until Apply. Not tested in ESO.
+
 ## 2026-11-22: filter and change levels in Manage Categories
 
 - Both lists have independent name filters. The right list stays sorted

@@ -22,10 +22,20 @@
                     <Dimensions x="410" y="50"/>
                     <Anchor point="TOPLEFT" offsetX="18" offsetY="70"/>
                 </Label>
-                <Label name="$(parent)PresentTitle" font="ZoFontWinH4" horizontalAlignment="CENTER">
+                <Control name="$(parent)PresentTitle">
                     <Dimensions x="410" y="50"/>
                     <Anchor point="TOPRIGHT" offsetX="-18" offsetY="70"/>
-                </Label>
+                    <Controls>
+                        <Button name="$(parent)Run" inherits="ZO_DefaultButton">
+                            <Dimensions x="194" y="30"/>
+                            <Anchor point="RIGHT" relativePoint="CENTER" offsetX="-4"/>
+                        </Button>
+                        <Button name="$(parent)Display" inherits="ZO_DefaultButton">
+                            <Dimensions x="194" y="30"/>
+                            <Anchor point="LEFT" relativePoint="CENTER" offsetX="4"/>
+                        </Button>
+                    </Controls>
+                </Control>
                 <Control name="$(parent)Available" inherits="AC_OrderListHost">
                     <Dimensions x="410" y="426"/>
                     <Anchor point="TOPLEFT" relativeTo="$(parent)AvailableTitle" relativePoint="BOTTOMLEFT"/>

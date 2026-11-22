@@ -18,8 +18,8 @@ local definitions = {
     dog = definition("dog", "true"),
 }
 local function lookup(name) return definitions[name] end
-local function bagRule(rule, value)
-    return { name = rule.name, runpriority = value, showpriority = value }
+local function bagRule(rule, value, shown)
+    return { name = rule.name, runpriority = value, showpriority = shown or value }
 end
 local apple = { name = "Apple", runpriority = 60, showpriority = 17, isHidden = true }
 local bear = { name = "Bear", runpriority = 30, showpriority = 105 }
@@ -45,6 +45,8 @@ SI_AC_CATEGORY_MANAGER_READ_ONLY = "lecture seule"
 SI_AC_CATEGORY_MANAGER_STALE = "obsolete"
 SI_AC_MENU_CM_LEVEL_SHALLOWER = "Relever ←"
 SI_AC_MENU_CM_LEVEL_DEEPER = "Abaisser →"
+SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY = "Priorité d'exécution"
+SI_AC_MENU_BS_SLIDER_CATEGORY_SHOWPRIORITY = "Priorité d'affichage"
 dofile("AutoCategory_Tree.lua")
 dofile("AutoCategory_LevelMenu.lua")
 dofile("PredefinedLayouts.lua")
@@ -176,7 +178,7 @@ end
 TOPLEFT, BOTTOMRIGHT, LEFT, TOP = 1, 2, 3, 4
 MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
 EVENT_GLOBAL_MOUSE_UP = 99
-local mouseOver, events, shift, tooltip = nil, {}, false, nil
+local mouseOver, events, shift, ctrl, tooltip = nil, {}, false, false, nil
 local pointerX, pointerY = 10, 365
 EVENT_MANAGER = {}
 function EVENT_MANAGER:RegisterForEvent(key, id, callback)
@@ -189,6 +191,7 @@ function EVENT_MANAGER:UnregisterForEvent(key, id)
 end
 WINDOW_MANAGER = { GetMouseOverControl = function() return mouseOver end }
 function IsShiftKeyDown() return shift end
+function IsControlKeyDown() return ctrl end
 function GetUIMousePosition() return pointerX, pointerY end
 function GetFrameTimeSeconds() return 1 end
 function ZO_Tooltips_ShowTextTooltip(_, _, text) tooltip = text end
@@ -549,6 +552,155 @@ equal("Apple", present.selected, "grey rows stay selectable")
 rowClick(present, 4)
 equal("cat", present.selected, "red rows stay selectable")
 equal(true, M.Cancel())
+
+local function selectedKeys()
+    local keys = {}
+    for _, item in ipairs(present.items) do
+        if present.selection[item.key] then keys[#keys + 1] = item.key end
+    end
+    return table.concat(keys, ",")
+end
+local function modifiedClick(index, control, range)
+    ctrl, shift = control, range
+    rowClick(present, index)
+    ctrl, shift = false, false
+end
+local function presentedKeys()
+    local keys = {}
+    for _, item in ipairs(present.items) do keys[#keys + 1] = item.key end
+    return table.concat(keys, ",")
+end
+local function priorityArrow(key)
+    present.arrows:GetNamedChild(key):Fire("OnClicked")
+end
+local function orderTab(key)
+    local control = AC_CategoryManagementWindow:GetNamedChild("PresentTitle"):GetNamedChild(key)
+    control:Fire("OnClicked")
+end
+
+M.Open(1, refreshInventory, inventoryList)
+rowClick(present, 1)
+modifiedClick(3, true, false)
+equal("Apple,Zebra", selectedKeys(), "Ctrl+click adds a disjoint row")
+equal(false, present.scroll.rows[1]:GetNamedChild("Highlight"):IsHidden())
+equal(true, present.scroll.rows[2]:GetNamedChild("Highlight"):IsHidden())
+equal(false, present.scroll.rows[3]:GetNamedChild("Highlight"):IsHidden())
+modifiedClick(1, true, false)
+equal("Zebra", selectedKeys(), "Ctrl+click toggles a selected row off")
+modifiedClick(2, false, true)
+equal("Apple,Bear", selectedKeys(), "Shift uses the last clicked anchor and replaces the selection")
+modifiedClick(4, true, true)
+equal("Apple,Bear,Zebra,cat", selectedKeys(), "Ctrl+Shift adds a range")
+equal(false, present.arrows:GetNamedChild("Up").enabled)
+rowClick(present, 4)
+modifiedClick(2, false, true)
+equal("Bear,Zebra,cat", selectedKeys(), "Shift also selects a range upwards")
+
+rowClick(present, 1)
+modifiedClick(3, true, false)
+priorityArrow("Up")
+equal("Apple,Zebra,Bear,cat", presentedKeys(), "each selected run moves one step without reversing the group")
+equal("Apple,Zebra", selectedKeys(), "reordering preserves selected keys")
+priorityArrow("Last")
+equal("Bear,cat,Apple,Zebra", presentedKeys(), "moving to the edge is a stable partition")
+equal("Apple,Zebra", selectedKeys())
+equal(70, root.runpriority, "batch execution reorder is draft only")
+equal(true, M.Cancel())
+
+M.Open(1, refreshInventory, inventoryList)
+rowClick(lists[1], 1) -- dog, the only available category, enters at the top
+equal("dog,Apple,Bear,Zebra,cat", presentedKeys())
+rowClick(present, 1)
+modifiedClick(5, false, true)
+present.edit:SetText("a")
+equal("Apple,Bear,Zebra,cat", selectedKeys(), "filter clears only selections that disappear")
+rowClick(present, 1)
+modifiedClick(3, false, true)
+equal("Apple,Bear,Zebra", selectedKeys(), "ranges use filtered order")
+present.edit:SetText("")
+equal("Apple,Bear,Zebra", selectedKeys(), "reset does not reselect filtered-out rows")
+equal(true, M.Cancel())
+
+M.Open(1, refreshInventory)
+orderTab("Display")
+equal("Bear,Zebra,cat,Apple", presentedKeys(), "display mode orders by display priority")
+equal("      [90] Bear", rowText(present, 1))
+rowClick(present, 2)
+modifiedClick(3, false, true)
+priorityArrow("Up")
+equal("Zebra,cat,Bear,Apple", presentedKeys(), "display priorities can move in a group")
+equal(26, sibling.showpriority, "display moves remain draft-only")
+orderTab("Run")
+equal("Apple,Bear,Zebra,cat", presentedKeys(), "display edits leave execution order untouched")
+equal("Zebra,cat", selectedKeys(), "changing tabs preserves selection by key")
+button("Confirm")
+equal(true, AC_CategoryManagementWindow:IsHidden())
+equal(3, refreshes)
+equal(40, sibling.runpriority)
+assert(sibling.showpriority > hidden.showpriority and hidden.showpriority > child.showpriority,
+    "Apply saves display priorities in the batch order")
+equal(1, syncs, "priority-only edits don't save predefined layouts")
+
+local staleDisplay = M.NewDraft(levelSaved, 1, lookup)
+staleDisplay.displayOrder = true
+equal(true, M.MoveSelection(staleDisplay, { 2, 3 }, 1, false))
+root.showpriority = root.showpriority + 1
+equal(nil, M.Commit(staleDisplay, levelSaved, bagRule), "display changes won't overwrite a stale order")
+
+definitions.Apple.level, definitions.Apple.parent = nil, nil
+definitions.Bear.level, definitions.Bear.parent = 2, "Apple"
+definitions.cat.level, definitions.cat.parent = 3, "Bear"
+local branches = M.NewDraft(levelSaved, 1, lookup)
+equal(true, M.ShiftSelection(branches, { Apple = true, Bear = true, Zebra = true }, 1))
+equal(2, branches.getLayout("Apple").level)
+equal(3, branches.getLayout("Bear").level, "selected child follows its parent just once")
+equal(4, branches.getLayout("cat").level, "unselected descendants follow their parent")
+equal(2, branches.getLayout("Zebra").level, "an independent branch moves too")
+equal(nil, branches.getLayout("Apple").parent, "do not attach to another moving branch")
+equal(nil, branches.getLayout("Zebra").parent, "do not create cycles with moving peers")
+equal(nil, definitions.Apple.level, "level selection remains a draft")
+branches.getLayout("cat").level = 5
+equal(false, M.ShiftSelection(branches, { Apple = true, Zebra = true }, 1))
+equal(2, branches.getLayout("Zebra").level, "a level limit rejects the whole operation")
+equal(true, M.ShiftSelection(branches, { Apple = true, Bear = true, Zebra = true }, -1))
+equal(nil, branches.getLayout("Apple").level)
+equal(2, branches.getLayout("Bear").level)
+equal(4, branches.getLayout("cat").level)
+
+M.Open(1, refreshInventory)
+rowClick(present, 1)
+modifiedClick(3, false, true)
+button("Deeper")
+equal("Apple,Bear,Zebra", selectedKeys(), "changing levels keeps the multi-selection")
+equal("   [70] Apple", rowText(present, 1))
+equal("      [50] Bear", rowText(present, 2))
+equal("   [40] Zebra", rowText(present, 3))
+equal(true, M.Cancel())
+equal(nil, definitions.Apple.level)
+equal(2, definitions.Bear.level)
+
+-- Compare real inventory sort keys for siblings, not just the manager labels.
+local siblingBag = { rules = {
+    bagRule(definitions.Apple, 102, 80), bagRule(definitions.Zebra, 101, 60), bagRule(definitions.dog, 100, 40),
+} }
+local siblingSaved = { bags = { siblingBag } }
+AutoCategory.saved = siblingSaved
+local displayDraft = M.NewDraft(siblingSaved, 1, lookup)
+displayDraft.displayOrder = true
+local resolve = AutoCategory.MakeBagRuleDisplayResolver(1)
+local function sortKey(bagrule)
+    local _, key = resolve(bagrule)
+    return key
+end
+equal(true, sortKey(siblingBag.rules[1]) < sortKey(siblingBag.rules[2]))
+equal(true, M.MoveSelection(displayDraft, { 2, 3 }, -1, true))
+equal(true, M.Commit(displayDraft, siblingSaved, bagRule))
+resolve = AutoCategory.MakeBagRuleDisplayResolver(1)
+equal(true, sortKey(siblingBag.rules[2]) < sortKey(siblingBag.rules[3]))
+equal(true, sortKey(siblingBag.rules[3]) < sortKey(siblingBag.rules[1]))
+equal(102, siblingBag.rules[1].runpriority)
+equal(101, siblingBag.rules[2].runpriority)
+equal(100, siblingBag.rules[3].runpriority)
 
 equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

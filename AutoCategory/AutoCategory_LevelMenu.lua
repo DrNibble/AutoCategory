@@ -925,7 +925,7 @@ function CLM.GetMoveDestinations(bagTypeId)
             destinations[#destinations + 1] = {
                 name = rule.name,
                 rule = rule,
-                label = string.rep("  ", level - 1) .. rule.name,
+                label = string.rep("   ", level - 1) .. rule.name,
                 sortKey = sortKey,
             }
         end

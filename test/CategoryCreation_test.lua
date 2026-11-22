@@ -11,11 +11,13 @@ for _, key in ipairs({
     "SI_AC_MENU_CM_NEW_CATEGORY", "SI_AC_MENU_CM_MANAGE_CATEGORIES", "SI_AC_DEFAULT_NAME_EMPTY_TAG",
     "SI_AC_DIALOG_CATEGORY_NAME_PROMPT", "SI_AC_DIALOG_CATEGORY_NAME_EMPTY",
     "SI_AC_DIALOG_CATEGORY_NAME_EXISTS", "SI_AC_DIALOG_CATEGORY_CREATE_FAILED",
+    "SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE", "SI_AC_MENU_EC_DROPDOWN_PARENT_NONE",
     "SI_AC_MENU_CM_TAG_NEW", "SI_AC_DIALOG_TAG_NAME_FIELD",
     "SI_AC_DIALOG_TAG_NAME_EMPTY", "SI_AC_MENU_CS_DROPDOWN_TAG",
     "SI_AC_NEW_CATEGORY_EMPTY_CHILD",
     "SI_OK", "SI_DIALOG_CANCEL",
 }) do _G[key] = key end
+SI_AC_TIP_LEVEL = "Level: %d"
 function GetString(key) return key end
 LocaleAwareToLower = string.lower
 zo_loadstring = loadstring
@@ -37,6 +39,7 @@ AutoCategory.RulesW.tags = {}
 function AutoCategory.GetRuleByName(name)
     return AutoCategory.RuleList.getRuleByName(AutoCategory.RulesW, name)
 end
+function AutoCategory.GetCategorySortName(name) return name end -- No dynamic plugin categories.
 local cacheAdds, refreshes = 0, 0
 AutoCategory.cache = { AddRule = function(rule)
     equal(rule, AutoCategory.ARW:getRuleByName(rule.name), "saved rules updated first")
@@ -67,16 +70,19 @@ end
 local nameEditBox = mockControl()
 local tagEditBox = mockControl()
 local newTagRow = mockControl({ Backdrop = mockControl({ Edit = tagEditBox }) })
-local comboControl, confirm, cancel = mockControl(), mockControl(), mockControl()
+local comboControl, parentControl, confirm, cancel = mockControl(), mockControl(), mockControl(), mockControl()
 AC_NewCategoryDialog = mockControl({
     CategoryName = mockControl({ Edit = nameEditBox }),
-    NewTag = newTagRow, Tag = comboControl, Confirm = confirm, Cancel = cancel,
+    NewTag = newTagRow, Tag = comboControl, Parent = parentControl, Confirm = confirm, Cancel = cancel,
 })
 
-local comboBoxItems, comboBox = {}, {}
-function comboBox:ClearItems() comboBoxItems = {} end
+local comboBox = {}
+function comboBox:ClearItems()
+    for i = #self.items, 1, -1 do self.items[i] = nil end
+    self.selected = nil
+end
 function comboBox:CreateItemEntry(label, callback) return { label = label, callback = callback } end
-function comboBox:AddItem(entry) comboBoxItems[#comboBoxItems + 1] = entry end
+function comboBox:AddItem(entry) self.items[#self.items + 1] = entry end
 function comboBox:SelectItem(entry, ignoreCallback)
     self.selected = entry
     if not ignoreCallback then entry.callback() end
@@ -85,11 +91,14 @@ function comboBox:HideDropdown() self.open = false end
 function comboBox:SetSortsItems(sort)
     equal(false, sort, "native combo box preserves the order of special choices")
 end
+local comboBoxItems = {}
+local tagCombo = setmetatable({ items = comboBoxItems }, { __index = comboBox })
+local parentCombo = setmetatable({ items = {} }, { __index = comboBox })
 local comboInitializations = 0
 function ZO_ComboBox_ObjectFromContainer(control)
-    equal(comboControl, control, "get the native tag selector from the dialog")
     comboInitializations = comboInitializations + 1
-    return comboBox
+    return assert(({ [comboControl] = tagCombo, [parentControl] = parentCombo })[control],
+        "get the native selectors from the dialog")
 end
 
 local registered, registrations, displayed, releases = {}, 0, nil, 0
@@ -121,6 +130,7 @@ end }
 
 assert(loadfile("AutoCategory_Tree.lua"))()
 assert(loadfile("AutoCategory_LevelMenu.lua"))()
+assert(loadfile("AutoCategory_API.lua"))()
 local CLM = AutoCategory.CategoryLevelMenu
 local function submit(text)
     nameEditBox:SetText(text)
@@ -153,7 +163,7 @@ equal(2, #comboBoxItems, "second request did not rebuild the open list")
 submit("  Ma catégorie  ")
 equal(1, releases, "valid name closes the first popup")
 CLM.OpenNewCategoryDialog(1)
-equal(1, comboInitializations, "the native combo box is reused")
+equal(2, comboInitializations, "both native combo boxes are reused")
 equal(1, displayed.data.bagTypeId, "reopened form captures its own bag")
 equal("", nameEditBox:GetText(), "new form clears the previous name")
 equal(SI_AC_DIALOG_CATEGORY_NAME_PROMPT, displayed.errorText, "new form restores the prompt")
@@ -161,7 +171,7 @@ equal(4, #comboBoxItems, "dropdown refreshes with two tags and two special entri
 equal("Tag A", comboBoxItems[1].label, "existing tags are sorted")
 equal("Tag B", comboBoxItems[2].label, "second tag")
 equal(SI_AC_DEFAULT_NAME_EMPTY_TAG, comboBoxItems[3].label, "empty tag is offered")
-equal(comboBoxItems[3], comboBox.selected, "empty tag is selected by default")
+equal(comboBoxItems[3], tagCombo.selected, "empty tag is selected by default")
 equal(SI_AC_MENU_CM_TAG_NEW, comboBoxItems[4].label, "create a new tag")
 
 local created = AutoCategory.GetRuleByName("Ma catégorie")
@@ -200,7 +210,7 @@ equal(2, #AutoCategory.RulesW.ruleList, "duplicate not suffixed or overwritten")
 submit("MA CATéGORIE")
 equal(SI_AC_DIALOG_CATEGORY_NAME_EXISTS, displayed.errorText, "case-insensitive duplicate")
 equal(1, releases, "duplicate keeps popup open")
-comboBox:SelectItem(comboBoxItems[2])
+tagCombo:SelectItem(comboBoxItems[2])
 submit("Unique")
 equal(2, releases, "corrected input closes popup")
 equal(2, #AutoCategory.saved.bags[1].rules, "corrected input creates in captured bag")
@@ -227,14 +237,14 @@ CLM.OpenNewCategoryDialog(8)
 equal(true, newTagRow.hidden, "the tag name input row is hidden by default")
 local newTagEntry = comboBoxItems[#comboBoxItems]
 equal(SI_AC_MENU_CM_TAG_NEW, newTagEntry.label, "the dropdown offers New Tag")
-comboBox:SelectItem(newTagEntry)
+tagCombo:SelectItem(newTagEntry)
 equal(false, newTagRow.hidden, "the tag name input row appears in the same dialog")
 equal(true, tagEditBox.hasFocus, "the revealed input takes focus")
 tagEditBox:SetText("Do not retain this tag")
-comboBox:SelectItem(comboBoxItems[#comboBoxItems - 1])
+tagCombo:SelectItem(comboBoxItems[#comboBoxItems - 1])
 equal(true, newTagRow.hidden, "switching away hides the input")
 equal("", tagEditBox:GetText(), "switching away clears the draft")
-comboBox:SelectItem(newTagEntry)
+tagCombo:SelectItem(newTagEntry)
 tagEditBox:SetText(" \t ")
 local releasesBefore = releases
 submit("Étiquetée")
@@ -271,13 +281,15 @@ AutoCategory.CreateBagRule = factory
 
 -- Cancellation and a bag removed while a popup is open do not mutate state.
 CLM.OpenNewCategoryDialog(1)
-comboBox:SelectItem(comboBoxItems[#comboBoxItems])
+tagCombo:SelectItem(comboBoxItems[#comboBoxItems])
 tagEditBox:SetText("Cancelled tag")
 nameEditBox:SetText("Cancelled name")
-comboBox.open = true
+tagCombo.open = true
+parentCombo.open = true
 ZO_Dialogs_ReleaseDialog(displayed)
 equal(count, #AutoCategory.RulesW.ruleList, "cancel does not create")
-equal(false, comboBox.open, "cancel closes the native dropdown")
+equal(false, tagCombo.open, "cancel closes the native tag dropdown")
+equal(false, parentCombo.open, "cancel closes the native parent dropdown")
 CLM.OpenNewCategoryDialog(3)
 equal("", nameEditBox:GetText(), "reopening drops the cancelled name")
 equal("", tagEditBox:GetText(), "reopening drops the cancelled tag")
@@ -297,7 +309,7 @@ AutoCategory.RulesW.tags = { "-" }
 AutoCategory.saved.bags[9] = { rules = {} }
 CLM.OpenNewCategoryDialog(9)
 equal("-", comboBoxItems[1].label, "hyphen tag has a literal label")
-comboBox:SelectItem(comboBoxItems[1])
+tagCombo:SelectItem(comboBoxItems[1])
 submit("Divider tag")
 equal("-", AutoCategory.GetRuleByName("Divider tag").tag, "original tag value is preserved")
 
@@ -486,5 +498,124 @@ equal(true, CLM.MoveCategoryPriority(21, "Top", -1), "Top moves down")
 equal(99, AutoCategory.saved.bags[21].rules[1].showpriority,
     "the neighbor is the displayed top-level Other, not the sub-level")
 AutoCategory.GetDisplayedHeaders = nil
+
+-- Right-click creation remembers the specific header, allows another
+-- parent, and keeps the old behavior when the selection is cleared.
+local nestedBag = { rules = {} }
+AutoCategory.saved.bags[12] = nestedBag
+local function addParentFixture(name, level, parent, priority, hidden)
+    local rule = AutoCategory.CreateRule(name, "")
+    rule.level, rule.parent = level, parent
+    AutoCategory.ARW:AddRule(rule)
+    AutoCategory.RulesW:AddRule(rule)
+    local bagrule = AutoCategory.CreateBagRule(rule, 10, priority)
+    bagrule.isHidden = hidden
+    nestedBag.rules[#nestedBag.rules + 1] = bagrule
+    return rule
+end
+local root = addParentFixture("Branch", nil, nil, 900)
+addParentFixture("Branch mid", 2, "Branch", 800)
+addParentFixture("Branch deep", 3, "Branch mid", 700)
+local fourth = addParentFixture("Branch fourth", 4, "Branch deep", 600)
+addParentFixture("Branch fifth", 5, "Branch fourth", 500)
+addParentFixture("Hidden", 2, "Branch", 400, true)
+addParentFixture("Legacy----Header", nil, nil, 300)
+nestedBag.rules[#nestedBag.rules + 1] = { name = "Missing rule", showpriority = 200 }
+
+local function openFromHeader(header)
+    items = {}
+    AutoCategory.AddCategoryLevelMenuEntries(header, 12, {
+        addItem = menu.addItem,
+        addSubMenu = function() end,
+        addDivider = function() end,
+    })
+    for _, item in ipairs(items) do
+        if item.label == SI_AC_MENU_CM_NEW_CATEGORY then
+            item.callback()
+            return
+        end
+    end
+    error("missing New Category option")
+end
+local midHeader = "Branch----Branch mid"
+openFromHeader(midHeader)
+equal("Branch mid", displayed.data.clickedParent.name, "right click captures the rule name, not the path")
+equal(2, displayed.data.clickedParent.level, "right click captures the level")
+equal(5, #parentCombo.items, "only none and the four eligible same-bag parents are offered")
+equal(SI_AC_MENU_EC_DROPDOWN_PARENT_NONE, parentCombo.items[1].label, "none is the first option")
+equal("Branch (Level: 1)", parentCombo.items[2].label, "Normal counts as level one")
+equal("Branch mid (Level: 2)", parentCombo.selected.label, "the clicked category is preselected")
+equal("Branch deep (Level: 3)", parentCombo.items[4].label, "level-3 parent available")
+equal("Branch fourth (Level: 4)", parentCombo.items[5].label, "level-4 parent available")
+local otherBagCount = #AutoCategory.saved.bags[1].rules
+submit("Attached to clicked")
+local nested = AutoCategory.GetRuleByName("Attached to clicked")
+equal("Branch mid", nested.parent, "default creates a child of the clicked header")
+equal(3, nested.level, "new category is one level below its parent")
+local resolveDisplay = AutoCategory.MakeBagRuleDisplayResolver(12)
+equal("Branch----Branch mid----Attached to clicked", (resolveDisplay(nestedBag.rules[#nestedBag.rules - 1])),
+    "the inventory's display resolver places the new header under the chosen parent")
+local placeholder = AutoCategory.GetRuleByName("Attached to clicked " .. SI_AC_NEW_CATEGORY_EMPTY_CHILD)
+equal(4, placeholder.level, "the hidden placeholder is one level deeper")
+equal("Attached to clicked", placeholder.parent, "the placeholder is under the newly created rule")
+equal(true, nestedBag.rules[#nestedBag.rules].isHidden, "placeholder is not offered as an existing header")
+equal(true, CLM.CreatedThisSession[nested.name], "the attached category can display immediately")
+equal(otherBagCount, #AutoCategory.saved.bags[1].rules, "only the clicked bag changes")
+equal(nil, root.level, "the existing parent hierarchy is not modified")
+
+local fourthHeader = "Branch----Branch mid----Branch deep----Branch fourth"
+openFromHeader(midHeader)
+for _, entry in ipairs(parentCombo.items) do
+    if entry.label == "Branch fourth (Level: 4)" then parentCombo:SelectItem(entry) end
+end
+local beforeLeaf = #nestedBag.rules
+submit("Deepest child")
+local deepest = AutoCategory.GetRuleByName("Deepest child")
+equal("Branch fourth", deepest.parent, "a different parent overrides the clicked header")
+equal(5, deepest.level, "level 5 is a permitted child")
+equal(beforeLeaf + 1, #nestedBag.rules, "level 5 gets no level-6 placeholder")
+equal(fourthHeader .. "----Deepest child", (resolveDisplay(nestedBag.rules[#nestedBag.rules])),
+    "the inventory's display resolver places the level-five leaf")
+
+openFromHeader(fourthHeader .. "----Branch fifth")
+equal(5, displayed.data.clickedParent.level, "level-5 header context is captured")
+equal(parentCombo.items[1], parentCombo.selected, "a level-5 header is not preselected")
+openFromHeader(midHeader)
+equal(parentCombo.items[1], parentCombo.selected, "a second request does not change the open dialog")
+ZO_Dialogs_ReleaseDialog(displayed)
+openFromHeader(midHeader)
+parentCombo:SelectItem(parentCombo.items[1])
+submit("Explicitly standalone")
+local standalone = AutoCategory.GetRuleByName("Explicitly standalone")
+equal(nil, standalone.parent, "clearing a preselected parent keeps the old behavior")
+equal(nil, standalone.level, "clearing a preselected parent creates a Normal category")
+
+openFromHeader(fourthHeader)
+fourth.level = 3
+local beforeStale = #nestedBag.rules
+submit("Stale choice")
+equal(SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE, displayed.errorText, "changed parent level is refused inline")
+equal(beforeStale, #nestedBag.rules, "validation happens before changing the bag")
+equal(nil, AutoCategory.GetRuleByName("Stale choice"), "invalid parent creates no rule")
+fourth.level = 4
+parentCombo:SelectItem(parentCombo.items[1])
+submit("Stale choice")
+equal(nil, AutoCategory.GetRuleByName("Stale choice").parent, "the player can correct an invalid parent")
+
+openFromHeader("Legacy----Header")
+equal(parentCombo.items[1], parentCombo.selected, "legacy hierarchy is not silently used as parent")
+ZO_Dialogs_ReleaseDialog(displayed)
+openFromHeader("Unknown----Branch")
+equal(parentCombo.items[1], parentCombo.selected, "synthetic header does not select a rule with the same suffix")
+ZO_Dialogs_ReleaseDialog(displayed)
+
+local invalidBagCount = #nestedBag.rules
+for _, parent in ipairs({ { name = "Unique", level = 1 },
+    { name = "Branch fifth", level = 5 }, { name = "Hidden", level = 2 } }) do
+    local invalid, err = CLM.CreateCategory(12, "Not created", nil, parent)
+    equal(nil, invalid, "invalid parent cannot bypass the dropdown")
+    equal(SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE, err, "invalid parent is explained")
+end
+equal(invalidBagCount, #nestedBag.rules, "invalid parents do not change the bag")
 
 print("CategoryCreation_test: " .. assertions .. " assertions passed")

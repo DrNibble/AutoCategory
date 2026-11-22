@@ -135,6 +135,24 @@ local function findBagrule(bagTypeId, ruleName)
     return nil
 end
 
+local function orderedBagRules(bagrules)
+    local ordered = {}
+    for _, brule in ipairs(bagrules) do
+        if type(brule.name) == "string" and brule.name ~= "" then
+            ordered[#ordered + 1] = brule
+        end
+    end
+    table.sort(ordered, function(a, b)
+        local ap = a.showpriority or a.runpriority or 0
+        local bp = b.showpriority or b.runpriority or 0
+        if ap ~= bp then
+            return ap > bp
+        end
+        return a.name < b.name
+    end)
+    return ordered
+end
+
 -- A drop edits a real category of this bag, not a synthetic prefix or
 -- a dynamic sub-header that happens to end in the name of a rule.
 function CLM.HeaderRuleForDrag(bagTypeId, cateName)
@@ -429,10 +447,20 @@ function CLM.ValidateNewCategoryName(name)
     return name
 end
 
--- Create an ordinary category (Normal, no parent) in the captured bag,
--- with the chosen tag (nil keeps the empty tag, the previous default).
+-- Only real, non-hidden categories in this bag can be selected.
+-- Normal counts as level 1; a level-5 category cannot have a child.
+local function newCategoryParentLevel(bagrule)
+    if not bagrule or bagrule.isHidden then return nil end
+    local rule = AutoCategory.GetRuleByName(bagrule.name)
+    if not rule or CategoryTree.IsHierarchical(rule.name) then return nil end
+    local level = CLM.EffectiveLevel(rule)
+    if level < 5 then return level end
+end
+
+-- Create a category in the captured bag, with the chosen tag (nil keeps
+-- the empty tag) and optional { name, level } parent selection.
 -- Prepare both objects before inserting anything into saved state.
-function CLM.CreateCategory(bagTypeId, name, tag)
+function CLM.CreateCategory(bagTypeId, name, tag, parent)
     local saved = AutoCategory.saved
     local savedBag = saved and saved.bags and saved.bags[bagTypeId]
     if not savedBag or not savedBag.rules then
@@ -440,11 +468,18 @@ function CLM.CreateCategory(bagTypeId, name, tag)
     end
     local newName, err = CLM.ValidateNewCategoryName(name)
     if not newName then return nil, err end
+    local parentLevel
+    if parent then
+        parentLevel = newCategoryParentLevel(findBagrule(bagTypeId, parent.name))
+        if not parentLevel or parentLevel ~= parent.level then
+            return nil, SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE
+        end
+    end
     local newRule = AutoCategory.CreateRule(newName,
         tag or GetString(SI_AC_DEFAULT_NAME_EMPTY_TAG))
     newRule.rule = "false"
-    newRule.level = nil
-    newRule.parent = nil
+    newRule.level = parentLevel and parentLevel + 1 or nil
+    newRule.parent = parent and parent.name or nil
 
     -- Stay inside the display slider's 2..1000 range. If it is already
     -- full at the top, compact existing priority groups without changing
@@ -485,25 +520,27 @@ function CLM.CreateCategory(bagTypeId, name, tag)
     -- (the inventory only builds headers from matching items). The
     -- zero-count header right after creation comes from the session
     -- marker (CLM.CreatedThisSession), not from a persisted marker:
-    -- give every new category a hidden placeholder sub-category only
+    -- give the new category a hidden placeholder where the level allows it
     -- to keep it a structural parent of nested rules. Its rule is
     -- false, so it never matches anything and never displays. The
     -- placeholder is an ordinary category: it can be edited (drop
     -- items in it) or deleted like any other.
-    local childName = AutoCategory.GetUsableRuleName(
-        newName .. " " .. GetString(SI_AC_NEW_CATEGORY_EMPTY_CHILD))
-    local childRule = AutoCategory.CreateRule(childName, newRule.tag)
-    childRule.rule = "false"
-    childRule.level = 2
-    childRule.parent = newName
-    local childEntry = AutoCategory.CreateBagRule(childRule,
-        entry.runpriority, newPriority)
-    if childEntry then
-        childEntry.isHidden = true
-        childRule:compile()
-        AutoCategory.ARW:AddRule(childRule)
-        AutoCategory.cache.AddRule(childRule)
-        savedBag.rules[#savedBag.rules + 1] = childEntry
+    if CLM.EffectiveLevel(newRule) < 5 then
+        local childName = AutoCategory.GetUsableRuleName(
+            newName .. " " .. GetString(SI_AC_NEW_CATEGORY_EMPTY_CHILD))
+        local childRule = AutoCategory.CreateRule(childName, newRule.tag)
+        childRule.rule = "false"
+        childRule.level = CLM.EffectiveLevel(newRule) + 1
+        childRule.parent = newName
+        local childEntry = AutoCategory.CreateBagRule(childRule,
+            entry.runpriority, newPriority)
+        if childEntry then
+            childEntry.isHidden = true
+            childRule:compile()
+            AutoCategory.ARW:AddRule(childRule)
+            AutoCategory.cache.AddRule(childRule)
+            savedBag.rules[#savedBag.rules + 1] = childEntry
+        end
     end
 
     -- Show the new category right away, even with the Show Empty
@@ -875,6 +912,34 @@ end
 local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
 local newCategoryDialogRegistered = false
 
+local function setupNewCategoryParent(dialog)
+    local combo = dialog.parentCombo
+    combo:ClearItems()
+    local function addParent(label, parent)
+        local entry = combo:CreateItemEntry(label, function() dialog.categoryParent = parent end)
+        combo:AddItem(entry)
+        return entry
+    end
+
+    local selected = addParent(GetString(SI_AC_MENU_EC_DROPDOWN_PARENT_NONE), nil)
+    dialog.categoryParent = nil
+    local clickedParent = dialog.data.clickedParent
+    local savedBag = AutoCategory.saved.bags[dialog.data.bagTypeId]
+    for _, bagrule in ipairs(orderedBagRules(savedBag and savedBag.rules or {})) do
+        local level = newCategoryParentLevel(bagrule)
+        if level then
+            local parent = { name = bagrule.name, level = level }
+            local label = parent.name .. " (" .. GetString(SI_AC_TIP_LEVEL):format(level) .. ")"
+            local entry = addParent(label, parent)
+            if clickedParent and clickedParent.name == parent.name and clickedParent.level == level then
+                selected = entry
+                dialog.categoryParent = parent
+            end
+        end
+    end
+    combo:SelectItem(selected, true)
+end
+
 local function setupNewCategoryDialog(dialog)
     dialog.categoryName:SetText("")
     dialog.newTag:SetHidden(true)
@@ -913,6 +978,7 @@ local function setupNewCategoryDialog(dialog)
     local default = addTag(emptyTag, nil, false)
     addTag(GetString(SI_AC_MENU_CM_TAG_NEW), nil, true)
     combo:SelectItem(default, true)
+    setupNewCategoryParent(dialog)
 end
 
 local function showNewCategoryError(dialog, errorId)
@@ -933,7 +999,7 @@ local function submitNewCategoryDialog(dialog)
             return
         end
     end
-    local rule, createError = CLM.CreateCategory(dialog.data.bagTypeId, name, tag)
+    local rule, createError = CLM.CreateCategory(dialog.data.bagTypeId, name, tag, dialog.categoryParent)
     if not rule then
         showNewCategoryError(dialog, createError)
         return
@@ -942,7 +1008,7 @@ local function submitNewCategoryDialog(dialog)
     refreshAfterChange()
 end
 
-function CLM.OpenNewCategoryDialog(bagTypeId)
+function CLM.OpenNewCategoryDialog(bagTypeId, clickedParent)
     local bags = AutoCategory.saved and AutoCategory.saved.bags
     if not bags or not bags[bagTypeId] then return end
     if not newCategoryDialogRegistered then
@@ -953,8 +1019,10 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
         dialog.tagName = dialog.newTag:GetNamedChild("Backdrop"):GetNamedChild("Edit")
         local container = dialog:GetNamedChild("Tag")
         dialog.tagCombo = ZO_ComboBox_ObjectFromContainer(container)
+        dialog.parentCombo = ZO_ComboBox_ObjectFromContainer(dialog:GetNamedChild("Parent"))
         -- The native keyboard combo box is already scrollable.
         dialog.tagCombo:SetSortsItems(false)
+        dialog.parentCombo:SetSortsItems(false)
 
         ZO_Dialogs_RegisterCustomDialog(NEW_CATEGORY_DIALOG, {
             customControl = dialog,
@@ -963,6 +1031,7 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
             setup = setupNewCategoryDialog,
             finishedCallback = function(control)
                 control.tagCombo:HideDropdown()
+                control.parentCombo:HideDropdown()
             end,
             buttons = {
                 {
@@ -976,7 +1045,7 @@ function CLM.OpenNewCategoryDialog(bagTypeId)
         })
         newCategoryDialogRegistered = true
     end
-    ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, { bagTypeId = bagTypeId })
+    ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, { bagTypeId = bagTypeId, clickedParent = clickedParent })
 end
 
 -- Wrap the rule text of the header context menu "Rule" submenu into
@@ -1168,25 +1237,8 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
                 excluded[rule.parent] = true
             end
 
-            local ordered = {}
-            for i = 1, #savedBag.rules do
-                local brule = savedBag.rules[i]
-                if brule and type(brule.name) == "string"
-                        and brule.name ~= "" then
-                    ordered[#ordered + 1] = brule
-                end
-            end
-            table.sort(ordered, function(a, b)
-                local ap = a.showpriority or a.runpriority or 0
-                local bp = b.showpriority or b.runpriority or 0
-                if ap ~= bp then
-                    return ap > bp
-                end
-                return a.name < b.name
-            end)
-
-            for i = 1, #ordered do
-                local name = ordered[i].name
+            for _, brule in ipairs(orderedBagRules(savedBag.rules)) do
+                local name = brule.name
                 local target = not excluded[name] and AutoCategory.GetRuleByName(name)
                 if target and moveDelta(subtree, name) ~= nil then
                     local label = string.rep("  ", CLM.EffectiveLevel(target) - 1) .. name
@@ -1269,11 +1321,12 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
             end)
     end
     
-    -- creation does not modify the clicked rule or inherit its
-    -- level; offered on ungrouped/predefined headers and at level 5
-    -- as well
+    -- Snapshot the clicked category before the menu callback opens the dialog.
+    -- New Category is also offered on headers that cannot be a parent.
+    local clickedRule = rule and CLM.HeaderRuleForDrag(bagTypeId, cateName)
+    local clickedParent = clickedRule and { name = clickedRule.name, level = CLM.EffectiveLevel(clickedRule) }
     addItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
-        function() CLM.OpenNewCategoryDialog(bagTypeId) end)
+        function() CLM.OpenNewCategoryDialog(bagTypeId, clickedParent) end)
     addItem(GetString(SI_AC_MENU_CM_MANAGE_CATEGORIES),
         function() AutoCategory.CategoryManagement.Open(bagTypeId, refreshAfterChange) end)
 end

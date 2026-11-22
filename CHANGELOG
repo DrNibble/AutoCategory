@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Choose a parent when creating an inventory category (2026-11-22)[/COLOR]:
+[LIST]
+[*] New Category preselects the clicked category if it can host a child. Select another category from this inventory or select no parent to create a Normal category as before.
+[*] A category created at level 5 has no hidden placeholder child. Updated all six languages. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Manage inventory categories (2026-11-20)[/COLOR]:
 [LIST]
 [*] The inventory header menu opens a persistent category manager with two 15-row scrollable lists. Search and add from the left; reorder on the right with arrows or dragging, or right-click to remove. Apply commits the draft for that inventory only.

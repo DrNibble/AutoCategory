@@ -72,9 +72,17 @@
                         </EditBox>
                     </Controls>
                 </Backdrop>
-                <Label name="$(parent)TagLabel" font="ZoFontGameMedium" text="SI_AC_MENU_CS_DROPDOWN_TAG">
+                <Label name="$(parent)ParentLabel" font="ZoFontGameMedium" text="SI_AC_MENU_EC_DROPDOWN_PARENT">
                     <Anchor point="TOPLEFT" relativeTo="$(parent)CategoryName" relativePoint="BOTTOMLEFT" offsetY="14"/>
                     <Anchor point="TOPRIGHT" relativeTo="$(parent)CategoryName" relativePoint="BOTTOMRIGHT" offsetY="14"/>
+                </Label>
+                <Control name="$(parent)Parent" inherits="ZO_ComboBox">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)ParentLabel" relativePoint="BOTTOMLEFT" offsetY="6"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)ParentLabel" relativePoint="BOTTOMRIGHT" offsetY="6"/>
+                </Control>
+                <Label name="$(parent)TagLabel" font="ZoFontGameMedium" text="SI_AC_MENU_CS_DROPDOWN_TAG">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Parent" relativePoint="BOTTOMLEFT" offsetY="14"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Parent" relativePoint="BOTTOMRIGHT" offsetY="14"/>
                 </Label>
                 <Control name="$(parent)Tag" inherits="ZO_ComboBox">
                     <Anchor point="TOPLEFT" relativeTo="$(parent)TagLabel" relativePoint="BOTTOMLEFT" offsetY="6"/>

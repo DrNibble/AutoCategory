@@ -1,5 +1,16 @@
 # Changes
 
+## 2026-11-22: choose a parent when creating an inventory category
+
+- New Category remembers the clicked category's name and level and
+  preselects it when eligible. The native Parent dropdown offers
+  non-hidden categories from this bag at effective levels 1 to 4,
+  including categories under collapsed headers. Choose no parent to
+  keep the existing Normal creation behavior.
+- The new category gets the selected parent's level plus one. A category
+  created at level 5 has no hidden placeholder child. Stale selections
+  are refused without saving. Updated all six languages. Not tested in ESO.
+
 ## 2026-11-22: drag inventory category headers
 
 - In keyboard inventory, hold the left mouse button and drag a category

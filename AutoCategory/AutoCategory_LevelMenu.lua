@@ -909,6 +909,42 @@ function CLM.MoveSubtreeAndRefresh(bagTypeId, ruleName, newParentName)
     return true
 end
 
+-- Use the inventory's configured paths, not the visible rows: empty
+-- categories and categories beneath a collapsed header remain available.
+function CLM.GetMoveDestinations(bagTypeId)
+    local bags = AutoCategory.saved and AutoCategory.saved.bags
+    local bag = bags and bags[bagTypeId]
+    local destinations = {}
+    if not bag or not bag.rules then return destinations end
+    local resolveDisplay = AutoCategory.MakeBagRuleDisplayResolver(bagTypeId)
+    for _, bagrule in ipairs(bag.rules) do
+        local rule = AutoCategory.GetRuleByName(bagrule.name)
+        if rule and not bagrule.isHidden then
+            local path, sortKey = resolveDisplay(bagrule)
+            local level = CategoryTree.LevelCount(path)
+            destinations[#destinations + 1] = {
+                name = rule.name,
+                rule = rule,
+                label = string.rep("  ", level - 1) .. rule.name,
+                sortKey = sortKey,
+            }
+        end
+    end
+    table.sort(destinations, function(a, b)
+        if a.sortKey ~= b.sortKey then return a.sortKey < b.sortKey end
+        return a.name < b.name
+    end)
+    return destinations
+end
+
+function CLM.MoveItemToCategory(bagTypeId, name, itemId)
+    local bagrule = findBagrule(bagTypeId, name)
+    local rule = bagrule and not bagrule.isHidden and AutoCategory.GetRuleByName(name)
+    if not rule or rule:isPredefined() or not rule:addItemIdToIsItemId(itemId) then return end
+    rule:compile()
+    refreshAfterChange()
+end
+
 local NEW_CATEGORY_DIALOG = "AUTO_CATEGORY_NEW_CATEGORY"
 local newCategoryDialogRegistered = false
 
@@ -1212,11 +1248,9 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
                 levelEntries)
         end
 
-        -- move the category under another category of the bag: the
-        -- candidates in the display order of the bag, never the category
-        -- itself, the categories nested under it, its current parent or
-        -- a category the section does not fit under; the first entry
-        -- moves the section back to the top level (a Normal category)
+        -- Show the same destinations as the inventory-item menu. Keep
+        -- invalid moves visible but disabled, including cycles and depth.
+        -- Top Level remains a separate action for nested categories.
         local moveEntries = {}
         if CLM.EffectiveLevel(rule) > 1 or (type(rule.parent) == "string"
                 and rule.parent ~= "") then
@@ -1227,29 +1261,22 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
                 end,
             }
         end
-        local savedBag = AutoCategory.saved.bags[bagTypeId]
-        if savedBag and savedBag.rules then
-            local excluded = {}
-            for i = 1, #subtree do
-                excluded[subtree[i].rule.name] = true
-            end
-            if type(rule.parent) == "string" and rule.parent ~= "" then
-                excluded[rule.parent] = true
-            end
-
-            for _, brule in ipairs(orderedBagRules(savedBag.rules)) do
-                local name = brule.name
-                local target = not excluded[name] and AutoCategory.GetRuleByName(name)
-                if target and moveDelta(subtree, name) ~= nil then
-                    local label = string.rep("  ", CLM.EffectiveLevel(target) - 1) .. name
-                    moveEntries[#moveEntries + 1] = {
-                        label = label,
-                        callback = function()
-                            CLM.MoveSubtreeAndRefresh(bagTypeId, rule.name, name)
-                        end,
-                    }
+        local excluded = {}
+        for _, member in ipairs(subtree) do
+            excluded[member.rule.name] = true
+        end
+        for _, destination in ipairs(CLM.GetMoveDestinations(bagTypeId)) do
+            local name = destination.name
+            local callback
+            if not excluded[name] and name ~= rule.parent and moveDelta(subtree, name) ~= nil then
+                callback = function()
+                    local target = findBagrule(bagTypeId, name)
+                    if target and not target.isHidden then
+                        CLM.MoveSubtreeAndRefresh(bagTypeId, rule.name, name)
+                    end
                 end
             end
+            moveEntries[#moveEntries + 1] = { label = destination.label, callback = callback }
         end
         if #moveEntries > 0 then
             addSubMenu(GetString(SI_AC_MENU_CM_MOVE_SUBMENU), moveEntries, { searchable = true })

@@ -56,6 +56,8 @@ AutoCategory = {}
 -- CategoryLevelMenu.lua (never copies of them)
 assert(loadfile("AutoCategory_Tree.lua"))()
 assert(loadfile("AutoCategory_LevelMenu.lua"))()
+assert(loadfile("AutoCategory_API.lua"))()
+function AutoCategory.GetCategorySortName(name) return name end
 
 local CLM = AutoCategory.CategoryLevelMenu
 local CategoryTree = AutoCategory.CategoryTree
@@ -464,8 +466,8 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 -- ---------------------------------------------------------------------------
 
 -- a header of a category of the bag gets the Rule submenu, the Level
--- submenu and the Copy To submenu (Kid is Normal and alone in the
--- bag here: no Decrease entry, no move entries; three copy entries
+-- submenu, Move To and Copy To (Kid is Normal and alone in the
+-- bag here: no Decrease entry, a disabled self destination; three copy entries
 -- for the three bags of the stub other than the clicked one)
 capturedSubmenus = {}
 capturedItems = {}
@@ -484,7 +486,7 @@ AutoCategory.CategoryManagement = { Open = function(bagId, refresh)
 end }
 capturedItems[3].callback()
 equal(12, openedBag, "manager uses the clicked bag")
-equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
+equal(4, #capturedSubmenus, "Rule, Level, Move To and Copy To")
 equal("Rule", capturedSubmenus[1].text,
     "the rule submenu comes first")
 local ruleMenu = capturedSubmenus[1].entries
@@ -507,10 +509,13 @@ equal(callsBefore + 1, refreshCalls.cacheInitialize, "the changed slider refresh
 equal("true", ruleMenu[3].label, "the rule submenu shows the rule text")
 equal("Level", capturedSubmenus[2].text, "the level operations sit in their own submenu")
 local levelMenu = capturedSubmenus[2].entries
-equal(1, #levelMenu, "Kid is Normal and alone: no Decrease entry, no move entries")
+equal(1, #levelMenu, "Kid is Normal and alone: no Decrease entry")
 equal("Increase Level →", levelMenu[1].label)
-equal("Copy To", capturedSubmenus[3].text, "the third submenu is the Copy To menu")
-menu = capturedSubmenus[3].entries
+equal("Move To", capturedSubmenus[3].text)
+equal("Kid", capturedSubmenus[3].entries[1].label, "show the sole category even if no move is possible")
+equal(nil, capturedSubmenus[3].entries[1].callback, "cannot move under self")
+equal("Copy To", capturedSubmenus[4].text)
+menu = capturedSubmenus[4].entries
 equal(3, #menu, "the copy entries list the other bags")
 equal("Backpack", menu[1].label)
 equal("Bank", menu[2].label)
@@ -550,16 +555,16 @@ equal(3, #capturedItems, "removal, creation and management for a predefined rule
 equal("Remove from display", capturedItems[1].label,
     "a predefined rule is offered the removal")
 equal("New Category", capturedItems[2].label)
-equal(3, #capturedSubmenus,
-    "a Rule, a Level and a Copy To submenu for a predefined rule")
+equal(4, #capturedSubmenus,
+    "Rule, Level, Move To and Copy To for a predefined rule")
 equal("Rule", capturedSubmenus[1].text, "the predefined rule text shows too")
 equal("Level", capturedSubmenus[2].text)
 equal(2, #capturedSubmenus[2].entries, "alone in the bag: no move entries")
 equal("Increase Level →", capturedSubmenus[2].entries[1].label)
 equal("Decrease Level ←", capturedSubmenus[2].entries[2].label,
     "an explicit level 1 can go back to Normal")
-equal("Copy To", capturedSubmenus[3].text)
-equal(3, #capturedSubmenus[3].entries, "the copy entries are offered for a predefined rule")
+equal("Copy To", capturedSubmenus[4].text)
+equal(3, #capturedSubmenus[4].entries, "the copy entries are offered for a predefined rule")
 
 -- the removal of a predefined category only takes it out of the
 -- inventory list of the clicked bag: the protected rule is kept
@@ -591,9 +596,11 @@ equal("Level", capturedSubmenus[2].text)
 equal(1, #capturedSubmenus[2].entries, "no Increase at level 5, no neighbor to move to")
 equal("Decrease Level ←", capturedSubmenus[2].entries[1].label)
 equal("Move To", capturedSubmenus[3].text)
-equal(1, #capturedSubmenus[3].entries,
-    "only the top level entry: no other category in the bag")
+equal(2, #capturedSubmenus[3].entries,
+    "the top level action and the disabled sole category")
 equal("Top Level", capturedSubmenus[3].entries[1].label)
+equal("Deep", capturedSubmenus[3].entries[2].label)
+equal(nil, capturedSubmenus[3].entries[2].callback)
 menu = capturedSubmenus[4].entries
 equal(3, #menu, "the copy entries are still offered at level 5")
 equal("Backpack", menu[1].label)
@@ -604,11 +611,11 @@ newRule("CopyMe", 1)
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("CopyMe", 15, testMenu)
-equal(3, #capturedSubmenus, "a Rule, a Level and a Copy To submenu")
+equal(4, #capturedSubmenus, "Rule, Level, Move To and Copy To")
 equal("Rule", capturedSubmenus[1].text)
 equal("Level", capturedSubmenus[2].text)
-equal("Copy To", capturedSubmenus[3].text)
-menu = capturedSubmenus[3].entries
+equal("Copy To", capturedSubmenus[4].text)
+menu = capturedSubmenus[4].entries
 local copyEntry = nil
 for i = 1, #menu do
     if menu[i].label == "Backpack" then
@@ -618,7 +625,7 @@ end
 equal(true, copyEntry ~= nil, "the copy entries list the other bags")
 chatMessages = {}
 copyEntry.onChecked(true)
-capturedSubmenus[3].apply()
+capturedSubmenus[4].apply()
 equal("CopyMe", bagNames(1)[#bagNames(1)],
     "the copy target bag received the category")
 equal("AutoCategory: 1 categories copied to Backpack (0 already there).",
@@ -701,8 +708,8 @@ equal("X", rD.parent)
 equal(3, rE.level, "the children shift with the category")
 equal("D", rE.parent, "the children keep their parent")
 
--- the Move To submenu: the candidates of the bag in display order,
--- never the category itself, its children or its current parent
+-- Move To follows inventory display order, including visible but
+-- disabled rows for the source, current parent and descendants.
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Mid", 20, testMenu)
@@ -731,11 +738,15 @@ equal(39, AutoCategory.saved.bags[20].rules[3].showpriority,
 equal("Move To", capturedSubmenus[3].text)
 equal("Copy To", capturedSubmenus[4].text)
 local moveMenu = capturedSubmenus[3].entries
-equal(4, #moveMenu, "top level, then the candidates in display order")
+equal(6, #moveMenu, "top level, then all configured destinations in display order")
 equal("Top Level", moveMenu[1].label)
 equal("TopA", moveMenu[2].label)
-equal("Leaf", moveMenu[3].label)
-equal("Other", moveMenu[4].label)
+equal("TopB", moveMenu[3].label)
+equal(nil, moveMenu[3].callback, "current parent remains visible but disabled")
+equal("  Mid", moveMenu[4].label)
+equal(nil, moveMenu[4].callback, "source remains visible but disabled")
+equal("Leaf", moveMenu[5].label)
+equal("Other", moveMenu[6].label)
 
 -- the move callback moves and refreshes
 refreshCalls.cacheInitialize = 0
@@ -754,7 +765,7 @@ rKid.rule = "type(2) and quality(2) and (isSetOf(1) or isSetOf(2)) and not (boun
 capturedSubmenus = {}
 capturedItems = {}
 AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu)
-equal(3, #capturedSubmenus, "the rule submenu is there for a long rule too")
+equal(4, #capturedSubmenus, "the rule submenu is there for a long rule too")
 local longMenu = capturedSubmenus[1].entries
 equal(true, #longMenu > 4, "a long rule is wrapped over several entries")
 local joined = {}
@@ -833,6 +844,7 @@ newRule("Indent L2", 2, "Indent L1")
 newRule("Indent L3", 3, "Indent L2")
 newRule("Indent L4", 4, "Indent L3")
 newRule("Indent L5", 5, "Indent L4")
+newRule("Indent hidden", 1)
 setBag(23, {
     { name = "Indent source", runpriority = 60, showpriority = 60 },
     { name = "Indent L1", runpriority = 50, showpriority = 50 },
@@ -840,6 +852,7 @@ setBag(23, {
     { name = "Indent L3", runpriority = 30, showpriority = 30 },
     { name = "Indent L4", runpriority = 20, showpriority = 20 },
     { name = "Indent L5", runpriority = 10, showpriority = 10 },
+    { name = "Indent hidden", runpriority = 70, showpriority = 70, isHidden = true },
 })
 capturedSubmenus = {}
 AutoCategory.AddCategoryLevelMenuEntries("Indent source", 23, testMenu)
@@ -855,14 +868,28 @@ for _, submenu in ipairs(capturedSubmenus) do
         end
     end
 end
-equal(4, #indentEntries, "level five still cannot be a destination")
-equal("Indent L1", indentEntries[1].label)
-equal("  Indent L2", indentEntries[2].label)
-equal("    Indent L3", indentEntries[3].label)
-equal("      Indent L4", indentEntries[4].label)
-indentEntries[4].callback()
+equal(6, #indentEntries, "show all destinations except the hidden category")
+equal("Indent source", indentEntries[1].label)
+equal("Indent L1", indentEntries[2].label)
+equal("  Indent L2", indentEntries[3].label)
+equal("    Indent L3", indentEntries[4].label)
+equal("      Indent L4", indentEntries[5].label)
+equal("        Indent L5", indentEntries[6].label)
+equal(nil, indentEntries[6].callback, "level five is shown but cannot receive a child")
+indentEntries[5].callback()
 equal("Indent L4", AutoCategory.GetRuleByName("Indent source").parent, "move resolves the unindented name")
 equal(5, AutoCategory.GetRuleByName("Indent source").level, "move still nests under the selected level")
+capturedSubmenus = {}
+AutoCategory.AddCategoryLevelMenuEntries("Indent L3", 23, testMenu)
+for _, submenu in ipairs(capturedSubmenus) do
+    if submenu.text == "Move To" then
+        for _, entry in ipairs(submenu.entries) do
+            if entry.label == "      Indent L4" then
+                equal(nil, entry.callback, "a descendant cannot receive its own ancestor")
+            end
+        end
+    end
+end
 
 -- Run the shipped XML handlers and header input code against the real
 -- level move, substituting only the ESO UI controls and event dispatch.

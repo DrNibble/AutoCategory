@@ -289,6 +289,7 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_MENU_CM_COPY_SELECTED = "Copy selected bags",
     SI_AC_TIP_CM_COPY_OVERWRITE = "Already exists, select to overwrite",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Move To",
+    SI_AC_MENU_CM_MOVE_ITEM_SUBMENU = "Move to Category",
     SI_AC_MENU_CM_MOVE_TOP = "Top Level",
     SI_AC_MENU_CM_RUN_PRIORITY = "Execution Priority: %d",
     SI_AC_MENU_CM_RULE = "Rule",

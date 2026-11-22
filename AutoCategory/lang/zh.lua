@@ -242,6 +242,7 @@ AutoCategory_localization_strings["zh"] = {
     SI_AC_MENU_CM_COPY_SELECTED = "复制到所选背包",
     SI_AC_TIP_CM_COPY_OVERWRITE = "已存在，勾选即可覆盖",
     SI_AC_MENU_CM_MOVE_SUBMENU = "移动到",
+    SI_AC_MENU_CM_MOVE_ITEM_SUBMENU = "移动到分类",
     SI_AC_MENU_CM_MOVE_TOP = "顶层",
     SI_AC_MENU_CM_RUN_PRIORITY = "执行优先级：%d",
     SI_AC_MENU_CM_RULE = "规则",

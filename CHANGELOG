@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Shared inventory move destinations (2026-11-22)[/COLOR]:
+[LIST]
+[*] The header's Move To and the item's Move to Category show the same searchable category list, including empty and collapsed categories but not hidden ones. Subheaders use two spaces per level. Invalid destinations are dimmed.
+[*] Move to Category opens as a scrollable side submenu in the native item menu. Updated all six languages. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Choose a parent when creating an inventory category (2026-11-22)[/COLOR]:
 [LIST]
 [*] New Category preselects the clicked category if it can host a child. Select another category from this inventory or select no parent to create a Normal category as before.

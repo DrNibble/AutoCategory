@@ -1,5 +1,15 @@
 # Changes
 
+## 2026-11-22: share the inventory move destinations
+
+- Move To on headers and Move to Category on items share the configured
+  category list, including empty or collapsed categories but excluding
+  hidden entries. Subheaders use two spaces per displayed level.
+- Ineligible destinations are shown dimmed: impossible hierarchy moves
+  on headers and predefined rules on items. The item submenu opens beside
+  the native context menu with the same search and scrollable list.
+  Updated all six languages. Not tested in ESO.
+
 ## 2026-11-22: choose a parent when creating an inventory category
 
 - New Category remembers the clicked category's name and level and

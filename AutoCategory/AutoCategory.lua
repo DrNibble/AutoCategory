@@ -741,22 +741,6 @@ function AutoCat.cache.AddRule(rule)
 	rule:compile()
 end
 
--- Keep the native context menu intact; open only the AutoCategory list separately.
-local function addScrollableContextSubMenu(title, entries, anchor, visibleRows)
-	if #entries == 0 then return end
-
-	AddCustomMenuItem(title, function()
-		-- Let the native menu finish handling the click first.
-		zo_callLater(function()
-			local rows = {}
-			for _, entry in ipairs(entries) do
-				rows[#rows + 1] = { label = entry.label, action = entry.callback }
-			end
-			AutoCategory.ScrollMenu.Show(anchor, rows, { visibleRows = visibleRows })
-		end, 0)
-	end, MENU_ADD_OPTION_LABEL)
-end
-
 -- Set up the context menu item for AutoCategory
 local LCM = LibCustomMenu
 local function setupContextMenu()
@@ -767,62 +751,30 @@ local function setupContextMenu()
 		local name = GetItemName(bagId, slotIndex)
 		sysd("[AC] "..tostring(name).."   itemId = "..tostring(itemId))
 	end
-	local function AC_AddToCategoryMenu(rowControl, bagId, slotIndex)
-		-- the "AutoCategory" submenu: the categories (levels) of the
-		-- bag the item is in, in display order. Selecting a category adds
-		-- the itemId of the item to the isitemid() command of that
-		-- category's rule, so the item lands in that category.
+	local function AC_AddToCategoryMenu(bagId, slotIndex)
 		local bagTypeId = AutoCategory.getBagTypeId(bagId)
 		if not bagTypeId then return end
-		local bag = AutoCat.saved.bags[bagTypeId]
-		if not bag or not bag.rules then return end
 
-		-- the categories in display order (the order of the Display
-		-- Order window): a copy of the list, the saved order stays
-		-- untouched
-		local rules = {}
-		for i = 1, #bag.rules do
-			rules[#rules + 1] = bag.rules[i]
-		end
-		AutoCat.SortBagRulesByDisplay(rules)
-
+		local CLM = AutoCategory.CategoryLevelMenu
 		local itemId = GetItemId(bagId, slotIndex)
 		local entries = {}
-		for i = 1, #rules do
-			local bagrule = rules[i]
-			local rule = AutoCategory.GetRuleByName(bagrule.name)
-			-- only the categories whose rule can be edited: a predefined
-			-- rule is not editable (the same guard as Edit Category)
-			if rule and not rule:isPredefined() then
-				-- indent the category under its level (a Normal category
-				-- counts as level 1)
-				local level = 1
-				if type(rule.level) == "number" and rule.level >= 2
-					and rule.level <= 5 and rule.level == math.floor(rule.level) then
-					level = rule.level
+		for _, destination in ipairs(CLM.GetMoveDestinations(bagTypeId)) do
+			local name = destination.name
+			local action
+			if not destination.rule:isPredefined() then
+				action = function()
+					CLM.MoveItemToCategory(bagTypeId, name, itemId)
 				end
-				local label = string.rep("    ", level - 1) .. bagrule.name
-				entries[#entries + 1] = {
-					label = label,
-					callback = function()
-						if not rule:addItemIdToIsItemId(itemId) then return end
-						rule:compile()
-						-- the same refreshes as a rule edit in Edit Category
-						AutoCat.cacheInitialize()
-						AC_UI.RefreshDropdownData()
-						AC_UI.RefreshControls()
-						-- re-sort the open inventories so the item moves now
-						AutoCat.RefreshCurrentList()
-					end,
-				}
 			end
+			entries[#entries + 1] = { label = destination.label, action = action }
 		end
-		addScrollableContextSubMenu("AutoCategory", entries, rowControl, 12)
+		AutoCategory.ScrollMenu.AddNativeSubmenu(GetString(SI_AC_MENU_CM_MOVE_ITEM_SUBMENU), entries)
 	end
 
 	local function AC_AddMenuItem(rowControl, slotActions)
 		local bagId, slotIndex = ZO_Inventory_GetBagAndIndex(rowControl)
-		AC_AddToCategoryMenu(rowControl, bagId, slotIndex)
+		AutoCategory.ScrollMenu.Hide()
+		AC_AddToCategoryMenu(bagId, slotIndex)
 		AddCustomMenuItem("AC: Get itemId", function() AC_GetItem(rowControl) end, MENU_ADD_OPTION_LABEL)
         if AutoCat.displayItem then
 		    AddCustomMenuItem("AC: Debug", function() AutoCat.displayItem(bagId, slotIndex) end, MENU_ADD_OPTION_LABEL)

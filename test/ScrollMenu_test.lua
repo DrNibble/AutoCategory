@@ -231,4 +231,87 @@ menu.Show(anchor, rows)
 equal(true, root.hidden, "a hidden inventory cannot open the menu")
 equal(nil, LibScrollableMenu)
 equal(nil, AddCustomScrollableMenuEntry)
+
+-- The item submenu uses the same panel renderer under ESO's native
+-- owning window, so a mouse-up inside the search or list does not close it.
+local nativePanel, onEnter, onSelect, nativeTime
+ZO_Menus, ZO_Menu = control(), control()
+ZO_Menu.x, ZO_Menu.y, ZO_Menu.width, ZO_Menu.hidden = 50, 65, 200, false
+ZO_Menu.items = {}
+local launcher = control()
+launcher.y, launcher.hidden = 115, false
+MENU_ADD_OPTION_LABEL = 1
+function ClearMenu() ZO_Menu.hidden = true end
+function GetFrameTimeMilliseconds() return nativeTime end
+function AddCustomMenuItem(label, select, itemType, _, _, _, _, _, _, enter, _, enabled)
+    equal("Déplacer vers catégorie  >", label)
+    equal(MENU_ADD_OPTION_LABEL, itemType)
+    equal(false, enabled, "launcher click does not close the native menu")
+    onEnter, onSelect = enter, select
+    ZO_Menu.items[1] = { item = launcher }
+    return 1
+end
+WINDOW_MANAGER = { CreateControlFromVirtual = function(_, name, parent, template)
+    equal(ZO_Menus, parent, "the panel belongs to the native menus window")
+    equal("AC_ScrollMenuNativeSide", name)
+    equal("AC_ScrollMenuContents", template)
+    nativePanel = panel()
+    return nativePanel
+end }
+local acted
+table.insert(destinations, 1, { label = "Disabled destination" })
+destinations[2].action = function()
+    equal(true, ZO_Menu.hidden, "selecting a destination closes the native context menu")
+    equal(true, nativePanel.hidden, "also closes the side pane")
+    acted = true
+end
+menu.AddNativeSubmenu("Déplacer vers catégorie", destinations)
+equal(nil, nativePanel, "registering the row does not open a separate window")
+onEnter(launcher)
+equal(false, nativePanel.hidden, "hover opens the submenu beside the native context menu")
+equal(250, nativePanel.x)
+equal(115, nativePanel.y)
+equal(15 * 28 + 12 + 38, nativePanel.height, "native submenu also scrolls")
+local nativeList = nativePanel.children.List
+local nativeEdit = nativePanel.children.Search.children.Edit
+equal(19, #nativeList.data, "scrolling does not truncate destinations")
+equal(0.65, nativeList.rows[1].children.Label.color[4], "unavailable destinations are dimmed")
+click(nativeList.rows[1])
+equal(false, nativePanel.hidden, "clicking a dimmed row does not close the menu")
+hovered = nativePanel
+event()
+equal(false, nativePanel.hidden, "clicks inside the submenu do not dismiss it")
+nativeEdit:SetText("destination 18")
+equal(1, #nativeList.data, "search also works on the native submenu")
+onSelect()
+equal("destination 18", nativeEdit.text, "clicking the open launcher does not reset search")
+hovered, nativeTime = nil, 10
+nativePanel:fire("OnUpdate")
+nativeTime = 130
+nativePanel:fire("OnUpdate")
+equal(false, nativePanel.hidden, "crossing the separator padding keeps the submenu open")
+hovered = nativePanel
+nativePanel:fire("OnUpdate")
+click(nativeList.rows[1])
+equal(true, acted)
+
+ZO_Menu.hidden = false
+onSelect()
+equal(false, nativePanel.hidden, "click can open the submenu again")
+equal("", nativeEdit.text)
+hovered, nativeTime = nil, 300
+nativePanel:fire("OnUpdate")
+nativeTime = 510
+nativePanel:fire("OnUpdate")
+equal(true, nativePanel.hidden, "leaving the opener and panel dismisses only the submenu")
+equal(false, ZO_Menu.hidden)
+onEnter(launcher)
+nativeEdit:fire("OnEscape")
+equal(true, ZO_Menu.hidden, "Escape closes both parts")
+
+ZO_Menu.hidden = false
+onEnter(launcher)
+ClearMenu()
+nativePanel:fire("OnUpdate")
+equal(true, nativePanel.hidden, "when ESO closes the original menu its submenu closes")
 print("PASS: " .. count .. " assertions (ScrollMenu)")

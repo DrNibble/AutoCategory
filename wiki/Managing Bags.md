@@ -64,6 +64,13 @@ Looks like:
    items. Assign items or nest matching categories under it when you
    want it to contain inventory entries.
 
+   **Move To** on a category header and **Move to Category** on an item
+   open a searchable side submenu. They show the same categories from
+   the current bag, including empty or collapsed categories, but not
+   hidden categories. Two spaces indicate each level below the root.
+   Invalid hierarchy moves are disabled in the header menu. Predefined
+   rules are visible but cannot be changed from the item menu.
+
 4. Customize a category
 
    You can change a category's name, description, tag or even its rule to make better use of them. You can find examples of custom rules on the [Creating Custom Categories](https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories) page.

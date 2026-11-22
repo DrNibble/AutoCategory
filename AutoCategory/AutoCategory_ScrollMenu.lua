@@ -6,6 +6,7 @@ local ROW_HEIGHT, PADDING, SEARCH_HEIGHT = 28, 6, 38
 local EVENT_NAMESPACE = "AutoCategory_ScrollMenu"
 local root, side, anchor, opener, tooltipRow
 local sideLimit
+local nativeSide, nativeOpener, nativeLeaveTime
 
 local function clearTooltip(row)
     if tooltipRow and (not row or tooltipRow == row) then
@@ -26,6 +27,12 @@ end
 
 function Menu.Hide()
     hideSide()
+    nativeOpener, nativeLeaveTime = nil, nil
+    if nativeSide and not nativeSide.control:IsHidden() then
+        nativeSide.control:SetHidden(true)
+        nativeSide.edit:LoseFocus()
+        nativeSide.entries = nil
+    end
     anchor = nil
     if root then root.control:SetHidden(true) end
     clearTooltip()
@@ -63,20 +70,23 @@ local function layout(panel, entries, limit, width, searchable)
     fillList(panel)
 end
 
+local function showSide(panel, parent, row, entries, limit, width, searchable)
+    panel.edit:SetText("")
+    layout(panel, entries, limit, width, searchable)
+    panel.control:ClearAnchors()
+    local right = parent:GetRight() + width <= GuiRoot:GetRight()
+        or parent:GetLeft() - width < GuiRoot:GetLeft()
+    local x = right and parent:GetRight() or parent:GetLeft() - width
+    panel.control:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT,
+        x - GuiRoot:GetLeft(), row:GetTop() - GuiRoot:GetTop())
+    panel.control:SetHidden(false)
+end
+
 local function openSide(row, entry)
     if opener == row or #entry.entries == 0 then return end
     hideSide()
     opener = row
-    side.edit:SetText("")
-    local width = root.control:GetWidth()
-    layout(side, entry.entries, sideLimit, width, entry.search)
-    side.control:ClearAnchors()
-    local right = root.control:GetRight() + width <= GuiRoot:GetRight()
-        or root.control:GetLeft() - width < GuiRoot:GetLeft()
-    local x = right and root.control:GetRight() or root.control:GetLeft() - width
-    side.control:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT,
-        x - GuiRoot:GetLeft(), row:GetTop() - GuiRoot:GetTop())
-    side.control:SetHidden(false)
+    showSide(side, root.control, row, entry.entries, sideLimit, root.control:GetWidth(), entry.search)
 end
 
 local function setupRow(panel, row, entry)
@@ -165,6 +175,7 @@ local function setupRow(panel, row, entry)
             toggle(checked)
         elseif entry.action then
             Menu.Hide()
+            if panel == nativeSide then ClearMenu() end
             entry.action()
         end
     end)
@@ -184,19 +195,28 @@ local function newPanel(control)
     return panel
 end
 
+local function enableSearch(panel)
+    panel.edit:SetDefaultText(GetString(SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT))
+    panel.edit:SetHandler("OnTextChanged", function(edit)
+        if panel.entries and not panel.control:IsHidden() then
+            -- The edit box is outside the list, so it keeps focus and cursor.
+            fillList(panel, edit:GetText())
+        end
+    end)
+    panel.edit:SetHandler("OnEscape", function()
+        Menu.Hide()
+        if panel == nativeSide then ClearMenu() end
+    end)
+end
+
 local function initialize()
     root = newPanel(AC_ScrollMenuRoot)
     side = newPanel(AC_ScrollMenuSide)
-    side.edit:SetDefaultText(GetString(SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT))
-    side.edit:SetHandler("OnTextChanged", function(edit)
-        if side.entries and not side.control:IsHidden() then
-            -- The edit box is outside the list, so it keeps focus and cursor.
-            fillList(side, edit:GetText())
-        end
-    end)
-    side.edit:SetHandler("OnEscape", Menu.Hide)
+    enableSearch(side)
     EVENT_MANAGER:RegisterForEvent(EVENT_NAMESPACE, EVENT_GLOBAL_MOUSE_UP, function()
-        if anchor and not MouseIsOver(root.control)
+        if nativeOpener then
+            if not MouseIsOver(ZO_Menu) and not MouseIsOver(nativeSide.control) then Menu.Hide() end
+        elseif anchor and not MouseIsOver(root.control)
                 and (side.control:IsHidden() or not MouseIsOver(side.control)) then
             Menu.Hide()
         end
@@ -207,6 +227,47 @@ local function initialize()
     root.control:SetHandler("OnUpdate", function()
         if anchor and anchor:IsHidden() then Menu.Hide() end
     end)
+end
+
+local function showNativeSide(row, entries)
+    if not row or row:IsHidden() or ZO_Menu:IsHidden() then return end
+    if nativeOpener == row then return end
+    Menu.Hide()
+    if not root then initialize() end
+    if not nativeSide then
+        -- Make the picker part of the native menu's owning window so ESO
+        -- treats clicks in the search box and scroll list as menu clicks.
+        local control = WINDOW_MANAGER:CreateControlFromVirtual(
+            "AC_ScrollMenuNativeSide", ZO_Menus, "AC_ScrollMenuContents")
+        nativeSide = newPanel(control)
+        enableSearch(nativeSide)
+        control:SetHandler("OnUpdate", function()
+            if not nativeOpener then return end
+            if ZO_Menu:IsHidden() or nativeOpener:IsHidden() then
+                Menu.Hide()
+            elseif MouseIsOver(nativeOpener) or MouseIsOver(control) then
+                nativeLeaveTime = nil
+            else
+                -- Give the pointer time to cross the native menu padding.
+                local now = GetFrameTimeMilliseconds()
+                nativeLeaveTime = nativeLeaveTime or now
+                if now - nativeLeaveTime >= 200 then Menu.Hide() end
+            end
+        end)
+    end
+    anchor, nativeOpener = row, row
+    showSide(nativeSide, ZO_Menu, row, entries, 15, 380, true)
+end
+
+function Menu.AddNativeSubmenu(title, entries)
+    if #entries == 0 then return end
+    local index
+    index = AddCustomMenuItem(title .. "  >", function()
+        local entry = ZO_Menu.items[index]
+        if entry then showNativeSide(entry.item, entries) end
+    end, MENU_ADD_OPTION_LABEL, nil, nil, nil, nil, nil, nil,
+        function(row) showNativeSide(row, entries) end, nil,
+        false) -- ESO invokes OnSelect, but does not close the menu on this row.
 end
 
 function Menu.Show(owner, entries, options)

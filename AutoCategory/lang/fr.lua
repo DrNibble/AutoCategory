@@ -258,6 +258,7 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_MENU_CM_COPY_SELECTED = "Copier la sélection",
     SI_AC_TIP_CM_COPY_OVERWRITE = "déjà existant, sélectionner pour écraser",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Déplacer vers",
+    SI_AC_MENU_CM_MOVE_ITEM_SUBMENU = "Déplacer vers catégorie",
     SI_AC_MENU_CM_MOVE_TOP = "Premier niveau",
     SI_AC_MENU_CM_RUN_PRIORITY = "Priorité d'exécution : %d",
     SI_AC_MENU_CM_RULE = "Règle",

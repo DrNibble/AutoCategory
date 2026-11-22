@@ -230,6 +230,7 @@ AutoCategory_localization_strings["de"] = {
     SI_AC_MENU_CM_COPY_SELECTED = "In ausgewählte Inventare kopieren",
     SI_AC_TIP_CM_COPY_OVERWRITE = "Bereits vorhanden. Zum Überschreiben auswählen.",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Verschieben nach",
+    SI_AC_MENU_CM_MOVE_ITEM_SUBMENU = "In Kategorie verschieben",
     SI_AC_MENU_CM_MOVE_TOP = "Oberste Ebene",
     SI_AC_MENU_CM_RUN_PRIORITY = "Ausführungspriorität: %d",
     SI_AC_MENU_CM_RULE = "Regel",

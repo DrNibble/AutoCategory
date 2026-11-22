@@ -282,6 +282,7 @@ AutoCategory_localization_strings["ru"] = {
     SI_AC_MENU_CM_COPY_SELECTED = "Копировать в выбранные хранилища",
     SI_AC_TIP_CM_COPY_OVERWRITE = "Уже существует. Выберите, чтобы перезаписать.",
     SI_AC_MENU_CM_MOVE_SUBMENU = "Переместить в",
+    SI_AC_MENU_CM_MOVE_ITEM_SUBMENU = "Переместить в категорию",
     SI_AC_MENU_CM_MOVE_TOP = "Верхний уровень",
     SI_AC_MENU_CM_RUN_PRIORITY = "Приоритет выполнения: %d",
     SI_AC_MENU_CM_RULE = "Правило",

@@ -15,9 +15,9 @@ local function extract(signature)
     return source:sub(first, last + 3)
 end
 
-local registered, native, scrolled, pending, events
+local registered, native, scrolled, events
 local function reset()
-    native, scrolled, pending, events = {}, {}, {}, {}
+    native, scrolled, events = {}, {}, {}
 end
 reset()
 MENU_ADD_OPTION_LABEL = 1
@@ -35,11 +35,6 @@ function ShowMenu(row)
     equal(true, type(row.slot) == "number", "original menu anchored to clicked slot")
     events[#events + 1] = "native"
 end
-function zo_callLater(callback, delay)
-    equal(0, delay, "defer until the native mouse-up completes")
-    pending[#pending + 1] = callback
-end
-
 local rules = {}
 local function addRule(name, level, parent, predefined)
     rules[name] = {
@@ -55,12 +50,18 @@ local function addRule(name, level, parent, predefined)
 end
 addRule("Zèbre")
 addRule("Enfant", 2, "Zèbre")
+addRule("Petit-enfant", 3, "Enfant")
+addRule("Masquée", 2, "Zèbre")
+addRule("Vide")
 addRule("-")
 addRule("Protégé", nil, nil, true)
 addRule("Banque")
 
 local bagRules = {
     { name = "Enfant", showpriority = 5 },
+    { name = "Petit-enfant", showpriority = 4 },
+    { name = "Masquée", showpriority = 99, isHidden = true },
+    { name = "Vide", showpriority = 60 },
     { name = "-", showpriority = 80 },
     { name = "Protégé", showpriority = 90 },
     { name = "Zèbre", showpriority = 100 },
@@ -83,61 +84,76 @@ AC_UI = {
     RefreshControls = function() events[#events + 1] = "controls" end,
 }
 assert(loadfile("AutoCategory_Tree.lua"))()
+assert(loadfile("AutoCategory_LevelMenu.lua"))()
+assert(loadfile("AutoCategory_API.lua"))()
+AutoCategory.getBagTypeId = function(id) if id <= 3 then return id end end
+SI_AC_MENU_CM_MOVE_ITEM_SUBMENU = "Déplacer vers catégorie"
+function GetString(id) return id end
 assert(loadstring(table.concat({
     "local AutoCat = AutoCategory",
-    "local CategoryTree = AutoCategory.CategoryTree",
     "local LCM = LibCustomMenu",
-    extract("local function BagRuleShowKey("),
-    extract("function AutoCat.SortBagRulesByDisplay("),
-    extract("local function addScrollableContextSubMenu("),
     extract("local function setupContextMenu()"),
     "setupContextMenu()",
 }, "\n")))()
 
 local backpack = { bag = 1, slot = 4 }
-local anchoredTo, options
-AutoCategory.ScrollMenu = {}
-function AutoCategory.ScrollMenu.Show(row, entries, opts)
-    anchoredTo, scrolled, options = row, entries, opts
-    events[#events + 1] = "scrollable"
+AutoCategory.ScrollMenu = { Hide = function() end }
+function AutoCategory.ScrollMenu.AddNativeSubmenu(label, entries)
+    if #entries > 0 then native[label] = entries end
 end
 registered(backpack)
 equal("function", type(native["AC: Get itemId"]), "existing item ID entry remains")
-equal("native", events[1], "normal item menu is shown first")
-equal(0, #pending, "no scrollable list on right-click alone")
-native.AutoCategory()
-equal(1, #events, "defer opening until after the native menu click")
-pending[1]()
-equal("scrollable", table.concat(events, ",", 2), "show the internal scrollable list")
-equal(backpack, anchoredTo, "scrollable list belongs to clicked row")
-equal(12, options.visibleRows, "long lists have a fixed viewport")
-equal(3, #scrolled, "filter out protected and missing rules")
+equal("native", events[1], "native item menu is shown")
+equal(nil, native.AutoCategory, "old launcher is gone")
+scrolled = assert(native[SI_AC_MENU_CM_MOVE_ITEM_SUBMENU])
+equal(6, #scrolled, "include empty and protected, omit hidden and missing rules")
 equal("Zèbre", scrolled[1].label, "highest visual priority comes first")
-equal("    Enfant", scrolled[2].label, "child follows its parent with indentation")
-equal("-", scrolled[3].label, "a hyphen is a literal category name")
+equal("  Enfant", scrolled[2].label, "child follows its parent with two spaces")
+equal("    Petit-enfant", scrolled[3].label, "grandchild has four spaces")
+equal("Protégé", scrolled[4].label, "protected categories appear in display order")
+equal(nil, scrolled[4].action, "predefined rules cannot be edited")
+equal("-", scrolled[5].label, "a hyphen is a literal category name")
+equal("Vide", scrolled[6].label, "an empty category without a visible header is included")
+local headerRows
+AutoCategory.AddCategoryLevelMenuEntries("Zèbre", 1, {
+    addItem = function() end,
+    addDivider = function() end,
+    addSubMenu = function(_, entries, opts)
+        if opts and opts.searchable then headerRows = entries end
+    end,
+})
+equal(#scrolled, #headerRows, "header and item menus share the same destinations")
+for i, row in ipairs(scrolled) do
+    equal(row.label, headerRows[i].label, "header and item menus share order and label")
+end
 equal("Enfant", bagRules[1].name, "saved list was not reordered")
 
 backpack.slot = 9
 scrolled[2].action()
 equal(104, rules.Enfant.itemId, "selection targets the item right-clicked originally")
 equal(nil, rules["Zèbre"].itemId, "selection only changes the chosen category")
-equal("compile,cache,dropdowns,controls,list", table.concat(events, ",", 3),
+equal("compile,cache,dropdowns,controls,list", table.concat(events, ",", 2),
     "rule change recompiles and refreshes in original order")
 scrolled[2].action()
-equal(7, #events, "duplicate item ID does not refresh")
+equal(6, #events, "duplicate item ID does not refresh")
+bagRules[4].isHidden = true
+scrolled[6].action()
+equal(nil, rules.Vide.itemId, "do not edit a category hidden after the menu was built")
 
 local bank = { bag = 2, slot = 1 }
+reset()
 registered(bank)
-native.AutoCategory()
-pending[2]()
-equal(bank, anchoredTo, "menu reanchors to the next clicked bag")
+scrolled = assert(native[SI_AC_MENU_CM_MOVE_ITEM_SUBMENU])
 equal(1, #scrolled, "next opening clears the previous bag's entries")
 equal("Banque", scrolled[1].label, "only categories of the clicked bag are offered")
 
 reset()
 registered({ bag = 3, slot = 1 })
-equal(nil, native.AutoCategory, "no launcher when all categories are protected")
+scrolled = assert(native[SI_AC_MENU_CM_MOVE_ITEM_SUBMENU])
+equal(1, #scrolled, "protected-only bag still shows its category")
+equal(nil, scrolled[1].action, "protected-only category remains disabled")
+reset()
 registered({ bag = 4, slot = 1 })
-equal(nil, native.AutoCategory, "no launcher for unsupported bags")
+equal(nil, native[SI_AC_MENU_CM_MOVE_ITEM_SUBMENU], "no submenu for unsupported bags")
 
 print(("PASS: %d assertions (InventoryCategoryMenu)"):format(assertions))

@@ -33,8 +33,8 @@
             </Controls>
         </Control>
 
-        <TopLevelControl name="AC_ScrollMenuPanel" virtual="true" hidden="true"
-            mouseEnabled="true" tier="HIGH" clampedToScreen="true">
+        <Control name="AC_ScrollMenuContents" virtual="true" hidden="true"
+            mouseEnabled="true" clampedToScreen="true">
             <Controls>
                 <Backdrop name="$(parent)Background" inherits="ZO_DefaultBackdrop">
                     <AnchorFill/>
@@ -48,7 +48,9 @@
                 </Backdrop>
                 <Control name="$(parent)List" inherits="ZO_ScrollList"/>
             </Controls>
-        </TopLevelControl>
+        </Control>
+        <TopLevelControl name="AC_ScrollMenuPanel" inherits="AC_ScrollMenuContents"
+            virtual="true" tier="HIGH"/>
         <TopLevelControl name="AC_ScrollMenuRoot" inherits="AC_ScrollMenuPanel" level="20"/>
         <TopLevelControl name="AC_ScrollMenuSide" inherits="AC_ScrollMenuPanel" level="21"/>
     </Controls>

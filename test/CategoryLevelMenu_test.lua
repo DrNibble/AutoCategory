@@ -472,7 +472,8 @@ equal(false, CLM.DeleteLevelInBag(12, "Root"), "nothing to delete")
 capturedSubmenus = {}
 capturedItems = {}
 capturedOrder = {}
-AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu, "Nom affiché")
+local sourceList = {}
+AutoCategory.AddCategoryLevelMenuEntries("Root----Kid", 12, testMenu, "Nom affiché", sourceList)
 equal("-", capturedOrder[1], "divider comes immediately before Rule")
 equal("Rule", capturedOrder[2], "Rule follows the divider")
 equal(3, #capturedItems, "removal, creation and management for an operable header")
@@ -480,9 +481,10 @@ equal("Remove from display", capturedItems[1].label, "the removal entry comes af
 equal("New Category", capturedItems[2].label)
 equal("Manage Categories", capturedItems[3].label, "management comes last")
 local openedBag
-AutoCategory.CategoryManagement = { Open = function(bagId, refresh)
+AutoCategory.CategoryManagement = { Open = function(bagId, refresh, list)
     openedBag = bagId
     equal("function", type(refresh), "refresh callback is passed to the manager")
+    equal(sourceList, list, "manager receives the clicked scroll list")
 end }
 capturedItems[3].callback()
 equal(12, openedBag, "manager uses the clicked bag")
@@ -743,7 +745,7 @@ equal("Top Level", moveMenu[1].label)
 equal("TopA", moveMenu[2].label)
 equal("TopB", moveMenu[3].label)
 equal(nil, moveMenu[3].callback, "current parent remains visible but disabled")
-equal("  Mid", moveMenu[4].label)
+equal("   Mid", moveMenu[4].label)
 equal(nil, moveMenu[4].callback, "source remains visible but disabled")
 equal("Leaf", moveMenu[5].label)
 equal("Other", moveMenu[6].label)
@@ -836,7 +838,7 @@ equal("M", AutoCategory.GetRuleByName("S").parent, "global hierarchy is unchange
 apply()
 equal(messageCount + 2, #chatMessages, "applying again does not repeat the batch")
 
--- Indent by two literal spaces per nested level. The indent is display
+-- Indent by three literal spaces per nested level. The indent is display
 -- only: the action must still resolve the destination by its real name.
 newRule("Indent source")
 newRule("Indent L1", 1)
@@ -871,10 +873,10 @@ end
 equal(6, #indentEntries, "show all destinations except the hidden category")
 equal("Indent source", indentEntries[1].label)
 equal("Indent L1", indentEntries[2].label)
-equal("  Indent L2", indentEntries[3].label)
-equal("    Indent L3", indentEntries[4].label)
-equal("      Indent L4", indentEntries[5].label)
-equal("        Indent L5", indentEntries[6].label)
+equal("   Indent L2", indentEntries[3].label)
+equal("      Indent L3", indentEntries[4].label)
+equal("         Indent L4", indentEntries[5].label)
+equal("            Indent L5", indentEntries[6].label)
 equal(nil, indentEntries[6].callback, "level five is shown but cannot receive a child")
 indentEntries[5].callback()
 equal("Indent L4", AutoCategory.GetRuleByName("Indent source").parent, "move resolves the unindented name")
@@ -884,7 +886,7 @@ AutoCategory.AddCategoryLevelMenuEntries("Indent L3", 23, testMenu)
 for _, submenu in ipairs(capturedSubmenus) do
     if submenu.text == "Move To" then
         for _, entry in ipairs(submenu.entries) do
-            if entry.label == "      Indent L4" then
+            if entry.label == "         Indent L4" then
                 equal(nil, entry.callback, "a descendant cannot receive its own ancestor")
             end
         end

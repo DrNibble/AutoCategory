@@ -1,10 +1,23 @@
 # Changes
 
+## 2026-11-22: filter and change levels in Manage Categories
+
+- Both lists have independent name filters. The right list stays sorted
+  by execution priority and indents categories by three spaces per level
+  below the top level.
+- The right list shows categories with no header in the originating
+  inventory list in grey, and categories marked hidden in red.
+- Select a category on the right and use the horizontal arrows below
+  the list to raise (left) or lower (right) its level. The same-bag
+  subtree follows the existing level rules. Apply saves the changes;
+  Cancel discards them. Levels and parents are shared across inventories
+  that use the same categories. Not tested in ESO.
+
 ## 2026-11-22: share the inventory move destinations
 
 - Move To on headers and Move to Category on items share the configured
   category list, including empty or collapsed categories but excluding
-  hidden entries. Subheaders use two spaces per displayed level.
+  hidden entries. Subheaders use three spaces per displayed level.
 - Ineligible destinations are shown dimmed: impossible hierarchy moves
   on headers and predefined rules on items. The item submenu opens beside
   the native context menu with the same search and scrollable list.

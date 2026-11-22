@@ -1,6 +1,13 @@
+[COLOR="DeepSkyBlue"] Filter and change levels in Manage Categories (2026-11-22)[/COLOR]:
+[LIST]
+[*] The right list has its own name filter and uses three spaces of indentation per nested level. It stays sorted by execution priority.
+[*] Categories with no header in the inventory list that opened the manager are grey. Categories marked hidden are red.
+[*] The left and right arrows below the list raise or lower the selected category and its same-inventory subtree. Changes only take effect when you apply them. Levels are shared across inventories that use the same categories. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Shared inventory move destinations (2026-11-22)[/COLOR]:
 [LIST]
-[*] The header's Move To and the item's Move to Category show the same searchable category list, including empty and collapsed categories but not hidden ones. Subheaders use two spaces per level. Invalid destinations are dimmed.
+[*] The header's Move To and the item's Move to Category show the same searchable category list, including empty and collapsed categories but not hidden ones. Subheaders use three spaces per level. Invalid destinations are dimmed.
 [*] Move to Category opens as a scrollable side submenu in the native item menu. Updated all six languages. Not tested in ESO.
 [/LIST]
 

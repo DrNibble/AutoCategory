@@ -106,8 +106,10 @@ AutoCategory = {
 }
 
 local ScrollData = {} -- the visible entries of the guild bank list
-inven_data = { [GUILDBANK] = { listView = {} } }
-function ZO_ScrollList_GetDataList() return ScrollData end
+local guildList = { data = ScrollData }
+inven_data = { [GUILDBANK] = { listView = guildList } }
+function ZO_ScrollList_GetDataList(listView) return listView.data end
+assert(loadstring(extractBlock("function AutoCategory.GetDisplayedHeaders(")))()
 
 L = function(s) return s end
 SI_CONTEXT_MENU_EXPAND = "EXPAND"
@@ -154,7 +156,8 @@ local function click(label)
 end
 
 local function header(name)
-    return { slot = { dataEntry = { data = {
+    local contents = { GetParent = function() return guildList end }
+    return { GetParent = function() return contents end, slot = { dataEntry = { data = {
         AC_categoryName = name, AC_bagTypeId = GUILDBANK,
     } } } }
 end
@@ -165,6 +168,20 @@ local function resetList(entries)
     for i = #ScrollData, 1, -1 do ScrollData[i] = nil end
     for i, e in ipairs(entries) do ScrollData[i] = e end
 end
+
+local function headerEntry(name, bagId)
+    return { data = { AC_categoryName = name, AC_bagTypeId = bagId, AC_isHeader = true } }
+end
+resetList({ headerEntry("PvP", GUILDBANK), headerEntry("PvP----Siège", GUILDBANK),
+    subEntry("not a header"), headerEntry("other bag", 99), headerEntry("PvP", GUILDBANK) })
+local unrelated = { data = { headerEntry("Other list for the same bag", GUILDBANK) } }
+inven_data[99] = { listView = unrelated }
+equal("PvP,PvP----Siège", table.concat(AutoCategory.GetDisplayedHeaders(GUILDBANK, guildList), ","),
+    "the source list excludes other lists, non-headers, other bags, and duplicates")
+equal("Other list for the same bag", table.concat(AutoCategory.GetDisplayedHeaders(GUILDBANK, unrelated), ","))
+equal(0, #AutoCategory.GetDisplayedHeaders(GUILDBANK, { data = {} }), "an empty source list is available")
+equal(nil, AutoCategory.GetDisplayedHeaders(GUILDBANK, {}), "an unavailable source is not assumed empty")
+inven_data[99] = nil
 
 --------------------------------------------------------------------
 -- subLevelNames: the sub-levels of a category, from the visible list
@@ -284,10 +301,11 @@ copyEntries[1].onChecked = function(state) copyEntries[1].selected = state end
 local applied
 local clickedHeader = header("Parent----Solo")
 clickedHeader.slot.dataEntry.data.AC_displayName = "Solo"
-AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, menu, displayName)
+AutoCategory.AddCategoryLevelMenuEntries = function(name, bagId, menu, displayName, sourceList)
     equal("Parent----Solo", name, "renderer receives the clicked category key")
     equal("Solo", displayName, "renderer receives the inventory's display name")
     equal(GUILDBANK, bagId, "renderer receives the clicked bag")
+    equal(guildList, sourceList, "the clicked scroll list is forwarded to the menu")
     menu.addDivider()
     ruleEntries[1].label = displayName
     menu.addSubMenu(ruleTitle, ruleEntries)

@@ -1341,28 +1341,32 @@ end
 -- category has no header. The display-priority moves use this to
 -- find the category displayed just above or below: the visible
 -- display order of the bag, never the hidden or empty
--- categories. Nil when the lists are not accessible.
-function AutoCategory.GetDisplayedHeaders(bagTypeId)
+-- categories. The manager supplies the specific list it was opened from.
+function AutoCategory.GetDisplayedHeaders(bagTypeId, sourceList)
     if bagTypeId == nil then return nil end
     local names = {}
     local seen = {}
-    for _, info in pairs(inven_data) do
-        local listView = info.listView
+    local function collect(listView)
         local dataList = listView and ZO_ScrollList_GetDataList
             and ZO_ScrollList_GetDataList(listView)
-        if dataList then
-            for _, entry in ipairs(dataList) do
-                local data = entry and entry.data
-                if data and data.AC_isHeader
-                        and data.AC_bagTypeId == bagTypeId
-                        and type(data.AC_categoryName) == "string"
-                        and data.AC_categoryName ~= ""
-                        and not seen[data.AC_categoryName] then
-                    seen[data.AC_categoryName] = true
-                    names[#names + 1] = data.AC_categoryName
-                end
+        if not dataList then return false end
+        for _, entry in ipairs(dataList) do
+            local data = entry and entry.data
+            if data and data.AC_isHeader
+                    and data.AC_bagTypeId == bagTypeId
+                    and type(data.AC_categoryName) == "string"
+                    and data.AC_categoryName ~= ""
+                    and not seen[data.AC_categoryName] then
+                seen[data.AC_categoryName] = true
+                names[#names + 1] = data.AC_categoryName
             end
         end
+        return true
+    end
+    if sourceList then
+        if not collect(sourceList) then return nil end
+    else
+        for _, info in pairs(inven_data) do collect(info.listView) end
     end
     return names
 end
@@ -1509,7 +1513,7 @@ local function createHeaderScrollableMenu(menuRows)
     }
 end
 
-local function showHeaderContextMenu(header, cateName, bagTypeId, displayName)
+local function showHeaderContextMenu(header, cateName, bagTypeId, displayName, sourceList)
     ClearMenu()
     local rows = {}
     local menu = createHeaderScrollableMenu(rows)
@@ -1605,7 +1609,7 @@ local function showHeaderContextMenu(header, cateName, bagTypeId, displayName)
     -- submenu, the "Move To" and "Copy To" submenus, the category
     -- creation and the removal from the bag (a no-op for headers
     -- with no operable backing rule, except for New Category)
-    AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, displayName)
+    AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, displayName, sourceList)
     AutoCategory.ScrollMenu.Show(header, rows, { visibleRows = 15, submenuRows = 15 })
 end
 
@@ -1614,9 +1618,12 @@ function AC_ItemRowHeader_OnShowContextMenu(header)
     local data = header.slot.dataEntry.data
     local cateName, displayName = data.AC_categoryName, data.AC_displayName
     local bagTypeId = getBagTypeId(header)
+    -- Inventory rows are parented to the ZO_ScrollList's Contents control.
+    local contents = header:GetParent()
+    local sourceList = contents and contents:GetParent()
     -- Open after the right-click's global mouse-up has been processed.
     zo_callLater(function()
-        showHeaderContextMenu(header, cateName, bagTypeId, displayName)
+        showHeaderContextMenu(header, cateName, bagTypeId, displayName, sourceList)
     end, 0)
 end
 

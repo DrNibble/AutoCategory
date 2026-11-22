@@ -1,7 +1,7 @@
 <GuiXml>
     <Controls> 
         <TopLevelControl name="AC_CategoryManagementWindow" hidden="true" mouseEnabled="true" movable="true" clampedToScreen="true" tier="HIGH">
-            <Dimensions x="880" y="664"/>
+            <Dimensions x="880" y="704"/>
             <Anchor point="CENTER" relativeTo="GuiRoot" relativePoint="CENTER"/>
             <OnMouseDown>
                 self:BringWindowToTop()
@@ -31,9 +31,17 @@
                     <Anchor point="TOPLEFT" relativeTo="$(parent)AvailableTitle" relativePoint="BOTTOMLEFT"/>
                 </Control>
                 <Control name="$(parent)Present" inherits="AC_OrderListHost">
-                    <Dimensions x="410" y="385"/>
+                    <Dimensions x="410" y="426"/>
                     <Anchor point="TOPLEFT" relativeTo="$(parent)PresentTitle" relativePoint="BOTTOMLEFT"/>
                 </Control>
+                <Button name="$(parent)Shallower" inherits="ZO_DefaultButton" text="←">
+                    <Dimensions x="56" y="30"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Present" relativePoint="BOTTOM" offsetX="-5" offsetY="6"/>
+                </Button>
+                <Button name="$(parent)Deeper" inherits="ZO_DefaultButton" text="→">
+                    <Dimensions x="56" y="30"/>
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Present" relativePoint="BOTTOM" offsetX="5" offsetY="6"/>
+                </Button>
                 <Label name="$(parent)Hint" font="ZoFontGameSmall" horizontalAlignment="CENTER" verticalAlignment="CENTER">
                     <Dimensions y="38"/>
                     <Anchor point="BOTTOMLEFT" offsetX="18" offsetY="-68"/>

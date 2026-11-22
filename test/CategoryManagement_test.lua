@@ -29,14 +29,26 @@ local other = { name = "Apple", runpriority = 900, showpriority = 9 }
 local bag = { rules = { zebra, orphan, apple, bear } }
 local saved = { bags = { bag, { rules = { other } } } }
 local globals = { definitions.Zebra, definitions.dog, definitions.Apple, definitions.cat, definitions.Bear, definitions.cat }
+local inventoryList = {}
+local inventoryHeaders = { "Apple", "Zebra" }
 AutoCategory = {
     saved = saved, GetRuleByName = lookup, CreateBagRule = bagRule,
     RulesW = { ruleList = globals },
+    GetCategorySortName = function() end,
+    GetDisplayedHeaders = function(bagId, sourceList)
+        if bagId == 1 and sourceList == inventoryList then return inventoryHeaders end
+    end,
 }
 GetString = function(id) return id end
 ZO_Tooltips_HideTextTooltip = function() end
 SI_AC_CATEGORY_MANAGER_READ_ONLY = "lecture seule"
 SI_AC_CATEGORY_MANAGER_STALE = "obsolete"
+SI_AC_MENU_CM_LEVEL_SHALLOWER = "Relever ←"
+SI_AC_MENU_CM_LEVEL_DEEPER = "Abaisser →"
+dofile("AutoCategory_Tree.lua")
+dofile("AutoCategory_LevelMenu.lua")
+dofile("PredefinedLayouts.lua")
+dofile("AutoCategory_API.lua")
 dofile("AutoCategory_CategoryManagement.lua")
 local M = AutoCategory.CategoryManagement
 local function expect(row, name, value)
@@ -131,6 +143,7 @@ local function control(name)
     function c:Fire(event, ...) if self.handlers[event] then return self.handlers[event](self, ...) end end
     function c:SetText(value) self.text = value; self:Fire("OnTextChanged") end
     function c:GetText() return self.text end
+    function c:SetColor(...) self.color = table.concat({ ... }, ",") end
     function c:GetName() return self.name end
     function c:SetHandler(event, fn) self.handlers[event] = fn end
     function c:SetHidden(value)
@@ -160,7 +173,7 @@ local function control(name)
     return c
 end
 
-TOPLEFT, BOTTOMRIGHT, LEFT = 1, 2, 3
+TOPLEFT, BOTTOMRIGHT, LEFT, TOP = 1, 2, 3, 4
 MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
 EVENT_GLOBAL_MOUSE_UP = 99
 local mouseOver, events, shift, tooltip = nil, {}, false, nil
@@ -233,16 +246,17 @@ local function drag(list, index, target)
 end
 local function refreshInventory() refreshes = refreshes + 1 end
 equal(false, M.Cancel(), "a closed manager must not consume key presses")
-M.Open(1, refreshInventory)
+M.Open(1, refreshInventory, inventoryList)
 equal(true, layerActive)
 equal(false, AC_CategoryManagementWindow:IsHidden())
 equal(true, lists[1].shown)
 equal(true, lists[2].shown)
 equal(true, lists[1].edit ~= nil, "available list has search")
-equal(nil, lists[2].edit, "present list does not filter reorder indices")
+equal(true, lists[2].edit ~= nil, "present list has an independent search")
 equal(25, lists[1].scroll.height)
 equal(25, lists[2].scroll.height)
 equal(46, lists[1].scroll[TOPLEFT][2], "space for the search box")
+equal(46, lists[2].scroll[TOPLEFT][2])
 for _, spec in ipairs({
     { "First", "/esoui/art/chatwindow/chat_scrollbar_endarrow_", "disabled", "1,0,1,0" },
     { "Up", "/esoui/art/buttons/scrollbox_uparrow_", "up_disabled" },
@@ -261,8 +275,19 @@ end
 equal("Bear", lists[1].items[1].name)
 equal("[1000] dog", lists[2].items[1].label)
 local function rowText(list, index) return list.scroll.rows[index]:GetNamedChild("Text"):GetText() end
+local function rowColor(list, index) return list.scroll.rows[index]:GetNamedChild("Text").color end
+local normal, grey, red = "1,1,1,1", "0.65,0.65,0.65,1", "1,0.35,0.35,1"
+local present = lists[2]
+local shallower = AC_CategoryManagementWindow:GetNamedChild("Shallower")
+local deeper = AC_CategoryManagementWindow:GetNamedChild("Deeper")
+equal(false, shallower.enabled, "no level controls without a selection")
+equal(false, deeper.enabled)
 equal("Bear", rowText(lists[1], 1))
 equal("[1000] dog", rowText(lists[2], 1))
+equal(normal, rowColor(lists[1], 1), "the left list is unchanged")
+equal(grey, rowColor(present, 1), "no matching inventory header")
+equal(red, rowColor(present, 2), "the explicit hidden flag wins even when a header is drawn")
+equal(normal, rowColor(present, 3), "a displayed category keeps the normal color")
 lists[2].scroll.rows[2]:Fire("OnMouseEnter")
 equal("Apple |cFF0000(lecture seule)|r\nquality() == ITEM_QUALITY_NORMAL", tooltip)
 lists[1].edit:SetText("  bEAr ")
@@ -270,6 +295,33 @@ lists[1].edit:LoseFocus()
 equal(false, AC_CategoryManagementWindow:IsHidden())
 equal(1, #lists[1].scroll.data)
 equal("Bear", rowText(lists[1], 1))
+present.edit:SetText("   A   ")
+equal(2, #present.scroll.data)
+equal("[59] Apple", rowText(present, 1))
+equal("[59] Zebra", rowText(present, 2))
+equal(red, rowColor(present, 1), "a recycled grey row takes its new item's color")
+equal(normal, rowColor(present, 2), "a recycled red row resets to the default color")
+equal("  bEAr ", lists[1].edit:GetText(), "the right filter does not change the left filter")
+drag(present, 2, present.scroll.rows[1])
+equal("dog", present.items[1].key, "a filtered drag uses actual draft indices")
+equal("Zebra", present.items[2].key)
+equal(1, present.scroll.revealed, "scroll to the filtered index, not the draft index")
+present.arrows:GetNamedChild("Down"):Fire("OnClicked")
+equal("Zebra", present.items[3].key, "priority arrows still move in the full list")
+equal(2, present.scroll.revealed)
+present.scroll.rows[2]:Fire("OnDragStart", MOUSE_BUTTON_INDEX_LEFT)
+present.edit:SetText("1000")
+equal(true, AC_OrderListDragLabel:IsHidden(), "changing filter cancels an active drag")
+equal(nil, events[present.eventName])
+equal(0, #present.scroll.data, "priorities aren't included in the search")
+equal(false, present.empty.hidden)
+equal(nil, present.selected)
+equal(false, deeper.enabled, "no level edits on a hidden selection")
+equal(false, present.arrows:GetNamedChild("First").enabled)
+present.host:GetNamedChild("Filter"):GetNamedChild("Reset"):Fire("OnClicked")
+equal(3, #present.scroll.data)
+equal(true, present.empty.hidden)
+equal(nil, present.selected)
 lists[1].edit:SetText("[missing%]")
 equal(0, #lists[1].scroll.data)
 equal(false, lists[1].empty.hidden, "show no-results state")
@@ -331,7 +383,6 @@ expectCancelled()
 M.Open(1, refreshInventory)
 equal("", lists[1].edit:GetText())
 equal(2, #lists[1].scroll.data)
-local present = lists[2]
 rowClick(lists[1], 1)
 drag(present, 4, lists[1].scroll.rows[1])
 equal("Zebra", present.items[4].key, "dropping in the available list does not reorder")
@@ -368,5 +419,136 @@ equal("Bear", bag.rules[4].name)
 equal(1000, zebra.runpriority)
 button("Confirm")
 equal(1, refreshes, "the same draft cannot commit twice")
+
+-- A real subtree: the visible category, its child, and an invisible placeholder
+-- all follow the shared level rules. The parent is chosen by display priority.
+definitions.Apple.pred = 1
+definitions.Bear.level, definitions.Bear.parent = 2, "Apple"
+definitions.cat.level, definitions.cat.parent, definitions.cat.rule = 3, "Bear", "false"
+local hidden = { name = "cat", runpriority = 20, showpriority = 20, isHidden = true }
+local root = { name = "Apple", runpriority = 70, showpriority = 10 }
+local child = { name = "Bear", runpriority = 50, showpriority = 90 }
+local sibling = { name = "Zebra", runpriority = 40, showpriority = 25 }
+local levelBag = { rules = { root, child, sibling, hidden } }
+local levelSaved = { bags = { levelBag, { rules = { other } } } }
+AutoCategory.saved = levelSaved
+local syncs, overrides = 0, nil
+AutoCategory.SyncPredefinedLayouts = function()
+    syncs = syncs + 1
+    overrides = AutoCategory.PredefinedLayouts.Collect(globals)
+end
+
+inventoryHeaders = { "Apple", "Apple----Bear", "Zebra" }
+M.Open(1, refreshInventory, inventoryList)
+equal("[70] Apple", rowText(present, 1))
+equal("   [50] Bear", rowText(present, 2))
+equal("      [20] cat", rowText(present, 4))
+equal(normal, rowColor(present, 2), "the inventory path of a nested category is recognized")
+equal(red, rowColor(present, 4), "a hidden category without a header is red rather than grey")
+shallower:Fire("OnMouseEnter")
+equal("Relever ←", tooltip)
+shallower:Fire("OnMouseExit")
+equal(nil, tooltip)
+deeper:Fire("OnMouseEnter")
+equal("Abaisser →", tooltip)
+present.edit:SetText("  APP  ")
+rowClick(present, 1)
+equal(true, deeper.enabled)
+button("Deeper")
+equal("   [70] Apple", rowText(present, 1))
+equal("Apple", present.selected, "the selected category stays selected while filtering and shifting")
+equal("  APP  ", present.edit:GetText())
+present.edit:SetText("")
+equal("      [50] Bear", rowText(present, 2))
+equal(normal, rowColor(present, 2), "level changes in the draft do not change actual inventory visibility")
+equal("         [20] cat", rowText(present, 4))
+button("Deeper")
+equal("      [70] Apple", rowText(present, 1))
+equal("            [20] cat", rowText(present, 4))
+equal(false, deeper.enabled, "a level-5 child blocks another increase")
+button("Deeper")
+equal("      [70] Apple", rowText(present, 1), "even a direct call can't go beyond the bound")
+equal(true, shallower.enabled)
+button("Shallower")
+button("Shallower")
+equal("[70] Apple", rowText(present, 1))
+equal("   [50] Bear", rowText(present, 2))
+equal("      [20] cat", rowText(present, 4))
+button("Deeper")
+present.edit.focused = true
+present.edit:SetText("app")
+equal(true, present.edit:Fire("OnEscape"), "Escape in the right filter cancels the draft")
+equal("", present.edit:GetText())
+equal(false, present.edit.focused)
+equal(false, layerActive)
+equal(nil, definitions.Apple.level)
+equal(nil, definitions.Apple.parent)
+equal(2, definitions.Bear.level)
+equal(3, definitions.cat.level)
+equal(0, syncs, "cancel doesn't save predefined changes")
+equal(1, refreshes, "cancel doesn't refresh the inventory")
+
+inventoryHeaders = { "Apple", "Zebra" }
+M.Open(1, function()
+    equal(1, syncs, "update predefined overrides before refreshing")
+    refreshInventory()
+end, inventoryList)
+equal("[70] Apple", rowText(present, 1))
+equal(grey, rowColor(present, 2), "a child whose header is not displayed is grey")
+rowClick(present, 3)
+equal(false, shallower.enabled, "a top-level Normal category without children cannot be raised")
+rowClick(present, 1)
+button("Deeper")
+button("Confirm")
+equal(true, AC_CategoryManagementWindow:IsHidden(), "level-only apply closes")
+equal(2, refreshes)
+equal(1, syncs)
+equal(2, overrides.Apple.level)
+equal("Zebra", overrides.Apple.parent, "use the display priority, not the manager sort")
+equal(3, definitions.Bear.level)
+equal("Apple", definitions.Bear.parent)
+equal(4, definitions.cat.level)
+equal(true, hidden.isHidden)
+equal(70, root.runpriority, "layout edits do not change execution priority")
+equal(10, root.showpriority, "layout edits do not change display priority")
+equal(other, levelSaved.bags[2].rules[1], "layout changes leave other bag entries intact")
+equal(900, other.runpriority)
+
+M.Open(1, refreshInventory)
+rowClick(present, 1)
+button("Shallower")
+rowClick(present, 3, true)
+definitions.Bear.level = 4
+button("Confirm")
+equal(false, AC_CategoryManagementWindow:IsHidden(), "reject a stale layout before saving")
+equal("obsolete", AC_CategoryManagementWindow:GetNamedChild("Status"):GetText())
+equal(4, #levelBag.rules, "reject both layout and membership changes atomically")
+equal(2, definitions.Apple.level)
+equal(4, definitions.Bear.level, "do not overwrite an external edit")
+equal(1, syncs)
+equal(2, refreshes)
+equal(true, M.Cancel())
+definitions.Bear.level = 3
+
+local projected = M.NewDraft(levelSaved, 1, lookup)
+equal(true, M.ShiftLevel(projected, "Apple", -1))
+equal(true, M.Remove(projected, "Zebra"))
+equal(true, M.Add(projected, "dog"))
+equal(true, M.ShiftLevel(projected, "Apple", 1))
+equal("dog", projected.getLayout("Apple").parent, "parent candidates follow the draft's additions and removals")
+sibling.showpriority = 26
+equal(nil, M.Commit(projected, levelSaved, bagRule), "reject a stale display priority used to pick parents")
+equal("Zebra", definitions.Apple.parent)
+equal(4, #levelBag.rules)
+
+inventoryHeaders = {}
+M.Open(1, refreshInventory, inventoryList)
+equal(grey, rowColor(present, 1), "a known empty inventory has no displayed categories")
+rowClick(present, 1)
+equal("Apple", present.selected, "grey rows stay selectable")
+rowClick(present, 4)
+equal("cat", present.selected, "red rows stay selectable")
+equal(true, M.Cancel())
+
 equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

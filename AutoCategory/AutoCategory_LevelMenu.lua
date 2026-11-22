@@ -119,20 +119,25 @@ function CLM.HeaderRule(cateName)
     return rule
 end
 
--- The bag rule of a name in a bag, or nil. A direct scan of the saved
--- bag rules (the cache lookups are refreshed separately).
-local function findBagrule(bagTypeId, ruleName)
+local function bagRules(bagTypeId)
     local saved = AutoCategory.saved
     local savedBag = saved and saved.bags and saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules then return nil end
+    return savedBag and savedBag.rules
+end
 
-    for i = 1, #savedBag.rules do
-        local bagrule = savedBag.rules[i]
+local function findRuleInList(rules, ruleName)
+    for i = 1, #(rules or {}) do
+        local bagrule = rules[i]
         if bagrule and bagrule.name == ruleName then
             return bagrule
         end
     end
     return nil
+end
+
+-- Scan the saved bag rules directly; the cache is refreshed separately.
+local function findBagrule(bagTypeId, ruleName)
+    return findRuleInList(bagRules(bagTypeId), ruleName)
 end
 
 local function orderedBagRules(bagrules)
@@ -171,17 +176,13 @@ end
 -- chain) contains ruleName: the categories nested under the category,
 -- in the order of the bag's rule list. The category itself is never
 -- included, and a chain that loops stops at the first repeated name.
-function CLM.DescendantsInBag(bagTypeId, ruleName)
+local function descendantsInRules(rules, ruleName, getRule)
     local result = {}
-    local saved = AutoCategory.saved
-    local savedBag = saved and saved.bags and saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules or not ruleName then
-        return result
-    end
+    if not rules or not ruleName then return result end
 
-    for i = 1, #savedBag.rules do
-        local bagrule = savedBag.rules[i]
-        local rule = bagrule and AutoCategory.GetRuleByName(bagrule.name)
+    for i = 1, #rules do
+        local bagrule = rules[i]
+        local rule = bagrule and getRule(bagrule.name)
         if rule and rule.name ~= ruleName then
             local visited = { [rule.name] = true }
             local crule = rule
@@ -196,28 +197,36 @@ function CLM.DescendantsInBag(bagTypeId, ruleName)
                 end
                 if visited[parent] then break end
                 visited[parent] = true
-                crule = AutoCategory.GetRuleByName(parent)
+                crule = getRule(parent)
             end
         end
     end
     return result
 end
 
+function CLM.DescendantsInBag(bagTypeId, ruleName)
+    return descendantsInRules(bagRules(bagTypeId), ruleName, AutoCategory.GetRuleByName)
+end
+
 -- The category and the categories nested under it in the bag, as
 -- { rule = ..., bagrule = ... } entries, the category first. Returns
 -- nil when the category is not a category of the bag.
-function CLM.SubtreeInBag(bagTypeId, ruleName)
-    local rootBagrule = findBagrule(bagTypeId, ruleName)
+function CLM.SubtreeInRules(rules, ruleName, getRule)
+    local rootBagrule = findRuleInList(rules, ruleName)
     if not rootBagrule then return nil end
-    local rootRule = AutoCategory.GetRuleByName(ruleName)
+    local rootRule = getRule(ruleName)
     if not rootRule then return nil end
 
     local subtree = { { rule = rootRule, bagrule = rootBagrule } }
-    local descendants = CLM.DescendantsInBag(bagTypeId, ruleName)
+    local descendants = descendantsInRules(rules, ruleName, getRule)
     for i = 1, #descendants do
         subtree[#subtree + 1] = descendants[i]
     end
     return subtree
+end
+
+function CLM.SubtreeInBag(bagTypeId, ruleName)
+    return CLM.SubtreeInRules(bagRules(bagTypeId), ruleName, AutoCategory.GetRuleByName)
 end
 
 -- Can every category of the subtree move one level deeper? Level 5 is
@@ -249,39 +258,19 @@ end
 -- automatic parent attachment of Edit Category. The categories of the
 -- subtree are never candidates (the root cannot nest under its own
 -- descendants).
-local function nearestAncestorName(bagTypeId, rootRule, targetLevel, subtree)
-    local saved = AutoCategory.saved
-    local savedBag = saved and saved.bags and saved.bags[bagTypeId]
-    if not savedBag or not savedBag.rules then return nil end
-
+local function nearestAncestorName(rules, rootRule, targetLevel, subtree, getRule)
+    if not rules then return nil end
     local excluded = {}
     for i = 1, #subtree do
         excluded[subtree[i].rule.name] = true
     end
 
-    local ordered = {}
-    for i = 1, #savedBag.rules do
-        local brule = savedBag.rules[i]
-        if brule and type(brule.name) == "string" and brule.name ~= "" then
-            ordered[#ordered + 1] = brule
-        end
-    end
-    table.sort(ordered, function(a, b)
-        local ap = a.showpriority or a.runpriority or 0
-        local bp = b.showpriority or b.runpriority or 0
-        if ap ~= bp then
-            return ap > bp
-        end
-        return a.name < b.name
-    end)
-
     local nearest, first, passedSelf
-    for i = 1, #ordered do
-        local brule = ordered[i]
+    for _, brule in ipairs(orderedBagRules(rules)) do
         if brule.name == rootRule.name then
             passedSelf = true
         else
-            local r = AutoCategory.GetRuleByName(brule.name)
+            local r = getRule(brule.name)
             if r and not excluded[r.name]
                     and CLM.EffectiveLevel(r) == targetLevel then
                 first = first or brule.name
@@ -303,8 +292,9 @@ end
 -- stays 2-5. Returns true when the levels changed, false when the move
 -- was refused (a category of the subtree is already at level 5) or
 -- there was nothing to decrease.
-function CLM.ShiftLevels(bagTypeId, subtree, delta)
-    if delta ~= 1 and delta ~= -1 then return false end
+-- Operate on the supplied rules; the manager passes draft copies.
+function CLM.ShiftRuleLevels(rules, subtree, delta, getRule)
+    if not subtree or not subtree[1] or (delta ~= 1 and delta ~= -1) then return false end
     if delta == 1 and not CLM.CanIncrease(subtree) then return false end
     if delta == -1 and not CLM.CanDecrease(subtree) then return false end
 
@@ -314,8 +304,8 @@ function CLM.ShiftLevels(bagTypeId, subtree, delta)
     if delta == 1 then
         local root = subtree[1].rule
         if not (type(root.parent) == "string" and root.parent ~= "") then
-            newRootParent = nearestAncestorName(bagTypeId, root,
-                CLM.EffectiveLevel(root), subtree)
+            newRootParent = nearestAncestorName(rules, root,
+                CLM.EffectiveLevel(root), subtree, getRule)
         end
     end
 
@@ -331,6 +321,13 @@ function CLM.ShiftLevels(bagTypeId, subtree, delta)
     end
     if newRootParent then
         subtree[1].rule.parent = newRootParent
+    end
+    return true
+end
+
+function CLM.ShiftLevels(bagTypeId, subtree, delta)
+    if not CLM.ShiftRuleLevels(bagRules(bagTypeId), subtree, delta, AutoCategory.GetRuleByName) then
+        return false
     end
     -- the level/parent layout of a predefined category is kept
     -- as an override in the account saved rules (the definition
@@ -1125,7 +1122,7 @@ end
 -- headers with no operable backing rule, except for New Category.
 -- The menu is keyboard-only: the gamepad inventory lists have no
 -- right click.
-function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, displayName)
+function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, displayName, sourceList)
     if not AutoCategory.saved or not AutoCategory.saved.bags then return end
     if not AutoCategory.saved.bags[bagTypeId] then return end
     local addItem, addSubMenu = menu.addItem, menu.addSubMenu
@@ -1355,5 +1352,5 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
     addItem(GetString(SI_AC_MENU_CM_NEW_CATEGORY),
         function() CLM.OpenNewCategoryDialog(bagTypeId, clickedParent) end)
     addItem(GetString(SI_AC_MENU_CM_MANAGE_CATEGORIES),
-        function() AutoCategory.CategoryManagement.Open(bagTypeId, refreshAfterChange) end)
+        function() AutoCategory.CategoryManagement.Open(bagTypeId, refreshAfterChange, sourceList) end)
 end

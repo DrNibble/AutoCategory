@@ -5,6 +5,7 @@ List.__index = List
 AutoCategory.OrderList = List
 
 local ROW_HEIGHT = 25
+local DEFAULT_TEXT_COLOR = { 1, 1, 1, 1 }
 local moveButtons = { "First", "Up", "Down", "Last" }
 local scrollboxUpTexture       = "/esoui/art/buttons/scrollbox_uparrow_%s.dds"
 local scrollboxDownTexture     = "/esoui/art/buttons/scrollbox_downarrow_%s.dds"
@@ -57,13 +58,15 @@ function List:SelectedIndex()
     end
 end
 
-function List:UpdateArrows()
-    if not self.onMove then return end
-    local index = self:SelectedIndex()
-    for i, name in ipairs(moveButtons) do
-        local canMove = index and ((i <= 2 and index > 1) or (i > 2 and index < #self.items))
-        self.arrows:GetNamedChild(name):SetEnabled(canMove == true)
+function List:UpdateSelection()
+    if self.onMove then
+        local index = self:SelectedIndex()
+        for i, name in ipairs(moveButtons) do
+            local canMove = index and ((i <= 2 and index > 1) or (i > 2 and index < #self.items))
+            self.arrows:GetNamedChild(name):SetEnabled(canMove == true)
+        end
     end
+    if self.onSelectionChanged then self.onSelectionChanged(self.selected) end
 end
 
 function List:Move(fromIndex, toIndex)
@@ -71,8 +74,10 @@ function List:Move(fromIndex, toIndex)
             or not self.items[fromIndex] or not self.items[toIndex] then return end
     self.selected = self.items[fromIndex].key
     self.onMove(fromIndex, toIndex)
-    local index = self:SelectedIndex()
-    if index then ZO_ScrollList_ScrollDataIntoView(self.scroll, index, nil, true) end
+    -- Priority moves use indices in the full draft; scrolling uses the filtered list.
+    if self.selectedPosition then
+        ZO_ScrollList_ScrollDataIntoView(self.scroll, self.selectedPosition, nil, true)
+    end
 end
 
 function List:StartDrag(row, data, button)
@@ -109,7 +114,9 @@ end
 function List:SetupRow(row, data)
     row.acOrderData = data
     local item = data.item
-    row:GetNamedChild("Text"):SetText(item.label or item.name)
+    local text = row:GetNamedChild("Text")
+    text:SetText(item.label or item.name)
+    text:SetColor(unpack(item.color or DEFAULT_TEXT_COLOR))
     local highlight = row:GetNamedChild("Highlight")
     highlight:SetHidden(self.selected ~= item.key)
     row:SetHandler("OnMouseEnter", function()
@@ -131,7 +138,7 @@ function List:SetupRow(row, data)
                 if previous and previous ~= row then previous:GetNamedChild("Highlight"):SetHidden(true) end
                 self.selected, self.selectedRow = item.key, row
                 highlight:SetHidden(false)
-                self:UpdateArrows()
+                self:UpdateSelection()
             end
             if item.callback then item.callback() end
         elseif button == MOUSE_BUTTON_INDEX_RIGHT and item.rightClickCallback then
@@ -144,20 +151,21 @@ end
 
 function List:Render(resetScroll)
     if not self.shown then return end
-    self.selectedRow = nil
-    if not self:SelectedIndex() then self.selected = nil end
+    self.selectedRow, self.selectedPosition = nil, nil
     local query = self.edit and searchText(self.edit:GetText()) or ""
     ZO_ScrollList_Clear(self.scroll)
     local rows = ZO_ScrollList_GetDataList(self.scroll)
     for index, item in ipairs(self.items) do
         if query == "" or searchText(item.name):find(query, 1, true) then
             rows[#rows + 1] = ZO_ScrollList_CreateDataEntry(1, { list = self, index = index, item = item })
+            if item.key == self.selected then self.selectedPosition = #rows end
         end
     end
+    if not self.selectedPosition then self.selected = nil end
     self.empty:SetHidden(#rows > 0)
     ZO_ScrollList_Commit(self.scroll)
     if resetScroll then ZO_ScrollList_ResetToTop(self.scroll) end
-    self:UpdateArrows()
+    self:UpdateSelection()
 end
 
 function List:SetItems(items)
@@ -168,7 +176,7 @@ end
 
 function List:Hide()
     self:StopDrag()
-    self.shown, self.selected, self.selectedRow = false, nil, nil
+    self.shown, self.selected, self.selectedRow, self.selectedPosition = false, nil, nil, nil
     if self.edit then
         self.edit:LoseFocus()
         self.edit:SetText("")
@@ -184,7 +192,7 @@ end
 
 function List.New(host, options)
     local self = setmetatable({
-        host = host, items = {}, onMove = options.onMove,
+        host = host, items = {}, onMove = options.onMove, onSelectionChanged = options.onSelectionChanged,
         scroll = host:GetNamedChild("List"), empty = host:GetNamedChild("Empty"),
         arrows = host:GetNamedChild("Arrows"), eventName = host:GetName() .. "_Drag",
     }, List)
@@ -201,7 +209,10 @@ function List.New(host, options)
     self.scroll:SetAnchor(BOTTOMRIGHT, host, BOTTOMRIGHT, self.onMove and -41 or -5, -5)
     if options.searchable then
         self.edit = filter:GetNamedChild("Input"):GetNamedChild("Edit")
-        self.edit:SetHandler("OnTextChanged", function() self:Render(true) end)
+        self.edit:SetHandler("OnTextChanged", function()
+            self:StopDrag()
+            self:Render(true)
+        end)
         filter:GetNamedChild("Reset"):SetHandler("OnClicked", function() self.edit:SetText("") end)
     end
     if self.onMove then

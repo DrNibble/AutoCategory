@@ -242,6 +242,7 @@ AutoCategory_localization_strings["fr"] = {
     SI_AC_CATEGORY_MANAGER_HINT = "À gauche : clic pour ajouter. À droite : Ctrl+clic pour ajouter ou retirer de la sélection, Maj+clic pour une plage.\nFlèches verticales : ordre. Flèches horizontales : niveau. Clic droit : retirer de l’inventaire.",
     SI_AC_CATEGORY_MANAGER_CONFIRM = "Valider",
     SI_AC_CATEGORY_MANAGER_STALE = "Les catégories ont changé. Annulez puis rouvrez cette fenêtre.",
+    SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "Appliquez ou annulez vos modifications avant de changer de sac.",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "Cet ordre ne tient pas dans la plage de priorités.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Saisissez un nom unique. Choisissez un parent ou sélectionnez (aucun) pour créer une catégorie au niveau Normal.",
     SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE = "Ce parent n’est plus disponible au niveau sélectionné. Choisissez un autre parent ou (aucun).",

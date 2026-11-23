@@ -1,5 +1,13 @@
 # Changes
 
+## 2026-11-23: switch inventories in Manage Categories
+
+- The dropdown under the title lists all inventory types and starts on
+  the inventory whose context menu opened the window.
+- Changing inventory refreshes both lists and keeps the priority tab.
+  Apply or cancel unsaved changes before switching inventories.
+  Not tested in ESO.
+
 ## 2026-11-23: match inventory display order in Manage Categories
 
 - Display Priority uses the inventory's category paths and sort keys.

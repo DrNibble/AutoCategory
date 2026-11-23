@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Switch inventories in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] The inventory dropdown starts on the inventory that opened the window and lets you manage any supported inventory.
+[*] Apply or cancel unsaved changes before switching inventories. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Match inventory display order in Manage Categories (2026-11-23)[/COLOR]:
 [LIST]
 [*] Display Priority uses the inventory's category order, keeping parents above their subcategories.

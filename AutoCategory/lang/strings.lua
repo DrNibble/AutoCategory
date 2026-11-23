@@ -273,6 +273,7 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_CATEGORY_MANAGER_HINT = "Click on the left to add. On the right, Ctrl+click to toggle a row or Shift+click to select a range.\nVertical arrows: order. Horizontal arrows: level. Right-click: remove from inventory.",
     SI_AC_CATEGORY_MANAGER_CONFIRM = "Apply",
     SI_AC_CATEGORY_MANAGER_STALE = "The categories have changed. Cancel and reopen this window.",
+    SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "Apply or cancel your changes before switching inventories.",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "This order cannot fit in the priority range.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Enter a unique name. Choose a parent or select (none) to create a Normal category.",
     SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE = "This parent is no longer available at the selected level. Choose another parent or (none).",

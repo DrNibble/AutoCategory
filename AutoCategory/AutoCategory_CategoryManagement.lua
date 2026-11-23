@@ -321,6 +321,24 @@ function Management.ShiftLevel(draft, name, delta)
     return Management.ShiftSelection(draft, { [name] = true }, delta)
 end
 
+local function layoutChanged(layout)
+    return layout.copy.level ~= layout.level or layout.copy.parent ~= layout.parent
+end
+
+local function hasChanges(draft)
+    local present = {}
+    for _, row in ipairs(draft.rows) do
+        local original = draft.original[row.name]
+        if not original or row.priority ~= original.priority or row.showpriority ~= original.showpriority
+                or layoutChanged(draft.layouts[row.name]) then return true end
+        present[row.name] = true
+    end
+    for name in pairs(draft.original) do
+        if not present[name] then return true end
+    end
+    return false
+end
+
 -- Return nil if this bag, its priorities or a layout dependency is stale.
 -- Keep the original entries (and all unrelated fields) for retained rules.
 function Management.Commit(draft, saved, createBagRule)
@@ -344,7 +362,7 @@ function Management.Commit(draft, saved, createBagRule)
         if not rule then return nil end
         selected[row.name] = row
         local layout = draft.layouts[row.name]
-        if layout.copy.level ~= layout.level or layout.copy.parent ~= layout.parent then
+        if layoutChanged(layout) then
             layouts[#layouts + 1] = layout
         end
         local original = draft.original[row.name]
@@ -401,17 +419,8 @@ function Management.Tooltip(name, rule)
 end
 
 local CANCEL_ACTION_LAYER = "AutoCategoryCategoryManagement"
-local window, availableList, presentList, draft, onCommit
-
-local function inventoryName(bagId)
-    local names = AC.cache and AC.cache.bags_cvt
-    if names and names.choicesValues and names.choices then
-        for i, id in ipairs(names.choicesValues) do
-            if id == bagId then return names.choices[i] or "" end
-        end
-    end
-    return ""
-end
+local window, availableList, presentList, bagCombo, bagChoices, draft, onCommit
+local originBagId, originList
 
 local function showError(stringId)
     window:GetNamedChild("Status"):SetText(GetString(stringId))
@@ -419,6 +428,8 @@ end
 
 local function close()
     draft, onCommit = nil, nil
+    originBagId, originList = nil, nil
+    bagCombo:HideDropdown()
     availableList:Hide()
     presentList:Hide()
     window:SetHidden(true)
@@ -434,7 +445,9 @@ end
 local function refresh()
     local available, present = {}, {}
     local displayed, resolveDisplay
-    local headers = AC.GetDisplayedHeaders(draft.bagId, draft.sourceList)
+    -- The source list only describes the inventory that opened the manager.
+    local headers = draft.bagId == originBagId and originList
+        and AC.GetDisplayedHeaders(draft.bagId, originList)
     if headers then
         displayed = {}
         for _, path in ipairs(headers) do displayed[path] = true end
@@ -511,8 +524,46 @@ local function selectOrder(displayOrder)
     refresh()
 end
 
+local function selectBag(bagId)
+    if not draft or bagId == draft.bagId then return end
+    if hasChanges(draft) then
+        bagCombo:SelectItem(bagChoices[draft.bagId], true)
+        showError(SI_AC_CATEGORY_MANAGER_SWITCH_BAG)
+        return
+    end
+    local nextDraft = Management.NewDraft(AC.saved, bagId, AC.GetRuleByName)
+    if not nextDraft then
+        bagCombo:SelectItem(bagChoices[draft.bagId], true)
+        showError(SI_AC_CATEGORY_MANAGER_STALE)
+        return
+    end
+    local displayOrder = draft.displayOrder
+    availableList:Hide()
+    presentList:Hide()
+    draft = nextDraft
+    selectOrder(displayOrder)
+    availableList:Show()
+    presentList:Show()
+end
+
+local function populateBags(bagId)
+    bagCombo:ClearItems()
+    bagChoices = {}
+    local names = AC.cache.bags_cvt
+    for index, id in ipairs(names.choicesValues) do
+        local bag = AC.saved.bags[id]
+        local entry = bagCombo:CreateItemEntry(names.choices[index], function() selectBag(id) end,
+            bag ~= nil and bag.rules ~= nil)
+        bagChoices[id] = entry
+        bagCombo:AddItem(entry)
+    end
+    bagCombo:SelectItem(bagChoices[bagId], true)
+end
+
 local function setup()
     window = AC_CategoryManagementWindow
+    bagCombo = ZO_ComboBox_ObjectFromContainer(window:GetNamedChild("Inventory"))
+    bagCombo:SetSortsItems(false)
     window:GetNamedChild("Title"):SetText(GetString(SI_AC_MENU_CM_MANAGE_CATEGORIES))
     window:GetNamedChild("AvailableTitle"):SetText(GetString(SI_AC_CATEGORY_MANAGER_AVAILABLE))
     local modes = window:GetNamedChild("PresentTitle")
@@ -573,9 +624,9 @@ function Management.Open(bagId, refreshInventory, sourceList)
     end
     draft = Management.NewDraft(AC.saved, bagId, AC.GetRuleByName)
     if not draft then return end
-    draft.sourceList = sourceList
+    originBagId, originList = bagId, sourceList
     onCommit = refreshInventory
-    window:GetNamedChild("Inventory"):SetText(inventoryName(bagId))
+    populateBags(bagId)
     selectOrder(false)
     window:SetHidden(false)
     window:BringWindowToTop()

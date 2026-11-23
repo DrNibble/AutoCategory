@@ -34,8 +34,12 @@ local saved = { bags = { bag, { rules = { other } } } }
 local globals = { definitions.Zebra, definitions.dog, definitions.Apple, definitions.cat, definitions.Bear, definitions.cat }
 local inventoryList = {}
 local inventoryHeaders = { "Apple", "Zebra" }
+local bagIds = { 1, 2, 3, 4, 5, 6, 7, 8 }
+local bagNames = { "Inventaire", "Banque", "Banque de guilde", "Sac d’artisanat",
+    "Atelier", "Coffre de maison", "Coffre de mobilier", "Vengeance" }
 AutoCategory = {
     saved = saved, GetRuleByName = lookup, CreateBagRule = bagRule,
+    cache = { bags_cvt = { choices = bagNames, choicesValues = bagIds } },
     RulesW = { ruleList = globals },
     GetCategorySortName = function() end,
     GetDisplayedHeaders = function(bagId, sourceList)
@@ -46,6 +50,7 @@ GetString = function(id) return id end
 ZO_Tooltips_HideTextTooltip = function() end
 SI_AC_CATEGORY_MANAGER_READ_ONLY = "lecture seule"
 SI_AC_CATEGORY_MANAGER_STALE = "obsolete"
+SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "save or cancel before switching"
 SI_AC_MENU_CM_LEVEL_SHALLOWER = "Relever ←"
 SI_AC_MENU_CM_LEVEL_DEEPER = "Abaisser →"
 SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY = "Priorité d'exécution"
@@ -223,6 +228,27 @@ end
 
 AC_CategoryManagementWindow = control("Manager")
 AC_OrderListDragLabel = control("DragLabel")
+local inventoryCombo = { items = {} }
+function inventoryCombo:SetSortsItems(sort)
+    equal(false, sort, "preserve the addon’s inventory order")
+end
+function inventoryCombo:ClearItems() self.items, self.selected = {}, nil end
+function inventoryCombo:CreateItemEntry(name, callback, enabled)
+    return { name = name, callback = callback, enabled = enabled }
+end
+function inventoryCombo:AddItem(entry) self.items[#self.items + 1] = entry end
+function inventoryCombo:SelectItem(entry, ignoreCallback)
+    if not entry or not entry.enabled then return false end
+    local oldItem = self.selected
+    self.selected = entry
+    if not ignoreCallback then entry.callback(self, entry.name, entry, oldItem ~= entry, oldItem) end
+    return true
+end
+function inventoryCombo:HideDropdown() self.open = false end
+function ZO_ComboBox_ObjectFromContainer(container)
+    equal(AC_CategoryManagementWindow:GetNamedChild("Inventory"), container)
+    return inventoryCombo
+end
 dofile("AutoCategory_OrderList.lua")
 local create = AutoCategory.OrderList.New
 function AutoCategory.OrderList.New(host, options)
@@ -338,6 +364,7 @@ rowClick(lists[1], 1)
 equal(4, #bag.rules, "click to add does not save")
 M.Open(2, refreshInventory)
 equal("cat", lists[1].items[1].name, "opening another bag keeps the pending draft")
+equal("Inventaire", inventoryCombo.selected.name, "the context menu did not switch an open draft")
 button("Cancel")
 equal(true, AC_CategoryManagementWindow:IsHidden())
 equal(false, layerActive)
@@ -771,6 +798,70 @@ local _, previewInfo = M.OrderedRows(layoutPreview)
 for row, info in pairs(previewInfo) do
     if row.name == "Bear" then equal(1, info.depth, "a parent exclusive to another bag does not add indentation") end
 end
+
+-- Exercise the bag selector through its real callbacks, including an empty bag.
+local selectorSaved = { bags = {} }
+selectorSaved.bags[1] = { rules = { bagRule(definitions.Apple, 50), bagRule(definitions.Zebra, 60) } }
+selectorSaved.bags[2] = { rules = { bagRule(definitions.Bear, 70) } }
+for i = 3, #bagIds do selectorSaved.bags[i] = { rules = {} } end
+AutoCategory.saved = selectorSaved
+inventoryHeaders = { "Apple" }
+M.Open(1, refreshInventory, inventoryList)
+equal(#bagNames, #inventoryCombo.items, "include all bag types")
+for i, name in ipairs(bagNames) do
+    equal(name, inventoryCombo.items[i].name, "use the localized list in its given order")
+    equal(true, inventoryCombo.items[i].enabled, "empty inventories are selectable too")
+end
+equal("Inventaire", inventoryCombo.selected.name, "preselect the context-menu inventory")
+equal("Zebra,Apple", presentedKeys())
+equal(grey, rowColor(present, 1), "only Apple has a header in the originating list")
+rowClick(present, 2)
+orderTab("Display")
+lists[1].edit:SetText("xyz")
+present.edit:SetText("apple")
+inventoryCombo:SelectItem(inventoryCombo.items[2])
+equal("Banque", inventoryCombo.selected.name)
+equal("Bear", presentedKeys())
+equal("", lists[1].edit:GetText(), "the left search does not carry over to the new inventory")
+equal("", present.edit:GetText())
+equal("", selectedKeys())
+equal(normal, rowColor(present, 1), "do not color another bag from the originating list")
+equal(false, AC_CategoryManagementWindow:GetNamedChild("PresentTitle"):GetNamedChild("Display").enabled,
+    "keep the selected priority mode")
+inventoryCombo:SelectItem(inventoryCombo.items[3])
+equal("Banque de guilde", inventoryCombo.selected.name)
+equal("", presentedKeys())
+inventoryCombo:SelectItem(inventoryCombo.items[1])
+equal(grey, rowColor(present, 1), "returning to the original bag restores its visibility colors")
+
+rowClick(present, 1, true)
+inventoryCombo:SelectItem(inventoryCombo.items[2])
+equal("Inventaire", inventoryCombo.selected.name, "restore the dropdown when a switch is blocked")
+equal("Apple", presentedKeys(), "the unsaved removal remains in the draft")
+equal("save or cancel before switching", AC_CategoryManagementWindow:GetNamedChild("Status"):GetText())
+equal(2, #selectorSaved.bags[1].rules, "switching does not save anything")
+inventoryCombo.open = true
+equal(true, M.Cancel())
+equal(false, inventoryCombo.open, "close the dropdown with the window")
+
+M.Open(3, refreshInventory)
+equal("Banque de guilde", inventoryCombo.selected.name, "reopen on the newly right-clicked bag")
+inventoryCombo:SelectItem(inventoryCombo.items[1])
+rowClick(present, 2)
+priorityArrow("Up")
+inventoryCombo:SelectItem(inventoryCombo.items[2])
+equal("Inventaire", inventoryCombo.selected.name, "priority-only edits also block switching")
+equal(true, M.Cancel())
+
+local previousRefreshes = refreshes
+M.Open(2, refreshInventory)
+inventoryCombo:SelectItem(inventoryCombo.items[3])
+rowClick(lists[1], 1)
+button("Confirm")
+equal(previousRefreshes + 1, refreshes)
+equal(1, #selectorSaved.bags[3].rules, "apply writes to the selected bag")
+equal(1, #selectorSaved.bags[2].rules, "the bag that opened the window is untouched")
+equal("Bear", selectorSaved.bags[2].rules[1].name)
 
 equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

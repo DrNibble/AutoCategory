@@ -61,17 +61,19 @@ end
 
 function List:UpdateSelection()
     if self.onMoveSelection then
-        local indices = self:SelectedIndices()
-        local selected = {}
-        for _, index in ipairs(indices) do selected[index] = true end
-        local up, down, first, last = false, false, false, false
-        for position, index in ipairs(indices) do
-            up = up or (index > 1 and not selected[index - 1])
-            down = down or (index < #self.items and not selected[index + 1])
-            first = first or index > position
-            last = last or index < #self.items - #indices + position
+        local selected, unselected = {}, {}
+        local up, down = false, false
+        for _, item in ipairs(self.items) do
+            local group = item.moveGroup or ""
+            if self.selection[item.key] then
+                selected[group] = true
+                if unselected[group] then up = true end
+            else
+                unselected[group] = true
+                if selected[group] then down = true end
+            end
         end
-        local enabled = { first, up, down, last }
+        local enabled = { up, up, down, down }
         for i, name in ipairs(moveButtons) do
             self.arrows:GetNamedChild(name):SetEnabled(enabled[i])
         end

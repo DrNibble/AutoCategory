@@ -155,9 +155,9 @@ local function effectiveRuleLevel(rule)
 	return 1
 end
 
-local function bagCategoryLookups(bagTypeId, bag)
+local function bagCategoryLookups(bagTypeId, bag, bags)
 	local localRules, crossBagNames = {}, {}
-	for otherBagId, otherBag in pairs(AutoCategory.saved.bags) do
+	for otherBagId, otherBag in pairs(bags or AutoCategory.saved.bags) do
 		if otherBagId ~= bagTypeId and otherBag and otherBag.rules then
 			for _, entry in ipairs(otherBag.rules) do
 				if entry.name then crossBagNames[entry.name] = true end
@@ -173,11 +173,11 @@ local function bagCategoryLookups(bagTypeId, bag)
 	return localRules, crossBagNames
 end
 
-local function prependCategoryParents(chain, rule, crossBagNames)
+local function prependCategoryParents(chain, rule, crossBagNames, getRule)
 	local visited = { [rule.name] = true }
 	while effectiveRuleLevel(rule) > 1 and type(rule.parent) == "string"
 		and rule.parent ~= "" do
-		local parent = AutoCategory.GetRuleByName(rule.parent)
+		local parent = getRule(rule.parent)
 		if not parent or visited[parent.name] or crossBagNames[parent.name] then break end
 		table.insert(chain, 1, parent.name)
 		visited[parent.name] = true
@@ -185,10 +185,10 @@ local function prependCategoryParents(chain, rule, crossBagNames)
 	end
 end
 
-local function configuredCategoryPath(entry, crossBagNames)
-	local rule = AutoCategory.GetRuleByName(entry.name)
+local function configuredCategoryPath(entry, crossBagNames, getRule)
+	local rule = getRule(entry.name)
 	local chain = { rule and rule.name or entry.name }
-	if rule then prependCategoryParents(chain, rule, crossBagNames) end
+	if rule then prependCategoryParents(chain, rule, crossBagNames, getRule) end
 	return AutoCategory.CategoryTree.JoinName(chain)
 end
 
@@ -196,14 +196,14 @@ local function displayPriority(entry)
 	return entry.showpriority or entry.runpriority or 0
 end
 
-local function makeCategorySortKeyResolver(localRules, crossBagNames)
+local function makeCategorySortKeyResolver(localRules, crossBagNames, getRule)
 	local tree = AutoCategory.CategoryTree
 	local configured, descendant
 	local function indexPaths()
 		if configured then return end
 		configured, descendant = {}, {}
 		for _, candidate in pairs(localRules) do
-			local levels = tree.Levels(configuredCategoryPath(candidate, crossBagNames))
+			local levels = tree.Levels(configuredCategoryPath(candidate, crossBagNames, getRule))
 			local priority = displayPriority(candidate)
 			for i = 1, #levels do
 				local prefix = table.concat(levels, tree.SEPARATOR, 1, i)
@@ -231,7 +231,7 @@ local function makeCategorySortKeyResolver(localRules, crossBagNames)
 		for i = 1, #path do
 			local prefix = table.concat(path, tree.SEPARATOR, 1, i)
 			local ruleEntry = localRules[prefix] or localRules[path[i]]
-			if ruleEntry and configuredCategoryPath(ruleEntry, crossBagNames) == prefix then
+			if ruleEntry and configuredCategoryPath(ruleEntry, crossBagNames, getRule) == prefix then
 				priorities[i] = displayPriority(ruleEntry)
 			else
 				-- A parent with no bag rule takes its best configured branch
@@ -245,15 +245,17 @@ local function makeCategorySortKeyResolver(localRules, crossBagNames)
 	end
 end
 
--- Empty keyboard headers use the same path and sort key as items.
--- Reuse the bag lookups when rebuilding several headers from one bag.
-function AutoCategory.MakeBagRuleDisplayResolver(bagTypeId)
-	local bag = AutoCategory.saved.bags[bagTypeId]
-	local localRules, crossBagNames = bagCategoryLookups(bagTypeId, bag)
-	local sortKey = makeCategorySortKeyResolver(localRules, crossBagNames)
+-- Empty keyboard headers and draft previews use the same path and sort key
+-- as items. A preview supplies its own entries and rule layouts.
+function AutoCategory.MakeBagRuleDisplayResolver(bagTypeId, rules, getRule, bags)
+	bags = bags or AutoCategory.saved.bags
+	getRule = getRule or AutoCategory.GetRuleByName
+	local bag = rules and { rules = rules } or bags[bagTypeId]
+	local localRules, crossBagNames = bagCategoryLookups(bagTypeId, bag, bags)
+	local sortKey = makeCategorySortKeyResolver(localRules, crossBagNames, getRule)
 	local tree = AutoCategory.CategoryTree
 	return function(entry)
-		local name = tree.JoinName(tree.Levels(configuredCategoryPath(entry, crossBagNames)))
+		local name = tree.JoinName(tree.Levels(configuredCategoryPath(entry, crossBagNames, getRule)))
 		local sortName = AutoCategory.GetCategorySortName(name)
 		return name, sortKey(name, entry, sortName)
 	end
@@ -396,7 +398,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 								else
 									chain = { entry.name }
 								end
-								prependCategoryParents(chain, rule, crossBagCategoryNames)
+								prependCategoryParents(chain, rule, crossBagCategoryNames, getRuleByName)
 							end
 							if chainExtends(recordedPath, chain) then
 								recordedPath = chain
@@ -427,7 +429,7 @@ function AutoCategory:MatchCategoryRules( bagId, slotIndex, specialType )
 	if recordedPath ~= nil then
 		local entry = recordedEntry
 		local catname = categoryTree.JoinName(recordedPath)
-		local sortKey = makeCategorySortKeyResolver(localRules, crossBagCategoryNames)
+		local sortKey = makeCategorySortKeyResolver(localRules, crossBagCategoryNames, getRuleByName)
 		setCategoryCollapsed(bag_type_id, catname,
 			isCategoryCollapsed(bag_type_id, catname))
 		if #recordedPath == 1 then

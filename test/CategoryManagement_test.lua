@@ -8,7 +8,10 @@ local function equal(expected, actual, message)
 end
 
 local function definition(name, rule, predefined)
-    return { name = name, rule = rule, isPredefined = function() return predefined == true end }
+    return {
+        name = name, rule = rule, key = function(self) return self.name end,
+        isPredefined = function() return predefined == true end,
+    }
 end
 local definitions = {
     Zebra = definition("Zebra", "true"),
@@ -47,6 +50,7 @@ SI_AC_MENU_CM_LEVEL_SHALLOWER = "Relever ←"
 SI_AC_MENU_CM_LEVEL_DEEPER = "Abaisser →"
 SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY = "Priorité d'exécution"
 SI_AC_MENU_BS_SLIDER_CATEGORY_SHOWPRIORITY = "Priorité d'affichage"
+LibSFUtils = { safeCall = pcall }
 dofile("AutoCategory_Tree.lua")
 dofile("AutoCategory_LevelMenu.lua")
 dofile("PredefinedLayouts.lua")
@@ -621,14 +625,20 @@ present.edit:SetText("")
 equal("Apple,Bear,Zebra", selectedKeys(), "reset does not reselect filtered-out rows")
 equal(true, M.Cancel())
 
+definitions.cat.parent = "Apple" -- two nested siblings, with a common parent under Zebra
 M.Open(1, refreshInventory)
 orderTab("Display")
-equal("Bear,Zebra,cat,Apple", presentedKeys(), "display mode orders by display priority")
-equal("      [90] Bear", rowText(present, 1))
+equal("Zebra,Apple,Bear,cat", presentedKeys(), "higher-priority children stay below their parent")
+equal("      [90] Bear", rowText(present, 3))
 rowClick(present, 2)
-modifiedClick(3, false, true)
+equal(false, present.arrows:GetNamedChild("Down").enabled, "a parent cannot move down into its own branch")
+drag(present, 2, present.scroll.rows[4])
+equal("Zebra,Apple,Bear,cat", presentedKeys(), "dragging across parents does not edit the layout")
+rowClick(present, 4)
+modifiedClick(1, true, false)
 priorityArrow("Up")
-equal("Zebra,cat,Bear,Apple", presentedKeys(), "display priorities can move in a group")
+equal("Zebra,Apple,cat,Bear", presentedKeys(), "each selected category moves only among its own siblings")
+equal("      [90] cat", rowText(present, 3))
 equal(26, sibling.showpriority, "display moves remain draft-only")
 orderTab("Run")
 equal("Apple,Bear,Zebra,cat", presentedKeys(), "display edits leave execution order untouched")
@@ -637,13 +647,14 @@ button("Confirm")
 equal(true, AC_CategoryManagementWindow:IsHidden())
 equal(3, refreshes)
 equal(40, sibling.runpriority)
-assert(sibling.showpriority > hidden.showpriority and hidden.showpriority > child.showpriority,
-    "Apply saves display priorities in the batch order")
+equal(26, sibling.showpriority, "reordering children does not edit the root's priority")
+equal(10, root.showpriority, "reordering children does not edit the parent's priority")
+equal(true, hidden.showpriority > child.showpriority, "Apply saves the new sibling order")
 equal(1, syncs, "priority-only edits don't save predefined layouts")
 
 local staleDisplay = M.NewDraft(levelSaved, 1, lookup)
 staleDisplay.displayOrder = true
-equal(true, M.MoveSelection(staleDisplay, { 2, 3 }, 1, false))
+equal(true, M.MoveSelection(staleDisplay, { 4 }, -1, false))
 root.showpriority = root.showpriority + 1
 equal(nil, M.Commit(staleDisplay, levelSaved, bagRule), "display changes won't overwrite a stale order")
 
@@ -701,6 +712,65 @@ equal(true, sortKey(siblingBag.rules[3]) < sortKey(siblingBag.rules[1]))
 equal(102, siblingBag.rules[1].runpriority)
 equal(101, siblingBag.rules[2].runpriority)
 equal(100, siblingBag.rules[3].runpriority)
+
+local nestedSaved = { bags = {
+    { rules = { bagRule(definitions.Bear, 800), bagRule(definitions.Zebra, 500),
+        bagRule(definitions.Apple, 100), bagRule(definitions.cat, 900) } },
+    { rules = {} },
+} }
+AutoCategory.saved = nestedSaved
+local function names(rows)
+    local order = {}
+    for _, row in ipairs(rows) do order[#order + 1] = row.name end
+    return table.concat(order, ",")
+end
+local nestedDraft = M.NewDraft(nestedSaved, 1, lookup)
+nestedDraft.displayOrder = true
+equal("Zebra,Apple,Bear,cat", names(M.OrderedRows(nestedDraft)), "the branch uses the parent's priority")
+equal(true, M.Move(nestedDraft, 2, 1), "dragging root siblings moves the entire branch")
+equal("Apple,Bear,cat,Zebra", names(M.OrderedRows(nestedDraft)))
+equal(true, M.Commit(nestedDraft, nestedSaved, bagRule))
+local nestedRules = nestedSaved.bags[1].rules
+resolve = AutoCategory.MakeBagRuleDisplayResolver(1)
+equal(true, sortKey(nestedRules[3]) < sortKey(nestedRules[1]))
+equal(true, sortKey(nestedRules[1]) < sortKey(nestedRules[4]))
+equal(true, sortKey(nestedRules[4]) < sortKey(nestedRules[2]))
+equal(800, nestedRules[1].showpriority, "the child's priority does not change when its parent moves")
+equal(900, nestedRules[4].showpriority, "the grandchild's priority stays unchanged too")
+
+-- Run the real item matcher and compare its sorted paths to the draft.
+local matchingSlot
+AutoCategory.setChecking = function(_, _, slot) matchingSlot = slot end
+AutoCategory.SetCategoryCollapsed = function() end
+AutoCategory.IsCategoryCollapsed = function() return false end
+AutoCategory.CategorySortNames = {}
+AutoCategory.compiledRules = {}
+for _, entry in ipairs(nestedRules) do
+    AutoCategory.compiledRules[entry.name] = function() return matchingSlot == entry.name end
+end
+local matchedHeaders = {}
+for _, entry in ipairs(nestedRules) do
+    local matched, path, _, _, _, _, key = AutoCategory:MatchCategoryRules(1, entry.name, 1)
+    equal(true, matched)
+    matchedHeaders[#matchedHeaders + 1] = { path = path, key = key }
+end
+table.sort(matchedHeaders, function(a, b) return a.key < b.key end)
+for i, path in ipairs({ "Apple", "Apple----Bear", "Apple----Bear----cat", "Zebra" }) do
+    equal(path, matchedHeaders[i].path, "item sort places headers in the manager's order")
+end
+
+local layoutPreview = M.NewDraft(nestedSaved, 1, lookup)
+layoutPreview.displayOrder = true
+layoutPreview.getLayout("Bear").parent = "Zebra"
+equal("Apple,Zebra,Bear,cat", names(M.OrderedRows(layoutPreview)), "preview uses unsaved parent changes")
+equal("Apple", definitions.Bear.parent)
+equal(true, M.Remove(layoutPreview, "Zebra"))
+equal("Bear,cat,Apple", names(M.OrderedRows(layoutPreview)), "a branch can use an implicit parent absent from every bag")
+nestedSaved.bags[2].rules[1] = nestedRules[2]
+local _, previewInfo = M.OrderedRows(layoutPreview)
+for row, info in pairs(previewInfo) do
+    if row.name == "Bear" then equal(1, info.depth, "a parent exclusive to another bag does not add indentation") end
+end
 
 equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

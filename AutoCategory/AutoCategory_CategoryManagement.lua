@@ -98,55 +98,76 @@ function Management.Remove(draft, name)
     return false
 end
 
+local function displayLayout(draft)
+    local tree = AC.CategoryTree
+    local entries, byRow, info, groups = {}, {}, {}, {}
+    for _, entry in ipairs(draft.rules) do
+        if not draft.original[entry.name] then entries[#entries + 1] = entry end
+    end
+    for _, row in ipairs(draft.rows) do
+        local entry = { name = row.name, runpriority = row.priority, showpriority = row.showpriority }
+        entries[#entries + 1] = entry
+        byRow[row] = entry
+    end
+    local resolve = AC.MakeBagRuleDisplayResolver(draft.bagId, entries, draft.getLayout, draft.saved.bags)
+    local rows = {}
+    for i, row in ipairs(draft.rows) do
+        local path, key = resolve(byRow[row])
+        local depth = tree.LevelCount(path)
+        local parent = tree.ParentOf(path) or ""
+        local prefix = depth > 1 and #tree.LevelSortKey(key, depth - 1) + 1 or 0
+        -- Strip the ancestor key and the four priority digits. What
+        -- remains is the inventory's tie-breaker within this sibling group.
+        info[row] = { key = key, depth = depth, parent = parent, tie = key:sub(prefix + 5) }
+        rows[i] = row
+    end
+    table.sort(rows, function(a, b)
+        if info[a].key ~= info[b].key then return info[a].key < info[b].key end
+        return a.name < b.name
+    end)
+    for _, row in ipairs(rows) do
+        local parent = info[row].parent
+        local siblings = groups[parent] or {}
+        groups[parent] = siblings
+        siblings[#siblings + 1] = row
+        info[row].index = #siblings
+    end
+    return rows, info, groups
+end
+
 function Management.OrderedRows(draft)
+    if draft.displayOrder then return displayLayout(draft) end
     local ordered = {}
     for i, row in ipairs(draft.rows) do ordered[i] = row end
-    if draft.displayOrder then
-        table.sort(ordered, function(a, b)
-            local first, second = displayPriority(a), displayPriority(b)
-            if first ~= second then return first > second end
-            return a.name < b.name
-        end)
-    end
     return ordered
 end
 
-local function applyOrder(draft, rows, values)
+local function fitPriorities(rows, values, minimum, info)
+    local function step(a, b)
+        local first, second = a.name, b.name
+        if info then first, second = info[a].tie, info[b].tie end
+        return (first < second or (first == second and a.name < b.name)) and 0 or 1
+    end
     for i = 2, #rows do
         -- Equal priorities are allowed only when the game's tie-breaker
         -- would keep these two categories in the requested order.
-        local step = rows[i - 1].name < rows[i].name and 0 or 1
-        values[i] = math.min(values[i], values[i - 1] - step)
+        values[i] = math.min(values[i], values[i - 1] - step(rows[i - 1], rows[i]))
     end
-    local minimum = draft.displayOrder and 2 or 0
     -- Repair underflow from the bottom without clamping away a user's move.
     for i = #rows, 1, -1 do
         values[i] = math.max(values[i], minimum)
         if i < #rows then
-            local step = rows[i].name < rows[i + 1].name and 0 or 1
-            values[i] = math.max(values[i], values[i + 1] + step)
+            values[i] = math.max(values[i], values[i + 1] + step(rows[i], rows[i + 1]))
         end
     end
-    if values[1] > MAX_PRIORITY then return false end
-    if draft.displayOrder then
-        for i, row in ipairs(rows) do
-            if displayPriority(row) ~= values[i] then row.showpriority = values[i] end
-        end
-    else
-        for i, row in ipairs(rows) do row.priority = values[i] end
-        draft.rows = rows
-    end
-    return true
+    return values[1] <= MAX_PRIORITY
 end
 
 local function orderPriority(draft, row)
     return draft.displayOrder and displayPriority(row) or row.priority
 end
 
-function Management.Move(draft, fromIndex, toIndex)
-    local rows = Management.OrderedRows(draft)
-    if fromIndex == toIndex or not rows[fromIndex] or not rows[toIndex] then return false end
-
+local function moveRow(draft, rows, fromIndex, toIndex)
     local values = {}
     local moved = table.remove(rows, fromIndex)
     local targetPriority = orderPriority(draft, rows[fromIndex < toIndex and toIndex - 1 or toIndex])
@@ -155,18 +176,43 @@ function Management.Move(draft, fromIndex, toIndex)
         local value = orderPriority(draft, row)
         values[i] = i < toIndex and value or (i == toIndex and targetPriority or value - 1)
     end
-    return applyOrder(draft, rows, values)
+    return rows, values
 end
 
-function Management.MoveSelection(draft, indices, delta, toEdge)
-    local rows = Management.OrderedRows(draft)
+local function applyDisplayValues(rows, values)
+    for i, row in ipairs(rows) do
+        if displayPriority(row) ~= values[i] then row.showpriority = values[i] end
+    end
+end
+
+local function applyRunValues(draft, rows, values)
+    if not fitPriorities(rows, values, 0) then return false end
+    for i, row in ipairs(rows) do row.priority = values[i] end
+    draft.rows = rows
+    return true
+end
+
+function Management.Move(draft, fromIndex, toIndex)
+    local rows, info, groups = Management.OrderedRows(draft)
+    local from, to = rows[fromIndex], rows[toIndex]
+    if fromIndex == toIndex or not from or not to then return end
+    if not info then return applyRunValues(draft, moveRow(draft, rows, fromIndex, toIndex)) end
+    local first, last = info[from], info[to]
+    if first.parent ~= last.parent then return end
+    local siblings, values = moveRow(draft, groups[first.parent], first.index, last.index)
+    if not fitPriorities(siblings, values, 2, info) then return false end
+    applyDisplayValues(siblings, values)
+    return true
+end
+
+local function moveSelection(draft, rows, indices, delta, toEdge)
     local count = #rows
     if #indices == 0 or (delta ~= -1 and delta ~= 1) then return end
     if #indices == 1 then
         local index = indices[1]
         local target = toEdge and (delta == -1 and 1 or count) or index + delta
         if target == index or not rows[target] then return end
-        return Management.Move(draft, index, target)
+        return moveRow(draft, rows, index, target)
     end
 
     local selected, values, changed = {}, {}, false
@@ -195,7 +241,34 @@ function Management.MoveSelection(draft, indices, delta, toEdge)
             end
         end
     end
-    if changed then return applyOrder(draft, rows, values) end
+    if changed then return rows, values end
+end
+
+function Management.MoveSelection(draft, indices, delta, toEdge)
+    local rows, info, groups = Management.OrderedRows(draft)
+    if not info then
+        local moved, values = moveSelection(draft, rows, indices, delta, toEdge)
+        if moved then return applyRunValues(draft, moved, values) end
+        return
+    end
+    local selectedByParent, pending = {}, {}
+    for _, index in ipairs(indices) do
+        local data = info[rows[index]]
+        if data then
+            local selected = selectedByParent[data.parent] or {}
+            selectedByParent[data.parent] = selected
+            selected[#selected + 1] = data.index
+        end
+    end
+    for parent, selected in pairs(selectedByParent) do
+        local moved, values = moveSelection(draft, groups[parent], selected, delta, toEdge)
+        if moved then
+            if not fitPriorities(moved, values, 2, info) then return false end
+            pending[#pending + 1] = { moved, values }
+        end
+    end
+    for _, change in ipairs(pending) do applyDisplayValues(change[1], change[2]) end
+    if #pending > 0 then return true end
 end
 
 local function planLevels(draft, selected)
@@ -284,7 +357,7 @@ function Management.Commit(draft, saved, createBagRule)
     end
 
     if displayOrderChanged and (#layouts > 0 or displayEdited) then return nil end
-    if #layouts > 0 then
+    if #layouts > 0 or displayEdited then
         -- A parent/candidate may have changed even if it was not edited here.
         for name, layout in pairs(draft.layouts) do
             local rule = draft.getRule(name)
@@ -376,7 +449,8 @@ local function refresh()
             end,
         }
     end
-    for _, row in ipairs(Management.OrderedRows(draft)) do
+    local rows, displayInfo = Management.OrderedRows(draft)
+    for _, row in ipairs(rows) do
         local name = row.name
         local original = draft.original[name]
         local entry = original and original.entry
@@ -386,9 +460,12 @@ local function refresh()
         elseif displayed and (not entry or not displayed[resolveDisplay(entry)]) then
             color = ABSENT_COLOR
         end
-        local indent = string.rep("   ", CLM.EffectiveLevel(draft.getLayout(name)) - 1)
+        local info = displayInfo and displayInfo[row]
+        local depth = info and info.depth or CLM.EffectiveLevel(draft.getLayout(name))
+        local indent = string.rep("   ", depth - 1)
         present[#present + 1] = {
             key = name, name = name, label = indent .. string.format("[%d] %s", orderPriority(draft, row), name),
+            moveGroup = info and info.parent,
             color = color,
             tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),
             rightClickCallback = function()
@@ -474,7 +551,7 @@ local function setup()
             if not draft then return end
             local moved = Management.Move(draft, fromIndex, toIndex)
             refresh()
-            if not moved then showError(SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT) end
+            if moved == false then showError(SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT) end
         end,
         onMoveSelection = function(indices, delta, toEdge)
             if not draft then return end

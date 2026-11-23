@@ -1,3 +1,9 @@
+[COLOR="DeepSkyBlue"] Match inventory display order in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] Display Priority uses the inventory's category order, keeping parents above their subcategories.
+[*] Reorder siblings without changing parent links or execution priorities. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Select multiple categories in Manage Categories (2026-11-23)[/COLOR]:
 [LIST]
 [*] Ctrl+click toggles a row, Shift+click selects a range, and Ctrl+Shift+click adds a range. The arrows now operate on the selection.

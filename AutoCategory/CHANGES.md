@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-11-23: match inventory display order in Manage Categories
+
+- Display Priority uses the inventory's category paths and sort keys.
+  Parents stay above their subcategories, and display priority sorts
+  categories that share a parent. Draft layout changes are previewed
+  before Apply, including categories without a visible inventory header.
+- Display-priority arrows and drag-and-drop reorder siblings without
+  changing parent links or execution priorities. Not tested in ESO.
+
 ## 2026-11-23: select multiple categories in Manage Categories
 
 - Ctrl+click toggles a category on the right; Shift+click selects a

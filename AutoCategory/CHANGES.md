@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-11-23: hide display-priority numbers in Manage Categories
+
+- Display Priority shows category names and indentation without the
+  numeric prefix. Execution Priority still shows its numbers. Not tested in ESO.
+
 ## 2026-11-23: switch inventories in Manage Categories
 
 - The dropdown under the title lists all inventory types and starts on

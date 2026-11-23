@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Simplify display-priority labels (2026-11-23)[/COLOR]:
+[LIST]
+[*] Hide the numeric prefixes in Display Priority. Execution Priority still shows its numbers. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Switch inventories in Manage Categories (2026-11-23)[/COLOR]:
 [LIST]
 [*] The inventory dropdown starts on the inventory that opened the window and lets you manage any supported inventory.

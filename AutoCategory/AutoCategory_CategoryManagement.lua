@@ -476,8 +476,9 @@ local function refresh()
         local info = displayInfo and displayInfo[row]
         local depth = info and info.depth or CLM.EffectiveLevel(draft.getLayout(name))
         local indent = string.rep("   ", depth - 1)
+        local label = draft.displayOrder and name or string.format("[%d] %s", row.priority, name)
         present[#present + 1] = {
-            key = name, name = name, label = indent .. string.format("[%d] %s", orderPriority(draft, row), name),
+            key = name, name = name, label = indent .. label,
             moveGroup = info and info.parent,
             color = color,
             tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),

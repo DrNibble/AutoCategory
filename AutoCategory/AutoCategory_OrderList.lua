@@ -51,10 +51,18 @@ function List:StopDrag()
     List.HideDragLabel()
 end
 
+local function selectedForMove(list, item)
+    if not list.selection[item.key] then return false end
+    for _, ancestor in ipairs(item.moveAncestors or {}) do
+        if list.selection[ancestor] then return false end
+    end
+    return true
+end
+
 function List:SelectedIndices()
     local indices = {}
     for index, item in ipairs(self.items) do
-        if self.selection[item.key] then indices[#indices + 1] = index end
+        if selectedForMove(self, item) then indices[#indices + 1] = index end
     end
     return indices
 end
@@ -65,7 +73,7 @@ function List:UpdateSelection()
         local up, down = false, false
         for _, item in ipairs(self.items) do
             local group = item.moveGroup or ""
-            if self.selection[item.key] then
+            if selectedForMove(self, item) then
                 selected[group] = true
                 if unselected[group] then up = true end
             else
@@ -182,7 +190,8 @@ function List:SetupRow(row, data)
             end
             if item.callback then item.callback() end
         elseif button == MOUSE_BUTTON_INDEX_RIGHT and item.rightClickCallback then
-            item.rightClickCallback()
+            if self.onMoveSelection and not self.selection[item.key] then self:Select(item.key) end
+            item.rightClickCallback(row, self.selection)
         end
     end)
     row:SetHandler("OnDragStart", function(_, button) self:StartDrag(row, data, button) end)

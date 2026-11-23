@@ -1,7 +1,7 @@
 <GuiXml>
     <Controls> 
         <TopLevelControl name="AC_CategoryManagementWindow" hidden="true" mouseEnabled="true" movable="true" clampedToScreen="true" tier="HIGH">
-            <Dimensions x="880" y="704"/>
+            <Dimensions x="880" y="720"/>
             <Anchor point="CENTER" relativeTo="GuiRoot" relativePoint="CENTER"/>
             <OnMouseDown>
                 self:BringWindowToTop()
@@ -20,11 +20,13 @@
                 </Control>
                 <Label name="$(parent)AvailableTitle" font="ZoFontWinH4" horizontalAlignment="CENTER">
                     <Dimensions x="410" y="50"/>
-                    <Anchor point="TOPLEFT" offsetX="18" offsetY="70"/>
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Inventory" relativePoint="BOTTOM"
+                        offsetX="-422" offsetY="14"/>
                 </Label>
                 <Control name="$(parent)PresentTitle">
                     <Dimensions x="410" y="50"/>
-                    <Anchor point="TOPRIGHT" offsetX="-18" offsetY="70"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Inventory" relativePoint="BOTTOM"
+                        offsetX="422" offsetY="14"/>
                     <Controls>
                         <Button name="$(parent)Run" inherits="ZO_DefaultButton">
                             <Dimensions x="194" y="30"/>
@@ -44,13 +46,17 @@
                     <Dimensions x="410" y="426"/>
                     <Anchor point="TOPLEFT" relativeTo="$(parent)PresentTitle" relativePoint="BOTTOMLEFT"/>
                 </Control>
+                <Label name="$(parent)Level" font="ZoFontGameMedium" horizontalAlignment="CENTER" verticalAlignment="CENTER">
+                    <Dimensions x="128" y="30"/>
+                    <Anchor point="TOP" relativeTo="$(parent)Present" relativePoint="BOTTOM" offsetY="6"/>
+                </Label>
                 <Button name="$(parent)Shallower" inherits="ZO_DefaultButton" text="←">
                     <Dimensions x="56" y="30"/>
-                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Present" relativePoint="BOTTOM" offsetX="-5" offsetY="6"/>
+                    <Anchor point="RIGHT" relativeTo="$(parent)Level" relativePoint="LEFT" offsetX="-5"/>
                 </Button>
                 <Button name="$(parent)Deeper" inherits="ZO_DefaultButton" text="→">
                     <Dimensions x="56" y="30"/>
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)Present" relativePoint="BOTTOM" offsetX="5" offsetY="6"/>
+                    <Anchor point="LEFT" relativeTo="$(parent)Level" relativePoint="RIGHT" offsetX="5"/>
                 </Button>
                 <Label name="$(parent)Hint" font="ZoFontGameSmall" horizontalAlignment="CENTER" verticalAlignment="CENTER">
                     <Dimensions y="38"/>

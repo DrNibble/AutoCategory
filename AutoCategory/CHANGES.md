@@ -1,5 +1,17 @@
 # Changes
 
+## 2026-11-23: manage category branches from the list
+
+- Add space under the inventory dropdown and show the selected level
+  (1–5) between the horizontal arrows. Mixed selections show their levels.
+- In Display Priority, move branches with their descendants. The right
+  arrow nests under a preceding eligible sibling; the left arrow promotes
+  the branch one level.
+- Right-click opens actions for the selection: copy branches to checked
+  inventories, remove from the current inventory (promoting remaining
+  children), or attach to a named parent. Apply saves the draft, including
+  queued copies; Cancel discards it. Not tested in ESO.
+
 ## 2026-11-23: hide display-priority numbers in Manage Categories
 
 - Display Priority shows category names and indentation without the

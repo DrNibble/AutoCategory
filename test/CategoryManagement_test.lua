@@ -22,7 +22,7 @@ local definitions = {
 }
 local function lookup(name) return definitions[name] end
 local function bagRule(rule, value, shown)
-    return { name = rule.name, runpriority = value, showpriority = shown or value }
+    return { name = type(rule) == "table" and rule.name or rule, runpriority = value, showpriority = shown or value }
 end
 local apple = { name = "Apple", runpriority = 60, showpriority = 17, isHidden = true }
 local bear = { name = "Bear", runpriority = 30, showpriority = 105 }
@@ -51,6 +51,13 @@ ZO_Tooltips_HideTextTooltip = function() end
 SI_AC_CATEGORY_MANAGER_READ_ONLY = "lecture seule"
 SI_AC_CATEGORY_MANAGER_STALE = "obsolete"
 SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "save or cancel before switching"
+SI_AC_CATEGORY_MANAGER_ATTACH = "Attacher à une catégorie"
+SI_AC_CATEGORY_MANAGER_COPY_PENDING = "Copie en attente"
+SI_AC_MENU_CM_REMOVE_DISPLAY = "Supprimer l’affichage"
+SI_AC_MENU_CM_COPY_SUBMENU = "Copier vers"
+SI_AC_MENU_CM_COPY_SELECTED = "Copier la sélection"
+SI_AC_TIP_CM_COPY_OVERWRITE = "Remplace les catégories présentes"
+SI_AC_TIP_LEVEL = "Niveau : %d"
 SI_AC_MENU_CM_LEVEL_SHALLOWER = "Relever ←"
 SI_AC_MENU_CM_LEVEL_DEEPER = "Abaisser →"
 SI_AC_MENU_BS_SLIDER_CATEGORY_RUNPRIORITY = "Priorité d'exécution"
@@ -262,6 +269,27 @@ end
 local function rowClick(list, index, right)
     list.scroll.rows[index]:Fire("OnMouseUp", right and MOUSE_BUTTON_INDEX_RIGHT or MOUSE_BUTTON_INDEX_LEFT, true)
 end
+local menuRows, menuOwner
+AutoCategory.ScrollMenu = {
+    Hide = function() menuRows, menuOwner = nil, nil end,
+    Show = function(owner, rows, options)
+        equal(MOUSE_BUTTON_INDEX_RIGHT, options.openerButton)
+        menuRows, menuOwner = rows, owner
+    end,
+}
+local function menuEntry(label, rows)
+    for _, entry in ipairs(rows or menuRows) do
+        if entry.label == label then return entry end
+    end
+end
+local function chooseMenu(entry)
+    AutoCategory.ScrollMenu.Hide()
+    assert(entry, "menu entry missing").action()
+end
+local function removeViaMenu(list, index)
+    rowClick(list, index, true)
+    chooseMenu(menuEntry(SI_AC_MENU_CM_REMOVE_DISPLAY))
+end
 local function drag(list, index, target)
     list.scroll.rows[index]:Fire("OnDragStart", MOUSE_BUTTON_INDEX_LEFT)
     equal(false, AC_OrderListDragLabel:IsHidden())
@@ -441,7 +469,7 @@ rowClick(present, 4)
 present.arrows:GetNamedChild("First"):Fire("OnClicked")
 equal("Zebra", present.selected, "the selected category stays selected")
 equal("[1000] Zebra", rowText(present, 1))
-rowClick(lists[2], 3, true)
+removeViaMenu(lists[2], 3)
 equal(4, #bag.rules, "move and remove also stay in the draft")
 button("Confirm")
 equal(true, AC_CategoryManagementWindow:IsHidden())
@@ -551,7 +579,7 @@ equal(900, other.runpriority)
 M.Open(1, refreshInventory)
 rowClick(present, 1)
 button("Shallower")
-rowClick(present, 3, true)
+removeViaMenu(present, 3)
 definitions.Bear.level = 4
 button("Confirm")
 equal(false, AC_CategoryManagementWindow:IsHidden(), "reject a stale layout before saving")
@@ -665,13 +693,16 @@ equal("Zebra,Apple,Bear,cat", presentedKeys(), "dragging across parents does not
 rowClick(present, 4)
 modifiedClick(1, true, false)
 priorityArrow("Up")
+equal("Zebra,Apple,Bear,cat", presentedKeys(), "a selected ancestor carries its selected descendant without reordering it")
+rowClick(present, 4)
+priorityArrow("Up")
 equal("Zebra,Apple,cat,Bear", presentedKeys(), "each selected category moves only among its own siblings")
 equal("      cat", rowText(present, 3))
 equal(26, sibling.showpriority, "display moves remain draft-only")
 orderTab("Run")
 equal("Apple,Bear,Zebra,cat", presentedKeys(), "display edits leave execution order untouched")
 equal("   [70] Apple", rowText(present, 1), "execution priority still shows its numeric prefix")
-equal("Zebra,cat", selectedKeys(), "changing tabs preserves selection by key")
+equal("cat", selectedKeys(), "changing tabs preserves selection by key")
 button("Confirm")
 equal(true, AC_CategoryManagementWindow:IsHidden())
 equal(3, refreshes)
@@ -836,7 +867,7 @@ equal("", presentedKeys())
 inventoryCombo:SelectItem(inventoryCombo.items[1])
 equal(grey, rowColor(present, 1), "returning to the original bag restores its visibility colors")
 
-rowClick(present, 1, true)
+removeViaMenu(present, 1)
 inventoryCombo:SelectItem(inventoryCombo.items[2])
 equal("Inventaire", inventoryCombo.selected.name, "restore the dropdown when a switch is blocked")
 equal("Apple", presentedKeys(), "the unsaved removal remains in the draft")
@@ -864,6 +895,110 @@ equal(previousRefreshes + 1, refreshes)
 equal(1, #selectorSaved.bags[3].rules, "apply writes to the selected bag")
 equal(1, #selectorSaved.bags[2].rules, "the bag that opened the window is untouched")
 equal("Bear", selectorSaved.bags[2].rules[1].name)
+
+-- Branch operations in Display Priority and the manager's right-click actions.
+local contextSaved = { bags = {
+    { rules = { bagRule(definitions.Zebra, 80), bagRule(definitions.Apple, 50),
+        bagRule(definitions.Bear, 95), bagRule(definitions.cat, 90), bagRule(definitions.dog, 10) } },
+    { rules = {} }, { rules = {} },
+} }
+AutoCategory.saved = contextSaved
+local levelLabel = AC_CategoryManagementWindow:GetNamedChild("Level")
+local function clickName(name, right, add)
+    for index, key in ipairs(present.visible) do
+        if key == name then
+            ctrl = add == true
+            rowClick(present, index, right)
+            ctrl = false
+            return present.scroll.rows[index]
+        end
+    end
+    error("visible row not found: " .. name)
+end
+
+M.Open(1, refreshInventory)
+orderTab("Display")
+equal("", levelLabel:GetText(), "no level without a selection")
+equal("Zebra,Apple,Bear,cat,dog", presentedKeys())
+clickName("Apple")
+equal("Niveau : 1", levelLabel:GetText())
+clickName("Bear", false, true)
+equal("1 / 2", levelLabel:GetText(), "mixed selections show the different levels")
+priorityArrow("Up")
+equal("Apple,Bear,cat,Zebra,dog", presentedKeys(), "moving up carries children and grandchildren")
+priorityArrow("Down")
+equal("Zebra,Apple,Bear,cat,dog", presentedKeys(), "moving down keeps the same branch together")
+button("Deeper")
+equal("   Apple", rowText(present, 2))
+equal("      Bear", rowText(present, 3))
+equal("         cat", rowText(present, 4))
+equal("2 / 3", levelLabel:GetText())
+button("Shallower")
+equal("Apple", rowText(present, 2))
+equal("   Bear", rowText(present, 3))
+equal("      cat", rowText(present, 4))
+equal("1 / 2", levelLabel:GetText())
+equal(nil, definitions.Apple.level, "arrow operations do not save before Apply")
+
+clickName("dog", false, true)
+local owner = clickName("Apple", true)
+equal(owner, menuOwner)
+equal("Apple,Bear,dog", selectedKeys(), "right-clicking a selected row preserves the selection")
+equal("Zebra,Apple,Bear,cat,dog", presentedKeys(), "right-click does not remove categories")
+local attach = menuEntry(SI_AC_CATEGORY_MANAGER_ATTACH)
+equal(true, attach.search)
+equal(1, #attach.entries, "cannot attach to selected categories or their descendants")
+chooseMenu(menuEntry("Zebra", attach.entries))
+equal("   Apple", rowText(present, 2))
+equal("      Bear", rowText(present, 3))
+equal("         cat", rowText(present, 4))
+equal("   dog", rowText(present, 5))
+clickName("Apple", true)
+local copies = menuEntry(SI_AC_MENU_CM_COPY_SUBMENU).entries
+local bankChoice, guildChoice = menuEntry("Banque", copies), menuEntry("Banque de guilde", copies)
+equal("check", bankChoice.kind)
+equal(false, bankChoice.checked())
+bankChoice.setChecked(true)
+guildChoice.setChecked(true)
+chooseMenu(menuEntry(SI_AC_MENU_CM_COPY_SELECTED, copies))
+equal(0, #contextSaved.bags[2].rules, "the checkbox submenu queues a draft copy")
+equal(0, #contextSaved.bags[3].rules)
+equal("Copie en attente", AC_CategoryManagementWindow:GetNamedChild("Status"):GetText())
+button("Confirm")
+equal("Zebra", definitions.Apple.parent)
+equal("Zebra", definitions.dog.parent)
+equal("Apple", definitions.Bear.parent)
+equal("Bear", definitions.cat.parent)
+equal(4, definitions.cat.level)
+equal(5, #contextSaved.bags[2].rules, "copy the selected branches and their ancestor only once")
+equal(5, #contextSaved.bags[3].rules, "copy to all checked destinations")
+
+M.Open(1, refreshInventory)
+orderTab("Display")
+clickName("Apple", true)
+equal("Apple", selectedKeys(), "right-clicking an unselected row selects only that row")
+chooseMenu(menuEntry(SI_AC_MENU_CM_REMOVE_DISPLAY))
+equal("Zebra,Bear,cat,dog", presentedKeys())
+equal("   Bear", rowText(present, 2), "remaining children are promoted under the removed category's parent")
+equal("      cat", rowText(present, 3))
+equal(5, #contextSaved.bags[1].rules)
+equal(true, M.Cancel())
+equal("Apple", definitions.Bear.parent, "Cancel discards the removal and promotion")
+
+M.Open(1, refreshInventory)
+clickName("Apple", true)
+copies = menuEntry(SI_AC_MENU_CM_COPY_SUBMENU).entries
+bankChoice = menuEntry("|cFF5555Banque|r", copies)
+equal(SI_AC_TIP_CM_COPY_OVERWRITE, bankChoice.tooltip)
+bankChoice.setChecked(true)
+chooseMenu(menuEntry(SI_AC_MENU_CM_COPY_SELECTED, copies))
+local destination = contextSaved.bags[2].rules[1]
+destination.showpriority = 7
+button("Confirm")
+equal(false, AC_CategoryManagementWindow:IsHidden(), "a stale destination blocks Apply")
+equal("obsolete", AC_CategoryManagementWindow:GetNamedChild("Status"):GetText())
+equal(7, destination.showpriority, "no external destination changes are overwritten")
+equal(true, M.Cancel())
 
 equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

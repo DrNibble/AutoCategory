@@ -417,6 +417,37 @@ function CLM.CopySubtreeToBag(srcBagTypeId, ruleName, destBagTypeId, overwrite)
     return copied, skipped, overwritten
 end
 
+-- The inventory header and the manager offer the same checkbox picker.
+function CLM.BuildCopyChoices(sourceId, hasOverlap, copyToBag, onChanged)
+    local entries = {}
+    local bags = AutoCategory.cache and AutoCategory.cache.bags_cvt
+    if bags and bags.choices and bags.choicesValues then
+        for i, bagId in ipairs(bags.choicesValues) do
+            local bagName = bags.choices[i]
+            if bagId ~= sourceId and bagName then
+                local overwrite = hasOverlap(bagId)
+                local entry = {
+                    label = bagName,
+                    overwriteTooltip = overwrite and GetString(SI_AC_TIP_CM_COPY_OVERWRITE) or nil,
+                }
+                entry.onChecked = function(checked) entry.selected = checked == true end
+                entry.copySelected = function() return copyToBag(bagId, bagName, overwrite) end
+                entries[#entries + 1] = entry
+            end
+        end
+    end
+    return entries, function()
+        local changed = false
+        for _, entry in ipairs(entries) do
+            if entry.selected then
+                entry.selected = false
+                if entry.copySelected() then changed = true end
+            end
+        end
+        if changed and onChanged then onChanged() end
+    end
+end
+
 -- Names are global, even though the new bag entry belongs only to the
 -- clicked bag. Never silently suffix a duplicate typed by the user.
 function CLM.ValidateNewCategoryName(name)
@@ -1280,7 +1311,6 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
         end
 
         -- Stage multiple destinations; only a marked bag can overwrite.
-        local copyEntries = {}
         local function copyToBag(bagId, bagName, overwrite)
             local copied, skipped, overwritten = CLM.CopySubtreeToBag(
                 bagTypeId, rule.name, bagId, overwrite)
@@ -1295,39 +1325,12 @@ function AutoCategory.AddCategoryLevelMenuEntries(cateName, bagTypeId, menu, dis
             CHAT_ROUTER:AddSystemMessage(message)
             return copied > 0 or overwritten > 0
         end
-        local bags_cvt = AutoCategory.cache and AutoCategory.cache.bags_cvt
-        if bags_cvt and bags_cvt.choices and bags_cvt.choicesValues then
-            for i = 1, #bags_cvt.choicesValues do
-                local bagId = bags_cvt.choicesValues[i]
-                local bagName = bags_cvt.choices[i]
-                if bagId ~= bagTypeId and bagName then
-                    local overwrite = findBagrule(bagId, rule.name) ~= nil
-                    local entry = {
-                        label = bagName,
-                        overwriteTooltip = overwrite and GetString(SI_AC_TIP_CM_COPY_OVERWRITE) or nil,
-                        copySelected = function()
-                            return copyToBag(bagId, bagName, overwrite)
-                        end,
-                    }
-                    entry.onChecked = function(checked)
-                        entry.selected = checked == true
-                    end
-                    copyEntries[#copyEntries + 1] = entry
-                end
-            end
-        end
+        local copyEntries, copyAction = CLM.BuildCopyChoices(bagTypeId, function(bagId)
+            return findBagrule(bagId, rule.name) ~= nil
+        end, copyToBag, refreshAfterChange)
         if #copyEntries > 0 then
             local title = GetString(SI_AC_MENU_CM_COPY_SUBMENU)
-            addSubMenu(title, copyEntries, { copyAction = function()
-                local changed = false
-                for _, entry in ipairs(copyEntries) do
-                    if entry.selected then
-                        entry.selected = false
-                        if entry.copySelected() then changed = true end
-                    end
-                end
-                if changed then refreshAfterChange() end
-            end })
+            addSubMenu(title, copyEntries, { copyAction = copyAction })
         end
     end
 

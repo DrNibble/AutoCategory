@@ -1,3 +1,10 @@
+[COLOR="DeepSkyBlue"] Manage category branches from the list (2026-11-23)[/COLOR]:
+[LIST]
+[*] Add space under the inventory dropdown and display the selection’s level between the horizontal arrows.
+[*] Moving a branch in Display Priority keeps its descendants with it. Right-click the selection to copy it to other inventories, remove it from this inventory, or attach it to a named parent.
+[*] Changes and queued copies are saved with Apply. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Simplify display-priority labels (2026-11-23)[/COLOR]:
 [LIST]
 [*] Hide the numeric prefixes in Display Priority. Execution Priority still shows its numbers. Not tested in ESO.

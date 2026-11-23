@@ -26,7 +26,7 @@ function Management.NewDraft(saved, bagId, getRule)
     if not bag or not bag.rules then return end
     local draft = {
         saved = saved, bagId = bagId, bag = bag, rules = bag.rules, getRule = getRule,
-        rows = {}, original = {}, snapshot = {}, layouts = {}, count = #bag.rules,
+        rows = {}, original = {}, snapshot = {}, layouts = {}, copies = {}, count = #bag.rules,
     }
     -- The same rules are shared by all inventories. Only edit copies in the draft.
     draft.getLayout = function(name)
@@ -44,7 +44,8 @@ function Management.NewDraft(saved, bagId, getRule)
     end
     for _, entry in ipairs(bag.rules) do
         draft.snapshot[entry] = draft.snapshot[entry] or {
-            name = entry.name, runpriority = entry.runpriority, showpriority = entry.showpriority, count = 0,
+            name = entry.name, runpriority = entry.runpriority, showpriority = entry.showpriority,
+            isHidden = entry.isHidden, count = 0,
         }
         draft.snapshot[entry].count = draft.snapshot[entry].count + 1
         if not draft.original[entry.name] and draft.getLayout(entry.name) then
@@ -110,7 +111,7 @@ local function displayLayout(draft)
         byRow[row] = entry
     end
     local resolve = AC.MakeBagRuleDisplayResolver(draft.bagId, entries, draft.getLayout, draft.saved.bags)
-    local rows = {}
+    local rows, byPath = {}, {}
     for i, row in ipairs(draft.rows) do
         local path, key = resolve(byRow[row])
         local depth = tree.LevelCount(path)
@@ -118,7 +119,8 @@ local function displayLayout(draft)
         local prefix = depth > 1 and #tree.LevelSortKey(key, depth - 1) + 1 or 0
         -- Strip the ancestor key and the four priority digits. What
         -- remains is the inventory's tie-breaker within this sibling group.
-        info[row] = { key = key, depth = depth, parent = parent, tie = key:sub(prefix + 5) }
+        info[row] = { key = key, path = path, depth = depth, parent = parent, tie = key:sub(prefix + 5) }
+        byPath[path] = row
         rows[i] = row
     end
     table.sort(rows, function(a, b)
@@ -131,6 +133,11 @@ local function displayLayout(draft)
         groups[parent] = siblings
         siblings[#siblings + 1] = row
         info[row].index = #siblings
+        local ancestors = {}
+        for _, prefix in ipairs(tree.Ancestors(info[row].path) or {}) do
+            if byPath[prefix] then ancestors[#ancestors + 1] = byPath[prefix].name end
+        end
+        info[row].ancestors = ancestors
     end
     return rows, info, groups
 end
@@ -251,10 +258,17 @@ function Management.MoveSelection(draft, indices, delta, toEdge)
         if moved then return applyRunValues(draft, moved, values) end
         return
     end
-    local selectedByParent, pending = {}, {}
+    local selectedByParent, pending, names = {}, {}, {}
+    for _, index in ipairs(indices) do
+        if rows[index] then names[rows[index].name] = true end
+    end
     for _, index in ipairs(indices) do
         local data = info[rows[index]]
-        if data then
+        local covered
+        for _, name in ipairs(data and data.ancestors or {}) do
+            if names[name] then covered = true; break end
+        end
+        if data and not covered then
             local selected = selectedByParent[data.parent] or {}
             selectedByParent[data.parent] = selected
             selected[#selected + 1] = data.index
@@ -308,8 +322,79 @@ local function canShiftLevels(subtrees, delta)
     return true
 end
 
+local function branchMove(draft, subtree, parent, moving)
+    local root = subtree[1].rule
+    if parent == root.parent or moving[parent] then return end
+    local parentRule = parent and draft.getLayout(parent)
+    if parent and not parentRule then return end
+    local newLevel = parentRule and CLM.EffectiveLevel(parentRule) + 1 or 1
+    local delta = newLevel - CLM.EffectiveLevel(root)
+    for _, entry in ipairs(subtree) do
+        local level = CLM.EffectiveLevel(entry.rule) + delta
+        if level < 1 or level > 5 then return end
+    end
+    return { subtree = subtree, parent = parent, delta = delta }
+end
+
+local function moveBranches(changes)
+    for _, change in ipairs(changes) do
+        for _, entry in ipairs(change.subtree) do
+            local rule = entry.rule
+            local level = CLM.EffectiveLevel(rule) + change.delta
+            rule.level = level > 1 and level or nil
+        end
+        change.subtree[1].rule.parent = change.parent
+    end
+end
+
+local function isHidden(draft, name)
+    local original = draft.original[name]
+    return original and original.entry.isHidden
+end
+
+local function planDisplayShift(draft, subtrees, moving, delta)
+    if #subtrees == 0 or (delta ~= -1 and delta ~= 1) then return end
+    local rows, info, groups = displayLayout(draft)
+    local byName, byPath, changes = {}, {}, {}
+    for _, row in ipairs(rows) do
+        byName[row.name], byPath[info[row].path] = info[row], row
+    end
+    for _, subtree in ipairs(subtrees) do
+        local data = byName[subtree[1].rule.name]
+        local parent
+        if delta == -1 then
+            if data.parent == "" then return end
+            local grandparent = AC.CategoryTree.ParentOf(data.parent)
+            if grandparent then
+                local candidate = byPath[grandparent]
+                parent = candidate and candidate.name or AC.CategoryTree.DisplayName(grandparent)
+            end
+        else
+            local siblings = groups[data.parent]
+            for index = data.index - 1, 1, -1 do
+                local candidate = siblings[index].name
+                if not moving[candidate] and not isHidden(draft, candidate) then
+                    parent = candidate
+                    break
+                end
+            end
+            if not parent then return end
+        end
+        local change = branchMove(draft, subtree, parent, moving)
+        if not change then return end
+        changes[#changes + 1] = change
+    end
+    return changes
+end
+
 function Management.ShiftSelection(draft, selected, delta)
     local subtrees, bagRules, moving = planLevels(draft, selected)
+    if draft.displayOrder then
+        local changes = planDisplayShift(draft, subtrees, moving, delta)
+        if not changes then return false end
+        moveBranches(changes)
+        return true
+    end
     if not canShiftLevels(subtrees, delta) then return false end
     for _, subtree in ipairs(subtrees) do
         CLM.ShiftRuleLevels(bagRules, subtree, delta, draft.getLayout, moving)
@@ -321,11 +406,77 @@ function Management.ShiftLevel(draft, name, delta)
     return Management.ShiftSelection(draft, { [name] = true }, delta)
 end
 
+function Management.RemoveDisplaySelection(draft, selected)
+    local parents, affected = {}, {}
+    for _, row in ipairs(draft.rows) do
+        local rule = draft.getLayout(row.name)
+        if selected[row.name] then parents[row.name] = rule.parent or false end
+    end
+    for _, row in ipairs(draft.rows) do
+        if parents[row.name] == nil then
+            local rule = draft.getLayout(row.name)
+            local parent, count, visited = rule.parent, 0, { [row.name] = true }
+            while parent and parent ~= "" and not visited[parent] do
+                visited[parent] = true
+                if parents[parent] ~= nil then count = count + 1 end
+                local ancestor = draft.getLayout(parent)
+                parent = ancestor and ancestor.parent
+            end
+            if count > 0 then
+                local direct, climbed = rule.parent, {}
+                while direct and parents[direct] ~= nil do
+                    if climbed[direct] then direct = nil; break end
+                    climbed[direct] = true
+                    direct = parents[direct] or nil
+                end
+                affected[#affected + 1] = { rule = rule, parent = direct, count = count }
+            end
+        end
+    end
+    for _, item in ipairs(affected) do
+        local rule = item.rule
+        local level = CLM.EffectiveLevel(rule) - item.count
+        rule.level = level > 1 and level or nil
+        rule.parent = rule.level and item.parent or nil
+    end
+    for name in pairs(parents) do Management.Remove(draft, name) end
+    return next(parents) ~= nil
+end
+
+local function planAttach(draft, subtrees, moving, parent)
+    local changes = {}
+    for _, subtree in ipairs(subtrees) do
+        -- A selected branch already under the target can stay in place.
+        if subtree[1].rule.parent ~= parent then
+            local change = branchMove(draft, subtree, parent, moving)
+            if not change then return end
+            changes[#changes + 1] = change
+        end
+    end
+    if #changes > 0 then return changes end
+end
+
+local function queueCopy(draft, bagId, subtrees, overwrite)
+    local bag = draft.saved.bags[bagId]
+    if not bag or not bag.rules then return false end
+    local copy = draft.copies[bagId]
+    if not copy then
+        copy = { bag = bag, rules = bag.rules, snapshot = {}, names = {} }
+        for i, entry in ipairs(bag.rules) do
+            copy.snapshot[i] = { entry, entry.name, entry.runpriority, entry.showpriority, entry.isHidden }
+        end
+        draft.copies[bagId] = copy
+    end
+    for _, subtree in ipairs(subtrees) do copy.names[subtree[1].rule.name] = overwrite end
+    return true
+end
+
 local function layoutChanged(layout)
     return layout.copy.level ~= layout.level or layout.copy.parent ~= layout.parent
 end
 
 local function hasChanges(draft)
+    if next(draft.copies) then return true end
     local present = {}
     for _, row in ipairs(draft.rows) do
         local original = draft.original[row.name]
@@ -345,12 +496,22 @@ function Management.Commit(draft, saved, createBagRule)
     local bag = saved and saved.bags and saved.bags[draft.bagId]
     if saved ~= draft.saved or bag ~= draft.bag or bag.rules ~= draft.rules
             or #bag.rules ~= draft.count then return nil end
+    for bagId, copy in pairs(draft.copies) do
+        local target = saved.bags[bagId]
+        if target ~= copy.bag or target.rules ~= copy.rules or #target.rules ~= #copy.snapshot then return nil end
+        for i, entry in ipairs(target.rules) do
+            local prior = copy.snapshot[i]
+            if entry ~= prior[1] or entry.name ~= prior[2] or entry.runpriority ~= prior[3]
+                    or entry.showpriority ~= prior[4] or entry.isHidden ~= prior[5] then return nil end
+        end
+    end
+    local hasCopies = next(draft.copies) ~= nil
     local seen, displayOrderChanged = {}, false
     for _, entry in ipairs(bag.rules) do
         local prior = draft.snapshot[entry]
         seen[entry] = (seen[entry] or 0) + 1
         if not prior or prior.name ~= entry.name or prior.runpriority ~= entry.runpriority
-                or seen[entry] > prior.count then
+                or seen[entry] > prior.count or (hasCopies and prior.isHidden ~= entry.isHidden) then
             return nil
         end
         if prior.showpriority ~= entry.showpriority then displayOrderChanged = true end
@@ -374,8 +535,8 @@ function Management.Commit(draft, saved, createBagRule)
         end
     end
 
-    if displayOrderChanged and (#layouts > 0 or displayEdited) then return nil end
-    if #layouts > 0 or displayEdited then
+    if #layouts > 0 or displayEdited or hasCopies then
+        if displayOrderChanged then return nil end
         -- A parent/candidate may have changed even if it was not edited here.
         for name, layout in pairs(draft.layouts) do
             local rule = draft.getRule(name)
@@ -407,6 +568,16 @@ function Management.Commit(draft, saved, createBagRule)
         layout.rule.level, layout.rule.parent = layout.copy.level, layout.copy.parent
     end
     if #layouts > 0 and AC.SyncPredefinedLayouts then AC.SyncPredefinedLayouts() end
+    for bagId, copy in pairs(draft.copies) do
+        local names = {}
+        for name in pairs(copy.names) do names[name] = true end
+        local subtrees = planLevels(draft, names)
+        for _, subtree in ipairs(subtrees) do
+            local name = subtree[1].rule.name
+            local copied, _, overwritten = CLM.CopySubtreeToBag(draft.bagId, name, bagId, copy.names[name])
+            if copied > 0 or overwritten > 0 then changed = true end
+        end
+    end
     return changed
 end
 
@@ -421,6 +592,7 @@ end
 local CANCEL_ACTION_LAYER = "AutoCategoryCategoryManagement"
 local window, availableList, presentList, bagCombo, bagChoices, draft, onCommit
 local originBagId, originList
+local showContextMenu
 
 local function showError(stringId)
     window:GetNamedChild("Status"):SetText(GetString(stringId))
@@ -429,6 +601,7 @@ end
 local function close()
     draft, onCommit = nil, nil
     originBagId, originList = nil, nil
+    AC.ScrollMenu.Hide()
     bagCombo:HideDropdown()
     availableList:Hide()
     presentList:Hide()
@@ -443,6 +616,7 @@ function Management.Cancel()
 end
 
 local function refresh()
+    AC.ScrollMenu.Hide()
     local available, present = {}, {}
     local displayed, resolveDisplay
     -- The source list only describes the inventory that opened the manager.
@@ -480,11 +654,10 @@ local function refresh()
         present[#present + 1] = {
             key = name, name = name, label = indent .. label,
             moveGroup = info and info.parent,
+            moveAncestors = info and info.ancestors,
             color = color,
             tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),
-            rightClickCallback = function()
-                if draft and Management.Remove(draft, name) then refresh() end
-            end,
+            rightClickCallback = showContextMenu,
         }
     end
     ZO_Tooltips_HideTextTooltip()
@@ -492,9 +665,72 @@ local function refresh()
     presentList:SetItems(present)
 end
 
+showContextMenu = function(owner, selection)
+    if not draft or not next(selection) then return end
+    local current, selected = draft, {}
+    for name in pairs(selection) do selected[name] = true end
+    local subtrees, _, moving = planLevels(current, selected)
+    if #subtrees == 0 then return end
+    local menu = {}
+    local choices, copyAction = CLM.BuildCopyChoices(current.bagId, function(bagId)
+        local bag = current.saved.bags[bagId]
+        for _, entry in ipairs(bag and bag.rules or {}) do
+            if moving[entry.name] then return true end
+        end
+        return false
+    end, function(bagId, _, overwrite)
+        if draft ~= current then return false end
+        return queueCopy(current, bagId, subtrees, overwrite)
+    end, function()
+        window:GetNamedChild("Status"):SetText(GetString(SI_AC_CATEGORY_MANAGER_COPY_PENDING))
+    end)
+    if #choices > 0 then
+        local copyRows = {}
+        for _, choice in ipairs(choices) do
+            copyRows[#copyRows + 1] = {
+                label = choice.overwriteTooltip and ("|cFF5555" .. choice.label .. "|r") or choice.label,
+                kind = "check", tooltip = choice.overwriteTooltip, setChecked = choice.onChecked,
+                checked = function() return choice.selected == true end,
+            }
+        end
+        copyRows[#copyRows + 1] = { label = GetString(SI_AC_MENU_CM_COPY_SELECTED), action = copyAction }
+        menu[#menu + 1] = { label = GetString(SI_AC_MENU_CM_COPY_SUBMENU), entries = copyRows }
+    end
+    menu[#menu + 1] = {
+        label = GetString(SI_AC_MENU_CM_REMOVE_DISPLAY),
+        action = function()
+            if draft == current and Management.RemoveDisplaySelection(current, selected) then refresh() end
+        end,
+    }
+    local destinations, rows, info = {}, displayLayout(current)
+    for _, row in ipairs(rows) do
+        local name = row.name
+        local changes = not moving[name] and not isHidden(current, name)
+            and planAttach(current, subtrees, moving, name)
+        if changes then
+            destinations[#destinations + 1] = {
+                label = string.rep("   ", info[row].depth - 1) .. name,
+                action = function()
+                    if draft ~= current then return end
+                    moveBranches(changes)
+                    refresh()
+                end,
+            }
+        end
+    end
+    if #destinations > 0 then
+        menu[#menu + 1] = {
+            label = GetString(SI_AC_CATEGORY_MANAGER_ATTACH), entries = destinations, search = true,
+        }
+    end
+    ZO_Tooltips_HideTextTooltip()
+    AC.ScrollMenu.Show(owner, menu, { openerButton = MOUSE_BUTTON_INDEX_RIGHT })
+end
+
 local function setupLevels()
     local shallower = window:GetNamedChild("Shallower")
     local deeper = window:GetNamedChild("Deeper")
+    local levelLabel = window:GetNamedChild("Level")
     local function setupButton(button, delta, tooltipId)
         button:SetHandler("OnMouseEnter", function(control)
             ZO_Tooltips_ShowTextTooltip(control, TOP, GetString(tooltipId))
@@ -509,9 +745,21 @@ local function setupLevels()
     setupButton(shallower, -1, SI_AC_MENU_CM_LEVEL_SHALLOWER)
     setupButton(deeper, 1, SI_AC_MENU_CM_LEVEL_DEEPER)
     return function(selection)
-        local subtrees = draft and next(selection) and planLevels(draft, selection) or {}
-        shallower:SetEnabled(canShiftLevels(subtrees, -1))
-        deeper:SetEnabled(canShiftLevels(subtrees, 1))
+        local levels, text = {}, {}
+        if draft then
+            for name in pairs(selection) do levels[CLM.EffectiveLevel(draft.getLayout(name))] = true end
+            for level = 1, 5 do if levels[level] then text[#text + 1] = level end end
+        end
+        levelLabel:SetText(#text == 1 and GetString(SI_AC_TIP_LEVEL):format(text[1]) or table.concat(text, " / "))
+        local subtrees, _, moving
+        if draft and next(selection) then subtrees, _, moving = planLevels(draft, selection) end
+        if subtrees and draft.displayOrder then
+            shallower:SetEnabled(planDisplayShift(draft, subtrees, moving, -1) ~= nil)
+            deeper:SetEnabled(planDisplayShift(draft, subtrees, moving, 1) ~= nil)
+        else
+            shallower:SetEnabled(canShiftLevels(subtrees or {}, -1))
+            deeper:SetEnabled(canShiftLevels(subtrees or {}, 1))
+        end
     end
 end
 

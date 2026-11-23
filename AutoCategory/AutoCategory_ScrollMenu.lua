@@ -6,6 +6,7 @@ local ROW_HEIGHT, PADDING, SEARCH_HEIGHT = 28, 6, 38
 local EVENT_NAMESPACE = "AutoCategory_ScrollMenu"
 local root, side, anchor, opener, tooltipRow
 local sideLimit
+local openerButton
 local nativeSide, nativeOpener, nativeLeaveTime
 
 local function clearTooltip(row)
@@ -34,6 +35,7 @@ function Menu.Hide()
         nativeSide.entries = nil
     end
     anchor = nil
+    openerButton = nil
     if root then root.control:SetHidden(true) end
     clearTooltip()
 end
@@ -87,6 +89,7 @@ local function openSide(row, entry)
     hideSide()
     opener = row
     showSide(side, root.control, row, entry.entries, sideLimit, root.control:GetWidth(), entry.search)
+    side.control:BringWindowToTop()
 end
 
 local function setupRow(panel, row, entry)
@@ -213,10 +216,11 @@ local function initialize()
     root = newPanel(AC_ScrollMenuRoot)
     side = newPanel(AC_ScrollMenuSide)
     enableSearch(side)
-    EVENT_MANAGER:RegisterForEvent(EVENT_NAMESPACE, EVENT_GLOBAL_MOUSE_UP, function()
+    EVENT_MANAGER:RegisterForEvent(EVENT_NAMESPACE, EVENT_GLOBAL_MOUSE_UP, function(_, button)
         if nativeOpener then
             if not MouseIsOver(ZO_Menu) and not MouseIsOver(nativeSide.control) then Menu.Hide() end
-        elseif anchor and not MouseIsOver(root.control)
+        elseif anchor and not (openerButton and button == openerButton and MouseIsOver(anchor))
+                and not MouseIsOver(root.control)
                 and (side.control:IsHidden() or not MouseIsOver(side.control)) then
             Menu.Hide()
         end
@@ -276,10 +280,12 @@ function Menu.Show(owner, entries, options)
     if not root then initialize() end
     options = options or {}
     anchor = owner
+    openerButton = options.openerButton
     sideLimit = options.submenuRows or 15
     layout(root, entries, options.visibleRows or 15, options.width or 380, false)
     local x, y = GetUIMousePosition()
     root.control:ClearAnchors()
     root.control:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, x - GuiRoot:GetLeft(), y - GuiRoot:GetTop())
     root.control:SetHidden(false)
+    root.control:BringWindowToTop()
 end

@@ -8,7 +8,7 @@ local function equal(expected, actual, message)
 end
 
 TOPLEFT, BOTTOMRIGHT, TOP, BOTTOM, LEFT, RIGHT = 1, 2, 3, 4, 5, 6
-MOUSE_BUTTON_INDEX_LEFT = 1
+MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
 EVENT_GLOBAL_MOUSE_UP, SCENE_HIDING = 99, 7
 SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT = "Rechercher"
 SI_SORT_FILTER_LIST_NO_RESULTS = "Aucun résultat"
@@ -38,6 +38,7 @@ local function control(children)
     function c:SetHandler(key, fn) self.handlers[key] = fn end
     function c:fire(key, ...) if self.handlers[key] then self.handlers[key](self, ...) end end
     function c:SetHidden(hidden) self.hidden = hidden end
+    function c:BringWindowToTop() self.raised = true end
     function c:IsHidden() return self.hidden end
     function c:IsControlHidden() return self.hidden end
     function c:SetDimensions(width, height) self.width, self.height = width, height end
@@ -142,11 +143,13 @@ local rows = {
 local function click(row) row:fire("OnMouseUp", MOUSE_BUTTON_INDEX_LEFT, true) end
 menu.Show(anchor, rows, { submenuRows = 15, visibleRows = 3 })
 equal(false, root.hidden)
+equal(true, root.raised, "keep the popup above the window that opened it")
 equal(3 * 28 + 12, root.height, "root is scrollable, not truncated")
 equal(4, #rlist.data)
 equal(true, root.children.Search.hidden)
 rlist.rows[1]:fire("OnMouseEnter")
 equal(false, side.hidden)
+equal(true, side.raised)
 equal(root:GetRight(), side.x, "submenu opens immediately beside the root")
 equal(15 * 28 + 12 + 38, side.height, "side menu has a fixed viewport plus search")
 equal(18, #slist.data)
@@ -213,6 +216,14 @@ hovered = nil
 event()
 equal(true, root.hidden, "outside click dismisses both menus")
 equal(true, side.hidden)
+
+menu.Show(anchor, rows, { openerButton = MOUSE_BUTTON_INDEX_RIGHT })
+hovered = anchor
+event(EVENT_GLOBAL_MOUSE_UP, MOUSE_BUTTON_INDEX_RIGHT)
+equal(false, root.hidden, "the right click that opens a row's menu does not immediately dismiss it")
+event(EVENT_GLOBAL_MOUSE_UP, MOUSE_BUTTON_INDEX_LEFT)
+equal(true, root.hidden, "a later outside left click still dismisses the menu")
+hovered = nil
 
 menu.Show(anchor, rows)
 rlist.rows[1]:fire("OnMouseEnter")

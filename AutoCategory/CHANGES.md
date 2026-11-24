@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-24: keep execution and display order separate
+
+- Bag Settings and its order window use the inventory's display keys
+  at every level, including for siblings and parents in another bag.
+- The display list sorts a copy; the saved rule list is sorted for
+  execution before the order window renders. Not tested in ESO.
+
 ## 2026-11-23: manage category branches from the list
 
 - Add space under the inventory dropdown and show the selected level

@@ -989,16 +989,27 @@ local function setupNewCategoryParent(dialog)
     dialog.categoryParent = nil
     local clickedParent = dialog.data.clickedParent
     local savedBag = AutoCategory.saved.bags[dialog.data.bagTypeId]
-    for _, bagrule in ipairs(orderedBagRules(savedBag and savedBag.rules or {})) do
-        local level = newCategoryParentLevel(bagrule)
-        if level then
-            local parent = { name = bagrule.name, level = level }
-            local label = parent.name .. " (" .. GetString(SI_AC_TIP_LEVEL):format(level) .. ")"
-            local entry = addParent(label, parent)
-            if clickedParent and clickedParent.name == parent.name and clickedParent.level == level then
-                selected = entry
-                dialog.categoryParent = parent
+    local parents = {}
+    for _, bagrule in ipairs(savedBag and savedBag.rules or {}) do
+        if type(bagrule.name) == "string" and bagrule.name ~= "" then
+            local level = newCategoryParentLevel(bagrule)
+            if level then
+                parents[#parents + 1] = { name = bagrule.name, level = level }
             end
+        end
+    end
+    local lower = LocaleAwareToLower or string.lower
+    table.sort(parents, function(a, b)
+        local an, bn = lower(a.name), lower(b.name)
+        if an ~= bn then return an < bn end
+        return a.name < b.name
+    end)
+    for _, parent in ipairs(parents) do
+        local label = parent.name .. " (" .. GetString(SI_AC_TIP_LEVEL):format(parent.level) .. ")"
+        local entry = addParent(label, parent)
+        if clickedParent and clickedParent.name == parent.name and clickedParent.level == parent.level then
+            selected = entry
+            dialog.categoryParent = parent
         end
     end
     combo:SelectItem(selected, true)

@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-11-24: sort the New Category parent dropdown by name
+
+- List eligible parents alphabetically, ignoring case, with None first.
+  Keep the clicked parent selected and leave inventory priorities unchanged.
+  Not tested in ESO.
+
 ## 2026-11-24: keep execution and display order separate
 
 - Bag Settings and its order window use the inventory's display keys

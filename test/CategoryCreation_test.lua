@@ -521,6 +521,7 @@ addParentFixture("Branch fifth", 5, "Branch fourth", 500)
 addParentFixture("Hidden", 2, "Branch", 400, true)
 addParentFixture("Legacy----Header", nil, nil, 300)
 nestedBag.rules[#nestedBag.rules + 1] = { name = "Missing rule", showpriority = 200 }
+addParentFixture("alpha", nil, nil, 100)
 
 local function openFromHeader(header)
     items = {}
@@ -541,12 +542,15 @@ local midHeader = "Branch----Branch mid"
 openFromHeader(midHeader)
 equal("Branch mid", displayed.data.clickedParent.name, "right click captures the rule name, not the path")
 equal(2, displayed.data.clickedParent.level, "right click captures the level")
-equal(5, #parentCombo.items, "only none and the four eligible same-bag parents are offered")
+equal(6, #parentCombo.items, "only none and the five eligible same-bag parents are offered")
 equal(SI_AC_MENU_EC_DROPDOWN_PARENT_NONE, parentCombo.items[1].label, "none is the first option")
-equal("Branch (Level: 1)", parentCombo.items[2].label, "Normal counts as level one")
+equal("alpha (Level: 1)", parentCombo.items[2].label, "parent names sort without regard to case or priority")
+equal("Branch (Level: 1)", parentCombo.items[3].label, "Normal counts as level one")
 equal("Branch mid (Level: 2)", parentCombo.selected.label, "the clicked category is preselected")
-equal("Branch deep (Level: 3)", parentCombo.items[4].label, "level-3 parent available")
-equal("Branch fourth (Level: 4)", parentCombo.items[5].label, "level-4 parent available")
+equal("Branch deep (Level: 3)", parentCombo.items[4].label, "level-3 parent sorts by name, not by depth")
+equal("Branch fourth (Level: 4)", parentCombo.items[5].label, "level-4 parent sorts by name, not by depth")
+equal(parentCombo.items[6], parentCombo.selected, "preselection follows the entry after sorting")
+equal("Branch mid", nestedBag.rules[2].name, "the dropdown does not reorder saved bag rules")
 local otherBagCount = #AutoCategory.saved.bags[1].rules
 submit("Attached to clicked")
 local nested = AutoCategory.GetRuleByName("Attached to clicked")

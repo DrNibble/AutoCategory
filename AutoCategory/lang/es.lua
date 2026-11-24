@@ -252,6 +252,7 @@ AutoCategory_localization_strings["es"] = {
     SI_AC_CATEGORY_MANAGER_CONFIRM = "Aplicar",
     SI_AC_CATEGORY_MANAGER_STALE = "Las categorías han cambiado. Cancela y vuelve a abrir esta ventana.",
     SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "Aplica o cancela los cambios antes de cambiar de inventario.",
+    SI_AC_CATEGORY_MANAGER_CREATE_PENDING = "Aplica o cancela los cambios antes de crear una categoría.",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "Este orden no cabe en el intervalo de prioridades.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Introduce un nombre único. Elige una categoría padre o selecciona (ninguno) para crear una categoría de nivel Normal.",
     SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE = "Esta categoría padre ya no está disponible en el nivel seleccionado. Elige otra o selecciona (ninguno).",

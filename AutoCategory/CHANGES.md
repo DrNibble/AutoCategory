@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-24: create categories from Manage Categories
+
+- Add a New Category button below the left column. It opens the existing
+  dialog for the selected inventory and returns to the same tab afterward.
+- Refresh the lists after creation. Apply or cancel pending manager edits
+  before opening the creation dialog. Not tested in ESO.
+
 ## 2026-11-24: sort the New Category parent dropdown by name
 
 - List eligible parents alphabetically, ignoring case, with None first.

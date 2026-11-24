@@ -234,6 +234,7 @@ AutoCategory_localization_strings["zh"] = {
     SI_AC_CATEGORY_MANAGER_CONFIRM = "应用",
     SI_AC_CATEGORY_MANAGER_STALE = "分类已更改。请取消后重新打开此窗口。",
     SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "切换背包前，请应用或取消修改。",
+    SI_AC_CATEGORY_MANAGER_CREATE_PENDING = "创建分类前，请应用或取消修改。",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "此顺序超出优先级范围。",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "请输入唯一名称。请选择父分类，或选择「无」以创建普通分类。",
     SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE = "此父分类在所选层级已不可用。请选择其他父分类或「无」。",

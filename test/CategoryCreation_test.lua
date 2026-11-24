@@ -113,12 +113,13 @@ function ZO_Dialogs_ShowDialog(name, data)
     displayed.name, displayed.data, displayed.info = name, data, info
     displayed.errorText = info.mainText.text
     info.setup(displayed)
+    return displayed
 end
 function ZO_Dialogs_UpdateDialogMainText(dialog, text) dialog.errorText = text.text end
 function ZO_Dialogs_ReleaseDialog(dialog)
     equal(displayed, dialog, "release the correct popup")
     releases = releases + 1
-    displayed, dialog.data = nil, nil
+    displayed = nil
     dialog.info.finishedCallback(dialog)
 end
 ZO_Dialogs_ReleaseDialogOnButtonPress = ZO_Dialogs_ReleaseDialog
@@ -621,5 +622,30 @@ for _, parent in ipairs({ { name = "Unique", level = 1 },
     equal(SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE, err, "invalid parent is explained")
 end
 equal(invalidBagCount, #nestedBag.rules, "invalid parents do not change the bag")
+
+do
+    local results = {}
+    local function onFinished(created)
+        equal(nil, displayed, "notify after the dialog closes")
+        results[#results + 1] = { created = created, refreshes = refreshes }
+    end
+    local before = refreshes
+    equal(AC_NewCategoryDialog, CLM.OpenNewCategoryDialog(12, nil, onFinished),
+        "the caller knows whether ESO opened the dialog")
+    submit("")
+    equal(0, #results, "validation failure must not notify the caller")
+    ZO_Dialogs_ReleaseDialog(displayed)
+    equal(false, results[1].created, "dismissal notifies the caller of cancellation")
+    equal(before, results[1].refreshes, "cancellation does not refresh saved categories")
+
+    CLM.OpenNewCategoryDialog(12, nil, onFinished)
+    submit("Created with callback")
+    equal(true, results[2].created, "confirmation notifies the caller of successful creation")
+    equal(before + 1, results[2].refreshes, "refresh saved categories before notifying the caller")
+    equal(nil, AC_NewCategoryDialog.data.onFinished, "the finished dialog releases its callback")
+    CLM.OpenNewCategoryDialog(12)
+    ZO_Dialogs_ReleaseDialog(displayed)
+    equal(2, #results, "a normal inventory dialog never reuses the previous callback")
+end
 
 print("CategoryCreation_test: " .. assertions .. " assertions passed")

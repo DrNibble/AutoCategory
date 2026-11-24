@@ -42,6 +42,10 @@
                     <Dimensions x="410" y="426"/>
                     <Anchor point="TOPLEFT" relativeTo="$(parent)AvailableTitle" relativePoint="BOTTOMLEFT"/>
                 </Control>
+                <Button name="$(parent)NewCategory" inherits="ZO_DefaultButton">
+                    <Dimensions x="240" y="30"/>
+                    <Anchor point="TOP" relativeTo="$(parent)Available" relativePoint="BOTTOM" offsetY="6"/>
+                </Button>
                 <Control name="$(parent)Present" inherits="AC_OrderListHost">
                     <Dimensions x="410" y="426"/>
                     <Anchor point="TOPLEFT" relativeTo="$(parent)PresentTitle" relativePoint="BOTTOMLEFT"/>

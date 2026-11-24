@@ -222,6 +222,7 @@ AutoCategory_localization_strings["de"] = {
     SI_AC_CATEGORY_MANAGER_CONFIRM = "Übernehmen",
     SI_AC_CATEGORY_MANAGER_STALE = "Die Kategorien haben sich geändert. Brich ab und öffne das Fenster erneut.",
     SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "Übernimm oder verwirf deine Änderungen, bevor du das Inventar wechselst.",
+    SI_AC_CATEGORY_MANAGER_CREATE_PENDING = "Übernimm oder verwirf deine Änderungen, bevor du eine Kategorie erstellst.",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "Diese Reihenfolge passt nicht in den Prioritätsbereich.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Gib einen eindeutigen Namen ein. Wähle eine übergeordnete Kategorie oder (keine) für eine normale Kategorie.",
     SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE = "Diese übergeordnete Kategorie ist auf der gewählten Ebene nicht mehr verfügbar. Wähle eine andere Kategorie oder (keine).",

@@ -591,7 +591,7 @@ end
 
 local CANCEL_ACTION_LAYER = "AutoCategoryCategoryManagement"
 local window, availableList, presentList, bagCombo, bagChoices, draft, onCommit
-local originBagId, originList
+local originBagId, originList, creatingCategory
 local showContextMenu
 
 local function showError(stringId)
@@ -809,6 +809,42 @@ local function populateBags(bagId)
     bagCombo:SelectItem(bagChoices[bagId], true)
 end
 
+local function openNewCategory()
+    if not draft or creatingCategory or window:IsHidden() then return end
+    if hasChanges(draft) then
+        showError(SI_AC_CATEGORY_MANAGER_CREATE_PENDING)
+        return
+    end
+
+    local current = draft
+    local function resume(created)
+        creatingCategory = false
+        if created then
+            -- Creation writes to the saved bag and can compact its display priorities.
+            local updated = Management.NewDraft(AC.saved, current.bagId, AC.GetRuleByName)
+            if not updated then
+                close()
+                return
+            end
+            updated.displayOrder = current.displayOrder
+            draft = updated
+            refresh()
+        end
+        window:SetHidden(false)
+        window:BringWindowToTop()
+        PushActionLayerByName(CANCEL_ACTION_LAYER)
+    end
+
+    window:GetNamedChild("Status"):SetText("")
+    AC.ScrollMenu.Hide()
+    bagCombo:HideDropdown()
+    ZO_Tooltips_HideTextTooltip()
+    -- The manager's HIGH tier would otherwise cover the native dialog.
+    creatingCategory = true
+    window:SetHidden(true)
+    if not CLM.OpenNewCategoryDialog(current.bagId, nil, resume) then resume(false) end
+end
+
 local function setup()
     window = AC_CategoryManagementWindow
     bagCombo = ZO_ComboBox_ObjectFromContainer(window:GetNamedChild("Inventory"))
@@ -824,9 +860,12 @@ local function setup()
     window:GetNamedChild("Hint"):SetText(GetString(SI_AC_CATEGORY_MANAGER_HINT))
     window:GetNamedChild("Cancel"):SetText(GetString(SI_DIALOG_CANCEL))
     window:GetNamedChild("Confirm"):SetText(GetString(SI_AC_CATEGORY_MANAGER_CONFIRM))
+    local newCategory = window:GetNamedChild("NewCategory")
+    newCategory:SetText(GetString(SI_AC_MENU_CM_NEW_CATEGORY))
+    newCategory:SetHandler("OnClicked", openNewCategory)
     window:SetHandler("OnEffectivelyHidden", function()
         RemoveActionLayerByName(CANCEL_ACTION_LAYER)
-        if draft then close() end
+        if draft and not creatingCategory then close() end
     end)
     window:GetNamedChild("Cancel"):SetHandler("OnClicked", Management.Cancel)
     window:GetNamedChild("Confirm"):SetHandler("OnClicked", function()
@@ -866,6 +905,7 @@ end
 
 function Management.Open(bagId, refreshInventory, sourceList)
     if not window then setup() end
+    if creatingCategory then return end
     -- Don't discard a pending draft just because another header was clicked.
     if draft and not window:IsHidden() then
         window:BringWindowToTop()

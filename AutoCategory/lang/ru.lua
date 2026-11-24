@@ -274,6 +274,7 @@ AutoCategory_localization_strings["ru"] = {
     SI_AC_CATEGORY_MANAGER_CONFIRM = "Применить",
     SI_AC_CATEGORY_MANAGER_STALE = "Категории изменились. Отмените изменения и откройте окно заново.",
     SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "Примените или отмените изменения перед сменой инвентаря.",
+    SI_AC_CATEGORY_MANAGER_CREATE_PENDING = "Примените или отмените изменения перед созданием категории.",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "Этот порядок не помещается в диапазон приоритетов.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Введите уникальное имя. Выберите родительскую категорию или (нет), чтобы создать обычную категорию.",
     SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE = "Эта родительская категория больше недоступна на выбранном уровне. Выберите другую категорию или (нет).",

@@ -51,6 +51,8 @@ ZO_Tooltips_HideTextTooltip = function() end
 SI_AC_CATEGORY_MANAGER_READ_ONLY = "lecture seule"
 SI_AC_CATEGORY_MANAGER_STALE = "obsolete"
 SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "save or cancel before switching"
+SI_AC_CATEGORY_MANAGER_CREATE_PENDING = "save or cancel before creating"
+SI_AC_MENU_CM_NEW_CATEGORY = "Nouvelle catégorie"
 SI_AC_CATEGORY_MANAGER_ATTACH = "Attacher à une catégorie"
 SI_AC_CATEGORY_MANAGER_COPY_PENDING = "Copie en attente"
 SI_AC_MENU_CM_REMOVE_DISPLAY = "Supprimer l’affichage"
@@ -999,6 +1001,73 @@ equal(false, AC_CategoryManagementWindow:IsHidden(), "a stale destination blocks
 equal("obsolete", AC_CategoryManagementWindow:GetNamedChild("Status"):GetText())
 equal(7, destination.showpriority, "no external destination changes are overwritten")
 equal(true, M.Cancel())
+
+do
+    local clm = AutoCategory.CategoryLevelMenu
+    local originalOpen = clm.OpenNewCategoryDialog
+    local calls, finish, refuse = 0, nil, false
+    clm.OpenNewCategoryDialog = function(bagId, parent, callback)
+        calls = calls + 1
+        equal(2, bagId, "create in the selected inventory, not the opening inventory")
+        equal(nil, parent, "creating from the manager does not preselect a parent")
+        equal(true, AC_CategoryManagementWindow:IsHidden(), "the higher-tier manager must be hidden")
+        equal(false, layerActive, "keyboard shortcuts no longer go to the manager")
+        if refuse then return end
+        finish = callback
+        return {}
+    end
+
+    M.Open(1, refreshInventory)
+    equal("Nouvelle catégorie", AC_CategoryManagementWindow:GetNamedChild("NewCategory"):GetText(),
+        "reuse the existing translation")
+    removeViaMenu(present, 1)
+    button("NewCategory")
+    equal(0, calls, "creation must not overwrite pending manager changes")
+    equal("save or cancel before creating", AC_CategoryManagementWindow:GetNamedChild("Status"):GetText())
+    equal(5, #contextSaved.bags[1].rules, "the dirty draft is not saved by opening the dialog")
+    equal(4, #present.items, "the draft changes are still present")
+    M.Cancel()
+
+    M.Open(1, refreshInventory)
+    inventoryCombo:SelectItem(inventoryCombo.items[2])
+    orderTab("Display")
+    present.edit:SetText("app")
+    refuse = true
+    button("NewCategory")
+    equal(1, calls)
+    equal(false, AC_CategoryManagementWindow:IsHidden(), "restore the manager if ESO cannot show the dialog")
+    equal(true, layerActive)
+
+    refuse = false
+    inventoryCombo.open = true
+    button("NewCategory")
+    equal(2, calls)
+    equal(false, inventoryCombo.open)
+    M.Open(3, refreshInventory)
+    equal(true, AC_CategoryManagementWindow:IsHidden(), "do not reopen over an active dialog")
+    equal(false, M.Cancel(), "a hidden manager does not consume cancel")
+    finish(false)
+    equal(false, AC_CategoryManagementWindow:IsHidden(), "return after cancelling creation")
+    equal(true, layerActive)
+    equal("Banque", inventoryCombo.selected.name)
+    equal("app", present.edit:GetText(), "preserve the search filter")
+
+    local added = definition("New category", "false")
+    button("NewCategory")
+    definitions[added.name], globals[#globals + 1] = added, added
+    table.insert(contextSaved.bags[2].rules, bagRule(added, 1000, 1000))
+    finish(true)
+    equal(false, AC_CategoryManagementWindow:IsHidden(), "return after successful creation")
+    equal(true, layerActive)
+    equal("Banque", inventoryCombo.selected.name)
+    equal("app", present.edit:GetText(), "refreshing the lists preserves the filter")
+    present.edit:SetText("")
+    equal("New category", rowText(present, 1), "the new row appears in the retained display-priority tab")
+    button("Confirm")
+    equal(true, AC_CategoryManagementWindow:IsHidden(), "the refreshed draft is not stale")
+    equal(false, layerActive)
+    clm.OpenNewCategoryDialog = originalOpen
+end
 
 equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

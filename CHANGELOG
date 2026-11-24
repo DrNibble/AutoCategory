@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Create categories from Manage Categories (2026-11-24)[/COLOR]:
+[LIST]
+[*] Open New Category from below the left column for the selected inventory. Apply or cancel pending edits before creating. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Sort the New Category parent dropdown by name (2026-11-24)[/COLOR]:
 [LIST]
 [*] List eligible parents alphabetically with None first, without changing inventory priorities. Not tested in ESO.

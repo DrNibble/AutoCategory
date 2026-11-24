@@ -1079,11 +1079,11 @@ local function submitNewCategoryDialog(dialog)
         showNewCategoryError(dialog, createError)
         return
     end
+    dialog.data.created = true
     ZO_Dialogs_ReleaseDialogOnButtonPress(dialog)
-    refreshAfterChange()
 end
 
-function CLM.OpenNewCategoryDialog(bagTypeId, clickedParent)
+function CLM.OpenNewCategoryDialog(bagTypeId, clickedParent, onFinished)
     local bags = AutoCategory.saved and AutoCategory.saved.bags
     if not bags or not bags[bagTypeId] then return end
     if not newCategoryDialogRegistered then
@@ -1107,6 +1107,11 @@ function CLM.OpenNewCategoryDialog(bagTypeId, clickedParent)
             finishedCallback = function(control)
                 control.tagCombo:HideDropdown()
                 control.parentCombo:HideDropdown()
+                local data = control.data
+                local callback = data.onFinished
+                data.onFinished = nil
+                if data.created then refreshAfterChange() end
+                if callback then callback(data.created == true) end
             end,
             buttons = {
                 {
@@ -1120,7 +1125,9 @@ function CLM.OpenNewCategoryDialog(bagTypeId, clickedParent)
         })
         newCategoryDialogRegistered = true
     end
-    ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, { bagTypeId = bagTypeId, clickedParent = clickedParent })
+    return ZO_Dialogs_ShowDialog(NEW_CATEGORY_DIALOG, {
+        bagTypeId = bagTypeId, clickedParent = clickedParent, onFinished = onFinished,
+    })
 end
 
 -- Wrap the rule text of the header context menu "Rule" submenu into

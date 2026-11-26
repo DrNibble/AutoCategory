@@ -60,7 +60,80 @@ local function fillList(panel, query)
     ZO_ScrollList_ResetToTop(panel.list)
 end
 
+-- Rule lines are shown as read-only text rows. A row template draws one
+-- single line clamped with an ellipsis, so a line wider than the panel is
+-- cut: measure the real font and split those rows until each one fits.
+-- A single word wider than the panel (a long isitemid() list) is cut too,
+-- since it cannot be wrapped at a space.
+local TEXT_ROW_FONT = "ZoFontGame"
+local TEXT_ROW_INSET = 16 -- left and right label offsets inside a row
+local FALLBACK_CHAR_WIDTH = 7
+local measureLabel
+
+local function textWidth(text)
+    if not measureLabel then
+        measureLabel = WINDOW_MANAGER:CreateControl("AutoCategoryScrollMenuMeasure",
+            GuiRoot, CT_LABEL)
+        measureLabel:SetFont(TEXT_ROW_FONT)
+        measureLabel:SetAlpha(0)
+    end
+    measureLabel:SetText(text)
+    local width = measureLabel:GetTextWidth()
+    -- a control that has never been laid out can report no width
+    if not width or width <= 0 then width = #text * FALLBACK_CHAR_WIDTH end
+    return width
+end
+
+local function splitText(text, maxWidth)
+    local lines, current = {}, nil
+    for word in tostring(text):gmatch("%S+") do
+        if current == nil then
+            current = word
+        elseif textWidth(current .. " " .. word) <= maxWidth then
+            current = current .. " " .. word
+        else
+            lines[#lines + 1] = current
+            current = word
+        end
+        while textWidth(current) > maxWidth do
+            local cut = #current - 1
+            while cut > 1 and textWidth(current:sub(1, cut)) > maxWidth do
+                cut = cut - 1
+            end
+            if cut < 1 then cut = 1 end
+            lines[#lines + 1] = current:sub(1, cut)
+            current = current:sub(cut + 1)
+        end
+    end
+    if current ~= nil and current ~= "" then lines[#lines + 1] = current end
+    return lines
+end
+
+local function wrapTextEntries(entries, panelWidth)
+    local maxWidth = panelWidth - TEXT_ROW_INSET
+    if maxWidth < 1 then return entries end
+    local wrapped, changed = {}, false
+    for _, entry in ipairs(entries) do
+        local label = entry.label
+        if entry.kind == "text" and type(label) == "string" and label ~= ""
+                and textWidth(label) > maxWidth then
+            changed = true
+            for _, line in ipairs(splitText(label, maxWidth)) do
+                local copy = {}
+                for key, value in pairs(entry) do copy[key] = value end
+                copy.label = line
+                wrapped[#wrapped + 1] = copy
+            end
+        else
+            wrapped[#wrapped + 1] = entry
+        end
+    end
+    if not changed then return entries end
+    return wrapped
+end
+
 local function layout(panel, entries, limit, width, searchable)
+    entries = wrapTextEntries(entries, width)
     local searchHeight = searchable and SEARCH_HEIGHT or 0
     panel.search:SetHidden(not searchable)
     panel.list:ClearAnchors()

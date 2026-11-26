@@ -1,3 +1,8 @@
+[COLOR="DeepSkyBlue"] Show the whole rule of a category (2026-11-27)[/COLOR]:
+[LIST]
+[*] The Rule submenu of a category header wraps its text to the menu width instead of cutting it with an ellipsis, including a long isitemid() list. Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Create categories from Manage Categories (2026-11-24)[/COLOR]:
 [LIST]
 [*] Open New Category from below the left column for the selected inventory. Apply or cancel pending edits before creating. Not tested in ESO.

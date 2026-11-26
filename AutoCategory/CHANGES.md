@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-11-27: the rule of a category is no longer truncated (5.0.2)
+
+- The Rule submenu of a category header shows the whole rule expression.
+  A menu row draws one line clamped with an ellipsis, so the lines are now
+  measured with the row font and split until each one fits the panel width.
+  A single word wider than the panel on its own (a long isitemid() list) is
+  cut rather than ellipsized. The rule text itself is unchanged.
+- Not tested in ESO.
+
 ## 2026-11-24: create categories from Manage Categories
 
 - Add a New Category button below the left column. It opens the existing

@@ -10,6 +10,7 @@ end
 TOPLEFT, BOTTOMRIGHT, TOP, BOTTOM, LEFT, RIGHT = 1, 2, 3, 4, 5, 6
 MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
 EVENT_GLOBAL_MOUSE_UP, SCENE_HIDING = 99, 7
+CT_LABEL = 5
 SI_GAMEPAD_BANK_SEARCH_DEFAULT_TEXT = "Rechercher"
 SI_SORT_FILTER_LIST_NO_RESULTS = "Aucun résultat"
 GetString = function(id) return id end
@@ -57,6 +58,9 @@ local function control(children)
     function c:GetText() return self.text end
     function c:SetDefaultText(text) self.placeholder = text end
     function c:SetColor(...) self.color = { ... } end
+    function c:SetFont(font) self.font = font end
+    function c:SetAlpha(alpha) self.alpha = alpha end
+    function c:GetTextWidth() return #self.text * 7 end
     function c:LoseFocus() self.focus = false end
     function c:SetMinMax(min, max) self.min, self.max = min, max end
     function c:SetValueStep(step) self.step = step end
@@ -80,6 +84,13 @@ end
 
 GuiRoot = control()
 GuiRoot.width = 1200
+-- the menu measures its text rows with a hidden label of its own
+WINDOW_MANAGER = { CreateControl = function(_, name, parent, typeId)
+    equal("AutoCategoryScrollMenuMeasure", name)
+    equal(GuiRoot, parent)
+    equal(CT_LABEL, typeId)
+    return control()
+end }
 AC_ScrollMenuRoot, AC_ScrollMenuSide = panel(), panel()
 function ZO_CheckButton_SetToggleFunction(check, fn) check.toggle = fn end
 function ZO_CheckButton_SetCheckState(check, state) check.checked = state end
@@ -262,13 +273,13 @@ function AddCustomMenuItem(label, select, itemType, _, _, _, _, _, _, enter, _, 
     ZO_Menu.items[1] = { item = launcher }
     return 1
 end
-WINDOW_MANAGER = { CreateControlFromVirtual = function(_, name, parent, template)
+WINDOW_MANAGER.CreateControlFromVirtual = function(_, name, parent, template)
     equal(ZO_Menus, parent, "the panel belongs to the native menus window")
     equal("AC_ScrollMenuNativeSide", name)
     equal("AC_ScrollMenuContents", template)
     nativePanel = panel()
     return nativePanel
-end }
+end
 local acted
 table.insert(destinations, 1, { label = "Disabled destination" })
 destinations[2].action = function()
@@ -325,4 +336,45 @@ onEnter(launcher)
 ClearMenu()
 nativePanel:fire("OnUpdate")
 equal(true, nativePanel.hidden, "when ESO closes the original menu its submenu closes")
+-- A category rule is shown as read-only text rows. The row template draws
+-- one ellipsized line, so a rule wider than the panel must be split instead
+-- of being cut. Panel 380 wide, label inset 16, simulated font 7 pixels per
+-- character: 52 characters fit on a row.
+local ruleText = "type(2) and quality(2) and (isSetOf(1) or isSetOf(2)) and not (bound() or stolen())"
+    .. " and level() >= 50 and (trait(1) or trait(2) or trait(3)) and (enchant() or poisen())"
+    .. " and (stolen() and fencePrice() > 100 or not stolen())"
+-- a fresh owner: the first anchor was hidden by the menu actions above
+local ruleOwner = control()
+ruleOwner.hidden = false
+local longRows = {
+    { label = "Rules", entries = {
+        { label = "Cat", kind = "header" },
+        { label = "priority", kind = "slider", slider = {
+            data = { min = 0, max = 1000, step = 1, value = function() return 100 end },
+            callback = function() end } },
+        { kind = "divider" },
+        { label = ruleText, kind = "text" },
+    } },
+}
+menu.Show(ruleOwner, longRows, { submenuRows = 15 })
+rlist.rows[1]:fire("OnMouseEnter")
+local ruleLines = {}
+for i = 3, #slist.data do ruleLines[#ruleLines + 1] = slist.data[i].label end
+equal(true, #ruleLines > 1, "a rule wider than the panel uses several rows")
+equal(ruleText, table.concat(ruleLines, " "), "the split rows give the rule again")
+for _, line in ipairs(ruleLines) do
+    equal(true, #line <= 52, "every rule row fits the panel width")
+end
+
+-- a single word with no space (a long isitemid() list) is cut, not ellipsized
+local longWord = string.rep("9", 120)
+menu.Show(ruleOwner, { { label = "Rules", entries = { { label = longWord, kind = "text" } } } })
+rlist.rows[1]:fire("OnMouseEnter")
+local pieces = {}
+for i, entry in ipairs(slist.data) do pieces[i] = entry.label end
+equal(longWord, table.concat(pieces, ""), "an unsplittable word keeps all its characters")
+for _, line in ipairs(pieces) do
+    equal(true, #line <= 52, "a cut word also fits the panel width")
+end
+
 print("PASS: " .. count .. " assertions (ScrollMenu)")

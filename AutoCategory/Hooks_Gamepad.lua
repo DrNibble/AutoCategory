@@ -33,7 +33,7 @@ local function ZO_GamepadInventoryList_AddSlotDataToTable(self, slotsTable, inve
         if not matched then
             itemData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
             itemData.bestGamepadItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-            itemData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+            itemData.sortPriorityName = "9999" .. itemData.bestItemTypeName 
 
         else
             itemData.bestItemTypeName = categoryName
@@ -61,7 +61,7 @@ local function gci_AddSlotDataToTable1(self, slotsTable, inventoryType, slotInde
             if not matched then
                 slotData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
                 slotData.bestGamepadItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-                slotData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+                slotData.sortPriorityName = "9999" .. slotData.bestItemTypeName 
 
             else
                 slotData.bestItemTypeName = categoryName
@@ -177,7 +177,7 @@ function AutoCategory.HookGamepadInventory()
 				if not matched then
 					slotData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
 					slotData.bestItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-					slotData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+					slotData.sortPriorityName = "9999" .. slotData.bestItemTypeName 
 
 				else
 					slotData.bestItemTypeName = categoryName
@@ -481,7 +481,7 @@ local function gci_GenerateCraftingInventoryEntryData(self, bagId, slotIndex, st
         if not matched then
             newData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
             newData.bestItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-            newData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+            newData.sortPriorityName = "9999" .. newData.bestItemTypeName 
 
         else
             newData.bestItemTypeName = categoryName
@@ -532,7 +532,7 @@ function AutoCategory.HookGamepadStore(list)
 			if not matched then
 	            itemData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
 	            itemData.bestGamepadItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-	            itemData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+	            itemData.sortPriorityName = "9999" .. itemData.bestItemTypeName 
 
 			else
 				itemData.bestItemTypeName = categoryName

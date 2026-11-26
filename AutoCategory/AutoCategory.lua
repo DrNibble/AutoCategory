@@ -281,8 +281,6 @@ function AutoCat.UpdateCurrentSavedVars()
     local compiled, damaged = RulesW:CompileAll()
 	logDebug("[AutoCategory] Compiled rules: ", compiled, " damaged rules: ", damaged)
 
-	AutoCat.PruneCollapse(charSaved)
-	AutoCat.PruneCollapse(acctSaved)
 	-- bags/collapses might or might not be acct wide
     if not charSaved.accountWide then
         -- when switching back from account-wide settings, make sure the
@@ -304,63 +302,6 @@ function AutoCat.UpdateCurrentSavedVars()
     AutoCat.cacheInitialize()
 end
 
--- -----------------------------------------------------------
--- Manage collapses
--- -----------------------------------------------------------
-function AutoCat.LoadCollapse()
-	if not saved.general["SAVE_CATEGORY_COLLAPSE_STATUS"] then
-        --init
-        return AutoCat.ResetCollapse(saved)
-    end
-end
-
-function AutoCat.PruneCollapse(vars)
-    if not vars or not vars.collapses then return end
-
-    for _, bagcol in pairs(vars.collapses) do
-        if bagcol then
-            for k in pairs(bagcol) do
-                if bagcol[k] == false then bagcol[k] = nil end
-            end
-        end
-    end
-end
-
-function AutoCat.ResetCollapse(vars)
-    if not vars or not vars.collapses then return end
-
-    for _, bagcol in pairs(vars.collapses) do
-        if bagcol then
-            for k in pairs(bagcol) do
-                bagcol[k] = nil
-            end
-        end
-    end
-end
-
--- Determine if the specified category of the particular bag is collapsed or not
-function AutoCat.IsCategoryCollapsed(bagTypeId, categoryName)
-    if bagTypeId == nil or categoryName == nil then
-        return false
-    end
-    local saved = AutoCat.saved
-    
-    local collapsetbl = saved.collapses[bagTypeId]
-    return collapsetbl and collapsetbl[categoryName] or false
-end
-
-function AutoCat.SetCategoryCollapsed(bagTypeId, categoryName, collapsed)
-    if bagTypeId == nil or categoryName == nil then
-        return
-    end
-    if collapsed == false then collapsed = nil end
-    local saved = AutoCat.saved
-
-    saved.collapses[bagTypeId] = SF.safeTable(saved.collapses[bagTypeId])
-    local collapsetbl = saved.collapses[bagTypeId]
-
-    collapsetbl[categoryName] = collapsed
-end
 -- create local alias for references in this function
 local setCategoryCollapsed = AutoCat.SetCategoryCollapsed
 
@@ -907,11 +848,17 @@ local function loadSavedVars()
 	if isEmpty(AutoCat.acctSaved.bags) then 
 		defaultMissing(AutoCat.acctSaved.bags, AutoCat.defaultAcctBagSettings.bags)
 	end
+	if isEmpty(AutoCat.acctSaved.general) then 
+		defaultMissing(AutoCat.acctSaved.general, AutoCat.defaultAcctSettings.general)
+	end
 	-- when the account-wide setting is on, the per-character bags are never
 	-- read (and are cleaned up by SavedVarsCompact) - do not fill them back
 	-- with the default categories
 	if isEmpty(AutoCat.charSaved.bags) and not AutoCat.charSaved.accountWide then
 		defaultMissing(AutoCat.charSaved.bags, AutoCat.defaultAcctBagSettings.bags)
+	end
+	if isEmpty(AutoCat.charSaved.general) then 
+		defaultMissing(AutoCat.charSaved.general, AutoCat.defaultCharSettings.general)
 	end
 
 	-- There are no char-level variables for AutoCatRules!
@@ -1533,9 +1480,7 @@ local function showHeaderContextMenu(header, cateName, bagTypeId, displayName, s
     addItem(
         L(SI_CONTEXT_MENU_EXPAND_ALL),
         function()
-            for k, _ in pairs(AutoCat.saved.collapses[bagTypeId]) do
-				setCategoryCollapsed(bagTypeId,k,false)
-            end
+            AutoCat:ExpandAllCategories(bagTypeId)
             AutoCat.RefreshCurrentList()
         end
     )
@@ -1547,10 +1492,7 @@ local function showHeaderContextMenu(header, cateName, bagTypeId, displayName, s
     addItem(
         L(SI_CONTEXT_MENU_COLLAPSE_ALL),
         function()
-            for _, name in ipairs(bagCategoryNames(bagTypeId)) do
-				setCategoryCollapsed(bagTypeId, name, true)
-            end
-				setCategoryCollapsed(bagTypeId,AutoCat.saved.appearance["CATEGORY_OTHER_TEXT"],true)
+            AutoCat:CollapseAllCategories(bagTypeId)
             AutoCat.RefreshCurrentList()
         end
     )

@@ -737,6 +737,23 @@ local function createNewScrollData(scrollData)
     end
 
 
+
+    -----------------------------------------------------------------------
+    -- Reconcile the collapse state with the categories now present.
+    -- Every entry of this list belongs to the same bag/inventory.
+    -----------------------------------------------------------------------
+    local listBagId
+
+    for _, catInfo in pairs(cnsd_categoryList) do
+        listBagId = catInfo.AC_bagTypeId
+        break
+    end
+
+    if listBagId ~= nil
+            and type(AutoCategory.UpdateCategoryState) == "function" then
+        AutoCategory.UpdateCategoryState(listBagId, cnsd_categoryList)
+    end
+
     -- Merge the intermediate-level totals into a category that carries its
     -- own items: its header must show direct items plus all descendants.
     for _, headerInfo in pairs(cnsd_headerList) do

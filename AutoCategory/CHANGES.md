@@ -1,5 +1,27 @@
 # Changes
 
+## 2026-11-27: upstream 4.7 merged (5.1.0)
+
+- Import the eleven commits of the upstream master branch (4.6.16 to 4.7.1).
+  They add the category collapse expiry saved in collapseExpiry, a separate
+  AC_Collapsed.lua, CVT:assignNE for a plain list of choices, the gamepad
+  sort key that no longer formats a nil category name, ipairs in the gamepad
+  lists, the extended gamepad supplies defaults and the Lower Level rule
+  that includes level 1 gear again. misc/BagSet_Service.lua comes along but
+  is not loaded, as upstream.
+- The template change is resolved in favour of this branch: the collapse
+  module replaces the inline functions of AutoCategory.lua, Expand All and
+  Collapse All call it, the tag dropdowns keep their tagListCVT() source and
+  the header context menu keeps addItem. The reconciliation added to
+  Hooks_Keyboard is guarded with type(...) so the harnesses that do not load
+  AC_Collapsed still run.
+- The two general saved-variable defaults upstream added read their source
+  from defaultAcctSettings.general / defaultCharSettings.general, since
+  defaultAcctBagSettings has no general table.
+- All 21 suites of test/ behave as before the merge (same passes, same
+  pre-existing failures), and every file compiles with Lua 5.1.
+- Not tested in ESO.
+
 ## 2026-11-27: the rule of a category is no longer truncated (5.0.2)
 
 - The Rule submenu of a category header shows the whole rule expression.

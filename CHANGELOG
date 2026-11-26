@@ -1,3 +1,14 @@
+[COLOR="DeepSkyBlue"] 5.1.0 (158) - upstream 4.7 merged (2026-11-27)[/COLOR]:
+[LIST]
+[*] Category collapse expiry: a new "Category collapse expiry" entry in Settings -> General frees the collapsed categories that are no longer in the bag after 1, 7, 30 or 90 days, or never (7 days by default). Expanding a category clears its deadline, collapsing it starts a new one.
+[*] Collapse handling now lives in AC_Collapsed.lua; a category that leaves the inventory keeps its collapsed mark only until it expires, which keeps the Saved Variables small.
+[*] The predefined "Lower Level" rule includes level 1 gear again.
+[*] The unmatched gamepad entries no longer build their sort key from a category name that can be nil.
+[*] Gamepad lists are walked with ipairs, and the extended gamepad supplies defaults are back.
+[*] The tag dropdown takes a plain list of names (CVT:assignNE).
+[*] Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] Show the whole rule of a category (2026-11-27)[/COLOR]:
 [LIST]
 [*] The Rule submenu of a category header wraps its text to the menu width instead of cutting it with an ellipsis, including a long isitemid() list. Not tested in ESO.

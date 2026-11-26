@@ -1069,5 +1069,153 @@ do
     clm.OpenNewCategoryDialog = originalOpen
 end
 
+
+-- Right-click on the left column: read-only marker and category deletion.
+do
+    SI_AC_CATEGORY_MANAGER_DELETE = "Suppression de la catégorie"
+    SI_AC_CATEGORY_MANAGER_DELETE_PENDING = "Validez ou annulez avant de supprimer"
+    SI_AC_CATEGORY_MANAGER_DELETE_WARNING =
+        "La catégorie « %s » sera retirée de tous les inventaires."
+    SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_TOOLTIP = "Supprime la catégorie sélectionnée."
+    SI_DIALOG_CONFIRM, SI_DIALOG_CANCEL = "Confirmer", "Annuler"
+
+    local writable = definition("Writable", "true")
+    local frozen = definition("Frozen", "false", true)
+    definitions.Writable, definitions.Frozen = writable, frozen
+    globals[#globals + 1] = writable
+    globals[#globals + 1] = frozen
+
+    local deleteBag = { rules = { bagRule(definitions.Apple, 70, 10),
+        bagRule(definitions.Bear, 50, 90) } }
+    AutoCategory.saved = { bags = { deleteBag, { rules = {} } } }
+
+    local deleted = {}
+    AutoCategory.DeleteCategory = function(name)
+        deleted[#deleted + 1] = name
+        for i = #globals, 1, -1 do
+            if globals[i].name == name then table.remove(globals, i) end
+        end
+        for _, bag_ in pairs(AutoCategory.saved.bags) do
+            for i = #bag_.rules, 1, -1 do
+                if bag_.rules[i].name == name then table.remove(bag_.rules, i) end
+            end
+        end
+        return true
+    end
+
+    local dialogDefs, dialog, dialogControl = {}, nil, nil
+    function ZO_Dialogs_RegisterCustomDialog(name, definition_)
+        dialogDefs[name] = definition_
+    end
+    function ZO_Dialogs_ShowDialog(name)
+        dialog, dialogControl = dialogDefs[name], {}
+        assert(dialog, "delete dialog is not registered")
+        dialog.setup(dialogControl)
+        return dialogControl
+    end
+    function ZO_Dialogs_UpdateDialogMainText(control, data) control.mainText = data.text end
+    local function pressDialog(index)
+        local buttons = dialog.buttons
+        if index == 1 then buttons[1].callback(dialogControl) end
+        dialog.finishedCallback(dialogControl)
+        dialog, dialogControl = nil, nil
+    end
+
+    local function availableRow(name)
+        for index, item in ipairs(lists[1].items) do
+            if item.name == name then return index end
+        end
+    end
+    local function availableMenu(name)
+        lists[1].edit:SetText(name)
+        equal(1, #lists[1].scroll.data, "one match for " .. name)
+        rowClick(lists[1], 1, true)
+        return menuEntry(SI_AC_CATEGORY_MANAGER_DELETE), menuEntry(
+            SI_AC_CATEGORY_MANAGER_DELETE .. " (" .. SI_AC_CATEGORY_MANAGER_READ_ONLY .. ")")
+    end
+
+    M.Open(1, refreshInventory, inventoryList)
+    local base = refreshes
+    lists[1].edit:SetText("frozen")
+    equal(1, #lists[1].scroll.data, "the left filter keeps the predefined category")
+    equal("Frozen (lecture seule)", rowText(lists[1], 1),
+        "mark a predefined category as read-only in the left column")
+    local entry, readOnlyEntry = availableMenu("Frozen")
+    equal(nil, entry, "no deletable entry for a predefined category")
+    equal("Suppression de la catégorie (lecture seule)", readOnlyEntry.label)
+    equal("text", readOnlyEntry.kind, "the read-only row is inert")
+    equal(nil, readOnlyEntry.action)
+    equal(SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_TOOLTIP, readOnlyEntry.tooltip)
+    AutoCategory.ScrollMenu.Hide()
+
+    lists[1].edit:SetText("writable")
+    equal("Writable", rowText(lists[1], 1), "a writable category keeps its plain name")
+    entry, readOnlyEntry = availableMenu("Writable")
+    equal(nil, readOnlyEntry)
+    equal(false, AC_CategoryManagementWindow:IsHidden())
+    chooseMenu(entry)
+    equal(true, AC_CategoryManagementWindow:IsHidden(), "hide the manager behind the dialog")
+    equal(false, layerActive, "the manager no longer owns the cancel key")
+    equal(SI_AC_CATEGORY_MANAGER_DELETE, dialog.title.text)
+    equal("La catégorie « Writable » sera retirée de tous les inventaires.",
+        dialogControl.mainText, "the dialog repeats the warning")
+    equal(base, refreshes, "nothing is saved before the confirmation")
+    equal(0, #deleted)
+
+    pressDialog(2)
+    equal(0, #deleted, "cancelling removes nothing")
+    equal(false, AC_CategoryManagementWindow:IsHidden(), "come back to the manager")
+    equal(true, layerActive)
+    equal(base, refreshes)
+
+    -- ESO can refuse to show the dialog: restore the manager, delete nothing.
+    local refuseDialog = true
+    local show = ZO_Dialogs_ShowDialog
+    ZO_Dialogs_ShowDialog = function(name)
+        if refuseDialog then refuseDialog = false; return nil end
+        return show(name)
+    end
+    entry = availableMenu("Writable")
+    chooseMenu(entry)
+    equal(false, AC_CategoryManagementWindow:IsHidden(), "restore the manager")
+    equal(true, layerActive)
+    equal(0, #deleted, "a refused dialog deletes nothing")
+    ZO_Dialogs_ShowDialog = show
+
+    entry = availableMenu("Writable")
+    chooseMenu(entry)
+    equal(base, refreshes, "opening the dialog again changes nothing")
+    pressDialog(1)
+    equal("Writable", deleted[1], "the confirmation deletes the category")
+    equal(1, #deleted)
+    equal(false, AC_CategoryManagementWindow:IsHidden())
+    equal(true, layerActive)
+    equal(base + 1, refreshes, "the header menu is refreshed after the deletion")
+    equal(nil, availableRow("Writable"), "the deleted category leaves the left column")
+    equal(0, #lists[1].scroll.data)
+    equal(false, lists[1].empty.hidden)
+    equal(2, #deleteBag.rules, "the other categories stay in this inventory")
+
+    -- A pending draft blocks the deletion.
+    lists[1].edit:SetText("dog")
+    rowClick(lists[1], 1)
+    equal(3, #present.items, "adding a category dirties the draft")
+    local before = refreshes
+    lists[1].edit:SetText("zebra")
+    equal(1, #lists[1].scroll.data)
+    rowClick(lists[1], 1, true)
+    chooseMenu(menuEntry(SI_AC_CATEGORY_MANAGER_DELETE))
+    equal(SI_AC_CATEGORY_MANAGER_DELETE_PENDING,
+        AC_CategoryManagementWindow:GetNamedChild("Status"):GetText(),
+        "ask to apply or cancel the pending changes first")
+    equal(1, #deleted, "no deletion with pending changes")
+    equal(before, refreshes)
+    equal(false, AC_CategoryManagementWindow:IsHidden(), "no dialog while the draft is dirty")
+    equal(nil, dialog)
+
+    M.Cancel()
+    AutoCategory.DeleteCategory = nil
+end
+
 equal(nil, LibScrollableMenu)
 print("PASS: " .. checks .. " assertions (CategoryManagement)")

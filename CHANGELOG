@@ -1,3 +1,11 @@
+[COLOR="DeepSkyBlue"] 5.1.1 (159) - delete a category from the left column (2026-11-27)[/COLOR]:
+[LIST]
+[*] Right-click a category in the left column of Manage Categories to delete it, after a confirmation dialog that carries the same warning as the Delete button of the category settings. The deletion removes the category from every inventory, and is refused while the manager holds pending edits.
+[*] A predefined category shows "read-only" next to its name in the left column and its delete entry is inert.
+[*] The Delete button of the category settings now shows that warning in its confirmation dialog and removes every copy of the category from an inventory.
+[*] Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 5.1.0 (158) - upstream 4.7 merged (2026-11-27)[/COLOR]:
 [LIST]
 [*] Category collapse expiry: a new "Category collapse expiry" entry in Settings -> General frees the collapsed categories that are no longer in the bag after 1, 7, 30 or 90 days, or never (7 days by default). Expanding a category clears its deadline, collapsing it starts a new one.

@@ -1,5 +1,30 @@
 # Changes
 
+## 2026-11-27: delete a category from the left column (5.1.1)
+
+- Right-click a category of the left column (the categories not used in this
+  inventory) to open a "Delete category" entry. It asks for a confirmation
+  with the same kind of warning as the Delete button of the category
+  settings, then removes the category from the rule definitions and from
+  every inventory. The manager hides itself while the dialog is up and comes
+  back on the same tab, with a draft rebuilt on the updated saved variables.
+- Refuse the deletion while the manager holds pending edits: apply or cancel
+  them first, like switching inventory or creating a category.
+- The delete entry is inert for a predefined category, and "(read-only)" is
+  now appended to its name in the left column instead of appearing only in
+  the tooltip.
+- The shared removal lives in AC.DeleteCategory, used by both this menu and
+  the Delete button. The Delete button now also passes its warning text to
+  the confirmation dialog of LibAddonMenu, which was empty, and removes every
+  copy of the category from an inventory rather than the first one only.
+- The labels stay translated: new SI_AC_CATEGORY_MANAGER_DELETE,
+  SI_AC_CATEGORY_MANAGER_DELETE_WARNING, SI_AC_CATEGORY_MANAGER_DELETE_PENDING
+  and SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_WARNING strings in English and
+  French; other languages fall back to English.
+- CategoryManagement suite: 682 assertions, all other suites unchanged, every
+  file compiles with Lua 5.1.
+- Not tested in ESO.
+
 ## 2026-11-27: upstream 4.7 merged (5.1.0)
 
 - Import the eleven commits of the upstream master branch (4.6.16 to 4.7.1).

@@ -138,6 +138,7 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_MENU_EC_BUTTON_COPY_CATEGORY_TOOLTIP = "Make a new copy of selected category. (The copy of a predefined-category is no longer predefined and can be modified.)",
     SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY = "Delete",
     SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_TOOLTIP = "Delete selected category. Note that a predefined category cannot be deleted.",
+    SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_WARNING = "The selected category will be removed from every inventory and cannot be restored.",
 
     -- Appearance Settings strings
     SI_AC_MENU_SUBMENU_APPEARANCE_SETTING = "|c0066FF[Appearance Setting]|r |c65000b(Keyboard-only)|r",
@@ -273,7 +274,7 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_CATEGORY_MANAGER_AVAILABLE = "Categories not used in this inventory",
     SI_AC_CATEGORY_MANAGER_PRESENT = "Assigned categories by execution priority",
     SI_AC_CATEGORY_MANAGER_READ_ONLY = "read-only",
-    SI_AC_CATEGORY_MANAGER_HINT = "Click on the left to add. On the right, Ctrl+click to toggle a row or Shift+click to select a range.\nVertical arrows: order. Horizontal arrows: level. Right-click: selection menu.",
+    SI_AC_CATEGORY_MANAGER_HINT = "Click on the left to add. On the right, Ctrl+click to toggle a row or Shift+click to select a range.\nVertical arrows: order. Horizontal arrows: level. Right-click: selection menu.\nRight-click on the left: delete the category.",
     SI_AC_CATEGORY_MANAGER_ATTACH = "Attach to category",
     SI_AC_CATEGORY_MANAGER_COPY_PENDING = "Copy queued. Click Apply to save.",
     SI_AC_CATEGORY_MANAGER_CONFIRM = "Apply",
@@ -281,6 +282,9 @@ AutoCategory_localization_strings["en"] = {
     SI_AC_CATEGORY_MANAGER_SWITCH_BAG = "Apply or cancel your changes before switching inventories.",
     SI_AC_CATEGORY_MANAGER_CREATE_PENDING = "Apply or cancel your changes before creating a category.",
     SI_AC_CATEGORY_MANAGER_PRIORITY_LIMIT = "This order cannot fit in the priority range.",
+    SI_AC_CATEGORY_MANAGER_DELETE = "Delete category",
+    SI_AC_CATEGORY_MANAGER_DELETE_WARNING = "The category \"%s\" will be removed from every inventory and cannot be restored.",
+    SI_AC_CATEGORY_MANAGER_DELETE_PENDING = "Apply or cancel your changes before deleting a category.",
     SI_AC_DIALOG_CATEGORY_NAME_PROMPT = "Enter a unique name. Choose a parent or select (none) to create a Normal category.",
     SI_AC_DIALOG_CATEGORY_PARENT_UNAVAILABLE = "This parent is no longer available at the selected level. Choose another parent or (none).",
     SI_AC_DIALOG_CATEGORY_NAME_EMPTY = "Enter a non-empty category name.",

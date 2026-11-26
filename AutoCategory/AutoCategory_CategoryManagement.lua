@@ -592,7 +592,9 @@ end
 local CANCEL_ACTION_LAYER = "AutoCategoryCategoryManagement"
 local window, availableList, presentList, bagCombo, bagChoices, draft, onCommit
 local originBagId, originList, creatingCategory
-local showContextMenu
+local confirmingDelete, deleteDialogRegistered
+local pendingDeleteName, pendingDeleteDone
+local showContextMenu, showAvailableContextMenu, requestDeleteCategory
 
 local function showError(stringId)
     window:GetNamedChild("Status"):SetText(GetString(stringId))
@@ -600,6 +602,7 @@ end
 
 local function close()
     draft, onCommit = nil, nil
+    confirmingDelete, pendingDeleteName, pendingDeleteDone = nil, nil, nil
     originBagId, originList = nil, nil
     AC.ScrollMenu.Hide()
     bagCombo:HideDropdown()
@@ -628,11 +631,24 @@ local function refresh()
         resolveDisplay = AC.MakeBagRuleDisplayResolver(draft.bagId)
     end
     for _, name in ipairs(Management.GetAvailable(draft, AC.RulesW.ruleList)) do
+        local rule = AC.GetRuleByName(name)
+        local readOnly = rule ~= nil and type(rule.isPredefined) == "function"
+            and rule:isPredefined()
+        -- A predefined category is read-only: say it in the list itself and
+        -- not only in the tooltip.
+        local label = readOnly
+            and (name .. " (" .. GetString(SI_AC_CATEGORY_MANAGER_READ_ONLY) .. ")")
+            or name
         available[#available + 1] = {
-            key = name, name = name,
-            tooltip = Management.Tooltip(name, AC.GetRuleByName(name)),
+            key = name, name = name, label = label,
+            tooltip = Management.Tooltip(name, rule),
             callback = function()
                 if draft and Management.Add(draft, name) then refresh() end
+            end,
+            rightClickCallback = function(owner)
+                if showAvailableContextMenu then
+                    showAvailableContextMenu(owner, name, readOnly)
+                end
             end,
         }
     end
@@ -725,6 +741,107 @@ showContextMenu = function(owner, selection)
     end
     ZO_Tooltips_HideTextTooltip()
     AC.ScrollMenu.Show(owner, menu, { openerButton = MOUSE_BUTTON_INDEX_RIGHT })
+end
+
+-- Deleting a category rewrites the saved variables directly, like the Delete
+-- button of the category settings. It is therefore only allowed on an
+-- unchanged draft: the manager's own changes are applied on Confirm.
+local DELETE_DIALOG = "AUTO_CATEGORY_MANAGER_DELETE_CATEGORY"
+
+local function deletePendingCategory()
+    local deleteCategory = AC.DeleteCategory
+    if type(deleteCategory) ~= "function" or not pendingDeleteName then return false end
+    return deleteCategory(pendingDeleteName) == true
+end
+
+local function finishDelete()
+    local deleted = pendingDeleteDone
+    confirmingDelete, pendingDeleteDone, pendingDeleteName = nil, nil, nil
+    local current = draft
+    if deleted and current then
+        -- The rules and the bags changed under the draft: refresh the header
+        -- menu first, then rebuild the draft from the new saved variables.
+        if onCommit then onCommit() end
+        local updated = Management.NewDraft(AC.saved, current.bagId, AC.GetRuleByName)
+        if not updated then
+            close()
+            return
+        end
+        updated.displayOrder = current.displayOrder
+        draft = updated
+    end
+    if not draft then return end
+    window:SetHidden(false)
+    window:BringWindowToTop()
+    if deleted then
+        window:GetNamedChild("Status"):SetText("")
+        refresh()
+    end
+    PushActionLayerByName(CANCEL_ACTION_LAYER)
+end
+
+requestDeleteCategory = function(name)
+    local current = draft
+    if not current or window:IsHidden() or confirmingDelete then return end
+    local rule = AC.GetRuleByName(name)
+    if not rule or type(rule.isPredefined) ~= "function" or rule:isPredefined() then return end
+    if hasChanges(current) then
+        showError(SI_AC_CATEGORY_MANAGER_DELETE_PENDING)
+        return
+    end
+    if not deleteDialogRegistered then
+        ZO_Dialogs_RegisterCustomDialog(DELETE_DIALOG, {
+            canQueue = true,
+            title = { text = SI_AC_CATEGORY_MANAGER_DELETE },
+            mainText = { text = "" },
+            setup = function(dialog)
+                ZO_Dialogs_UpdateDialogMainText(dialog, {
+                    text = GetString(SI_AC_CATEGORY_MANAGER_DELETE_WARNING)
+                        :format(pendingDeleteName or ""),
+                })
+            end,
+            finishedCallback = finishDelete,
+            buttons = {
+                {
+                    text = SI_DIALOG_CONFIRM,
+                    callback = function() pendingDeleteDone = deletePendingCategory() end,
+                },
+                { text = SI_DIALOG_CANCEL },
+            },
+        })
+        deleteDialogRegistered = true
+    end
+    pendingDeleteName, pendingDeleteDone = name, false
+    -- The manager's HIGH tier would otherwise cover the native dialog.
+    confirmingDelete = true
+    AC.ScrollMenu.Hide()
+    bagCombo:HideDropdown()
+    ZO_Tooltips_HideTextTooltip()
+    window:SetHidden(true)
+    if not ZO_Dialogs_ShowDialog(DELETE_DIALOG) then finishDelete() end
+end
+
+showAvailableContextMenu = function(owner, name, readOnly)
+    if not draft then return end
+    local entries
+    if readOnly then
+        -- Keep the entry visible but inert: a predefined category cannot be
+        -- deleted, exactly like the disabled button of the settings menu.
+        entries = { {
+            kind = "text",
+            label = GetString(SI_AC_CATEGORY_MANAGER_DELETE) .. " ("
+                .. GetString(SI_AC_CATEGORY_MANAGER_READ_ONLY) .. ")",
+            tooltip = GetString(SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_TOOLTIP),
+        } }
+    else
+        entries = { {
+            label = GetString(SI_AC_CATEGORY_MANAGER_DELETE),
+            tooltip = GetString(SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_TOOLTIP),
+            action = function() requestDeleteCategory(name) end,
+        } }
+    end
+    ZO_Tooltips_HideTextTooltip()
+    AC.ScrollMenu.Show(owner, entries, { openerButton = MOUSE_BUTTON_INDEX_RIGHT })
 end
 
 local function setupLevels()
@@ -865,7 +982,7 @@ local function setup()
     newCategory:SetHandler("OnClicked", openNewCategory)
     window:SetHandler("OnEffectivelyHidden", function()
         RemoveActionLayerByName(CANCEL_ACTION_LAYER)
-        if draft and not creatingCategory then close() end
+        if draft and not creatingCategory and not confirmingDelete then close() end
     end)
     window:GetNamedChild("Cancel"):SetHandler("OnClicked", Management.Cancel)
     window:GetNamedChild("Confirm"):SetHandler("OnClicked", function()
@@ -905,7 +1022,7 @@ end
 
 function Management.Open(bagId, refreshInventory, sourceList)
     if not window then setup() end
-    if creatingCategory then return end
+    if creatingCategory or confirmingDelete then return end
     -- Don't discard a pending draft just because another header was clicked.
     if draft and not window:IsHidden() then
         window:BringWindowToTop()

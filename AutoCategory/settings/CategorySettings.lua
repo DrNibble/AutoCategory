@@ -830,35 +830,47 @@ function CatSet_TagEdit_LAM:controlDef()
 end
 -- -------------------------------------------------------
 
+-- A category is deleted from the rule definitions (live and saved) and from
+-- every inventory. Shared by the Delete button and the category manager.
+-- A predefined category is read-only: nothing is removed and false is returned.
+function AC.DeleteCategory(ruleName)
+	if type(ruleName) ~= "string" or ruleName == "" then return false end
+	local ndx = AutoCategory.RulesW.ruleNames[ruleName]
+	if not ndx then return false end
+	local rule = AutoCategory.RulesW.ruleList[ndx]
+	if rule and type(rule.isPredefined) == "function" and rule:isPredefined() then
+		return false
+	end
+	table.remove(AutoCategory.RulesW.ruleList,ndx)
+	-- remove from the rule list that gets saved
+	AutoCategory.ARW:removeRuleByName(ruleName)
+	-- removing the rule from any bags
+	AutoCategory.foreachBag( function(bagId)
+		local savedbag = AutoCategory.saved.bags[bagId]
+		if savedbag and savedbag.rules then
+			for i = #savedbag.rules, 1, -1 do
+				local bagEntry = savedbag.rules[i]
+				if bagEntry.name == ruleName then
+					table.remove(savedbag.rules, i)
+				end
+			end
+		end
+	end)
+	AutoCategory.cacheRuleInitialize()
+	AutoCategory.cacheBagInitialize()
+	return true
+end
+
 -- customization of BaseUI for CatSet_DeleteCat_LAM button
 -- -------------------------------------------------------
 function CatSet_DeleteCat_LAM:execute()
 	local oldRuleName = CatSet_SelectRule_LAM:getValue()
-	local ndx = AutoCategory.RulesW.ruleNames[oldRuleName]
-	if ndx then
-		table.remove(AutoCategory.RulesW.ruleList,ndx)
-		-- remove from the rule list that gets saved
-		AutoCategory.ARW:removeRuleByName(oldRuleName)
-		AutoCategory.cacheRuleInitialize()
-	end
+	if not AC.DeleteCategory(oldRuleName) then return end
 
 	if oldRuleName == AC_UI.AddCat_SelectRule_LAM:getValue() then
 		--rule removed, clean selection in add rule menu if selected
 		AC_UI.AddCat_SelectRule_LAM:clearIndex()
 	end
-
-	-- removing the rule from any bags
-	--local bagId
-	AutoCategory.foreachBag( function(bagId)
-		local savedbag = AutoCategory.saved.bags[bagId]
-		for i = 1, #savedbag.rules do
-			local bagEntry = savedbag.rules[i]
-			if bagEntry.name == oldRuleName then
-				table.remove(savedbag.rules, i)
-				break
-			end
-		end
-	end)
 	AC_UI.BagSet_SelectRule_LAM.cvt:removeItemChoiceValue(oldRuleName)
 	if AC_UI.BagSet_SelectRule_LAM:getValue() == nil and AC_UI.BagSet_SelectRule_LAM:size() > 0 then
 		AC_UI.BagSet_SelectRule_LAM:select(emptyValueTbl) 	-- select first
@@ -899,6 +911,7 @@ function CatSet_DeleteCat_LAM:controlDef()
 			type = "button",
 			name = SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY,
 			tooltip = SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_TOOLTIP,
+			warning = SI_AC_MENU_EC_BUTTON_DELETE_CATEGORY_WARNING,
 			isDangerous = true,
 			func = function()  self:execute() end,
 			width = "half",

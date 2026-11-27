@@ -1129,6 +1129,33 @@ local function inventoryHeaderData(control)
     if data and data.AC_isHeader then return data end
 end
 
+-- After a drop on a category of the same bag, choose where the moved
+-- category lands: at the top level, as its own level 1 category, or
+-- nested under the category it was dropped on. An impossible
+-- destination stays visible but inert, like the Move To submenu.
+local function showDropChoices(targetHeader, bagTypeId, drag, targetName)
+    local CLM = AutoCat.CategoryLevelMenu
+    local rows = {}
+    if drag.label then
+        rows[#rows + 1] = { label = drag.label, kind = "header" }
+    end
+    local function addChoice(label, parentName)
+        local action
+        if CLM.CanMoveSubtreeToParent(bagTypeId, drag.ruleName, parentName) then
+            action = function()
+                CLM.MoveSubtreeAndRefresh(bagTypeId, drag.ruleName, parentName)
+            end
+        end
+        rows[#rows + 1] = { label = label, action = action }
+    end
+    addChoice(GetString(SI_AC_DROP_CHOICE_LEVEL_ONE), nil)
+    addChoice(string.format(GetString(SI_AC_DROP_CHOICE_CHILD), targetName),
+        targetName)
+    -- nothing to choose when neither destination can take the category
+    if rows[#rows].action == nil and rows[#rows - 1].action == nil then return end
+    AutoCat.ScrollMenu.Show(targetHeader, rows, { visibleRows = #rows })
+end
+
 -- Scroll list row controls can be recycled under the pointer. Keep the
 -- source rule name, and resolve the row being hovered only on release.
 function AC_ItemRowHeader_OnDragStart(header, button)
@@ -1140,7 +1167,10 @@ function AC_ItemRowHeader_OnDragStart(header, button)
     local bagTypeId = getBagTypeId(header)
     local CLM = AutoCat.CategoryLevelMenu
     local rule = CLM.HeaderRuleForDrag(bagTypeId, data.AC_categoryName)
-    local drag = { ruleName = rule and rule.name }
+    local drag = {
+        ruleName = rule and rule.name,
+        label = data.AC_displayName or data.AC_categoryName,
+    }
     headerDrag = drag
     if rule then
         AutoCat.ScrollMenu.Hide()
@@ -1152,7 +1182,7 @@ function AC_ItemRowHeader_OnDragStart(header, button)
         EVENT_MANAGER:UnregisterForEvent(HEADER_DRAG_EVENT, EVENT_GLOBAL_MOUSE_UP)
         if drag.ruleName then AutoCat.OrderList.HideDragLabel() end
 
-        local parentRule
+        local parentRule, targetHeader
         if drag.ruleName and not contents:IsControlHidden() then
             local target = WINDOW_MANAGER:GetMouseOverControl()
             -- Only a header in the same scroll list can be the target.
@@ -1162,6 +1192,7 @@ function AC_ItemRowHeader_OnDragStart(header, button)
                     local targetData = not target:IsControlHidden() and inventoryHeaderData(target)
                     if targetData and getBagTypeId(target) == bagTypeId then
                         parentRule = CLM.HeaderRuleForDrag(bagTypeId, targetData.AC_categoryName)
+                        if parentRule then targetHeader = target end
                     end
                     break
                 end
@@ -1174,8 +1205,8 @@ function AC_ItemRowHeader_OnDragStart(header, button)
         zo_callLater(function()
             if headerDrag ~= drag then return end
             headerDrag = nil
-            if parentRule and not contents:IsControlHidden() then
-                CLM.MoveSubtreeAndRefresh(bagTypeId, drag.ruleName, parentRule.name)
+            if parentRule and targetHeader and not contents:IsControlHidden() then
+                showDropChoices(targetHeader, bagTypeId, drag, parentRule.name)
             end
         end, 0)
     end)

@@ -650,6 +650,73 @@ local function moveDelta(subtree, newParentName)
     return delta
 end
 
+-- The read-only part of a move of a subtree: the category, the section
+-- that moves with it, the level the category gets under its new parent
+-- and the level difference applied to the whole section. Nil when the
+-- move is refused: the target is not a category of the bag, is the
+-- category itself, one of the categories nested under it (a cycle) or
+-- its current parent (nothing to move), or the section does not fit
+-- under the target (level 5 is the deepest level the addon offers).
+local function planSubtreeMove(bagTypeId, ruleName, newParentName)
+    local root = AutoCategory.GetRuleByName(ruleName)
+    if not root then return nil end
+
+    local newRootLevel
+    if newParentName == nil then
+        -- move to the top level: nothing to do when the category is
+        -- already a Normal category without a parent
+        if root.parent == nil and CLM.EffectiveLevel(root) == 1 then
+            return nil
+        end
+        newRootLevel = 1
+    else
+        if type(newParentName) ~= "string" or newParentName == ""
+                or newParentName == ruleName then
+            return nil
+        end
+        if root.parent == newParentName then return nil end
+        if not findBagrule(bagTypeId, newParentName) then return nil end
+
+        local parentRule = AutoCategory.GetRuleByName(newParentName)
+        if not parentRule then return nil end
+        newRootLevel = CLM.EffectiveLevel(parentRule) + 1
+    end
+
+    if newRootLevel > 5 then return nil end
+
+    local subtree = CLM.SubtreeInBag(bagTypeId, ruleName)
+    if not subtree then return nil end
+
+    -- the category cannot move under itself or under one of the
+    -- categories nested under it
+    for i = 2, #subtree do
+        if subtree[i].rule.name == newParentName then
+            return nil
+        end
+    end
+
+    local delta = newRootLevel - CLM.EffectiveLevel(root)
+
+    -- the whole section must fit under the target
+    for i = 2, #subtree do
+        if CLM.EffectiveLevel(subtree[i].rule) + delta > 5 then
+            return nil
+        end
+    end
+
+    return {
+        root = root, subtree = subtree,
+        newRootLevel = newRootLevel, delta = delta,
+    }
+end
+
+-- True when MoveSubtreeToParent would move the category, without
+-- editing anything: the drop menu keeps an impossible destination
+-- visible but inert.
+function CLM.CanMoveSubtreeToParent(bagTypeId, ruleName, newParentName)
+    return planSubtreeMove(bagTypeId, ruleName, newParentName) ~= nil
+end
+
 -- Move the category under another category of the bag: the new parent
 -- of the category, its level one below the new parent's, and every
 -- category nested under it shifted by the same difference so the
@@ -662,50 +729,11 @@ end
 -- categories nested under it (a cycle) or its current parent
 -- (nothing to move), or the section does not fit under the target.
 function CLM.MoveSubtreeToParent(bagTypeId, ruleName, newParentName)
-    local root = AutoCategory.GetRuleByName(ruleName)
-    if not root then return false end
+    local plan = planSubtreeMove(bagTypeId, ruleName, newParentName)
+    if not plan then return false end
 
-    local newRootLevel
-    if newParentName == nil then
-        -- move to the top level: nothing to do when the category is
-        -- already a Normal category without a parent
-        if root.parent == nil and CLM.EffectiveLevel(root) == 1 then
-            return false
-        end
-        newRootLevel = 1
-    else
-        if type(newParentName) ~= "string" or newParentName == ""
-                or newParentName == ruleName then
-            return false
-        end
-        if root.parent == newParentName then return false end
-        if not findBagrule(bagTypeId, newParentName) then return false end
-
-        local parentRule = AutoCategory.GetRuleByName(newParentName)
-        if not parentRule then return false end
-        newRootLevel = CLM.EffectiveLevel(parentRule) + 1
-    end
-
-    local subtree = CLM.SubtreeInBag(bagTypeId, ruleName)
-    if not subtree then return false end
-
-    -- the category cannot move under itself or one of the categories
-    -- nested under it
-    for i = 2, #subtree do
-        if subtree[i].rule.name == newParentName then
-            return false
-        end
-    end
-
-    if newRootLevel > 5 then return false end
-    local delta = newRootLevel - CLM.EffectiveLevel(root)
-
-    -- the whole section must fit under the target
-    for i = 2, #subtree do
-        if CLM.EffectiveLevel(subtree[i].rule) + delta > 5 then
-            return false
-        end
-    end
+    local root, subtree = plan.root, plan.subtree
+    local newRootLevel, delta = plan.newRootLevel, plan.delta
 
     -- the nested categories keep their parent and move with the
     -- category, one level deeper or shallower with it

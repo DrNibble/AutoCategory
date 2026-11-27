@@ -1,3 +1,11 @@
+[COLOR="DeepSkyBlue"] 5.1.2 (160) - choose the placement of a dragged category (2026-11-27)[/COLOR]:
+[LIST]
+[*] Dropping a category header onto another header in the inventory no longer nests it straight away: a small menu opens on the destination and offers to keep the category at level 1 or to make it a child of the destination.
+[*] A placement that cannot apply stays visible but inert (the destination is the category itself, one of its sub-categories or its current parent, the section would exceed level 5, or the category already is at level 1). When neither placement applies, no menu opens.
+[*] The drag and the existing Move To submenu now share one read-only plan, so both decide exactly the same way.
+[*] Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 5.1.1 (159) - delete a category from the left column (2026-11-27)[/COLOR]:
 [LIST]
 [*] Right-click a category in the left column of Manage Categories to delete it, after a confirmation dialog that carries the same warning as the Delete button of the category settings. The deletion removes the category from every inventory, and is refused while the manager holds pending edits.

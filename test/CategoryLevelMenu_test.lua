@@ -30,6 +30,8 @@ SI_AC_MENU_CM_COPY_SUBMENU = "Copy To"
 SI_AC_TIP_CM_COPY_OVERWRITE = "Already exists, select to overwrite"
 SI_AC_MENU_CM_MOVE_SUBMENU = "Move To"
 SI_AC_MENU_CM_MOVE_TOP = "Top Level"
+SI_AC_DROP_CHOICE_LEVEL_ONE = "Level 1 (its own top-level category)"
+SI_AC_DROP_CHOICE_CHILD = "Child of \"%s\""
 SI_AC_MESSAGE_CM_COPY_DONE = "AutoCategory: %d categories copied to %s (%d already there)."
 SI_AC_MESSAGE_CM_COPY_OVERWRITE_DONE = "AutoCategory: %d categories added to %s (%d overwritten)."
 SI_AC_DEFAULT_NAME_NEW_CATEGORY = "NewCategory"
@@ -687,6 +689,17 @@ setBag(22, { { name = "Elsewhere", runpriority = 1, showpriority = 1 } })
 equal(false, CLM.MoveSubtreeToParent(20, "Mid", "Elsewhere"),
     "the target must be a category of the same bag")
 
+-- the drop menu asks the same predicate before offering a placement,
+-- so an impossible placement can stay visible but inert
+equal(true, CLM.CanMoveSubtreeToParent(20, "Leaf", "TopA"))
+equal(true, CLM.CanMoveSubtreeToParent(20, "Mid", nil))
+equal(false, CLM.CanMoveSubtreeToParent(20, "Mid", "Mid"))
+equal(false, CLM.CanMoveSubtreeToParent(20, "Mid", "TopB"), "the current parent is no move")
+equal(false, CLM.CanMoveSubtreeToParent(20, "TopB", "Mid"), "a cycle is no move")
+equal(false, CLM.CanMoveSubtreeToParent(20, "Leaf", nil), "already at the top level")
+equal(false, CLM.CanMoveSubtreeToParent(20, "Mid", "Elsewhere"),
+    "a category of another bag is no destination")
+
 -- the section must fit under the target: bag 21 has X(1), A(1) with
 -- B(2) > C(3) > D(4) > E(5) under A
 setBag(21, {
@@ -703,6 +716,8 @@ local rC, rD = newRule("C", 3, "B"), newRule("D", 4, "C")
 local rE = newRule("E", 5, "D")
 equal(false, CLM.MoveSubtreeToParent(21, "A", "X"),
     "a section too deep for the target is refused")
+equal(false, CLM.CanMoveSubtreeToParent(21, "A", "X"),
+    "a section too deep for the target is no placement either")
 equal(true, CLM.MoveSubtreeToParent(21, "D", "X"),
     "a section that fits moves with its children")
 equal(2, rD.level, "the moved category sits one level below the target")
@@ -950,7 +965,13 @@ AutoCategory.OrderList = {
     ShowDragLabel = function(value) dragText = value end,
     HideDragLabel = function() dragText = nil end,
 }
-AutoCategory.ScrollMenu = { Hide = function() end }
+local shownOwner, shownRows
+AutoCategory.ScrollMenu = {
+    Hide = function() end,
+    Show = function(owner, rows)
+        shownOwner, shownRows = owner, rows
+    end,
+}
 local folds, menus = 0, 0
 function AC_ItemRowHeader_OnMouseClicked() folds = folds + 1 end
 function AC_ItemRowHeader_OnShowContextMenu() menus = menus + 1 end
@@ -963,11 +984,31 @@ local function release(source, target, globalFirst)
     equal(nil, dragText, "drag label hidden on release")
 end
 local function finish() local work = deferred; deferred = nil; work() end
-local function drop(source, target)
+-- A drop no longer moves on its own: it opens the placement choice. Every
+-- gesture returns the rows of that menu, nil when no placement exists.
+local function dropRows(source, target)
     onDragStart(source, MOUSE_BUTTON_INDEX_LEFT)
     release(source, target, false)
     finish()
+    local rows, owner = shownRows, shownOwner
+    shownRows, shownOwner = nil, nil
+    return rows, owner
 end
+local function dropChild(source, target)
+    local rows = dropRows(source, target)
+    assert(rows and rows[3] and rows[3].action,
+        "the child placement is offered")
+    rows[3].action()
+    return rows
+end
+local function dropTop(source, target)
+    local rows = dropRows(source, target)
+    assert(rows and rows[2] and rows[2].action,
+        "the level 1 placement is offered")
+    rows[2].action()
+    return rows
+end
+
 onMouseUp(mid, MOUSE_BUTTON_INDEX_LEFT, true)
 onMouseUp(mid, MOUSE_BUTTON_INDEX_LEFT, false)
 onDragStart(mid, MOUSE_BUTTON_INDEX_RIGHT)
@@ -985,51 +1026,95 @@ equal("Leaf", dragText, "right release does not end left drag")
 -- not become the source. The target can be hit through a child control.
 leaf.slot = topB.slot
 release(leaf, control(mid), true)
-equal(nil, rLeaf.parent, "move waits until the mouse-up finishes")
+equal(nil, rLeaf.parent, "the drop waits until the mouse-up finishes")
+equal(nil, shownRows, "no placement menu before the mouse-up finishes")
 finish()
-equal("Mid", rLeaf.parent)
-equal(3, rLeaf.level)
-equal(beforeRefresh + 1, refreshCalls.RefreshCurrentList, "one refresh after a valid drop")
-drop(mid, topA)
-equal("TopA", rMid.parent, "move a nested header to a different parent")
-equal("Mid", rLeaf.parent, "descendant moves with its parent")
+equal(nil, rLeaf.parent, "a drop never moves before the player chose")
+local rows, owner = shownRows, shownOwner
+shownRows, shownOwner = nil, nil
+equal(3, #rows, "the dragged category and the two placements")
+equal(mid, owner, "the menu opens on the destination header")
+equal("Leaf", rows[1].label, "the header names the dragged category")
+equal("header", rows[1].kind, "the dragged category is a read-only header")
+equal(SI_AC_DROP_CHOICE_LEVEL_ONE, rows[2].label, "the level 1 placement is offered")
+equal(string.format(SI_AC_DROP_CHOICE_CHILD, "Mid"), rows[3].label,
+    "the child placement names the destination")
+equal(nil, rows[2].action, "a level 1 category is already at the top level")
+equal(true, rows[3].action ~= nil, "the child placement is offered")
+rows[3].action()
+equal("Mid", rLeaf.parent, "the child placement nests under the destination")
+equal(3, rLeaf.level, "the child placement sits one level below it")
+equal(beforeRefresh + 1, refreshCalls.RefreshCurrentList,
+    "one refresh after a chosen move")
+
+-- a nested category offers both placements: the child one carries the
+-- whole section under the new parent
+local beforeChild = refreshCalls.RefreshCurrentList
+local bothRows = dropRows(mid, topA)
+equal(true, bothRows[2].action ~= nil and bothRows[3].action ~= nil,
+    "a nested drop offers both placements")
+bothRows[3].action()
+equal("TopA", rMid.parent, "the child placement parents to the destination")
+equal(2, rMid.level, "the category sits one level below the destination")
+equal("Mid", rLeaf.parent, "the section keeps its shape")
+equal(3, rLeaf.level, "the descendant moves with its parent")
+equal(beforeChild + 1, refreshCalls.RefreshCurrentList, "one refresh per chosen move")
+
+-- the dropped header is rebuilt: the scroll row under the pointer was
+-- recycled, and the paths follow the category that just moved
 local movedMid = header("TopA----Mid")
 local movedLeaf = header("TopA----Mid----Leaf")
+
+-- a descendant is no destination: only the level 1 placement remains
+local cycleRows = dropRows(movedMid, movedLeaf)
+equal(3, #cycleRows, "the dragged category and the two placements")
+equal(nil, cycleRows[3].action, "a descendant cannot receive its ancestor")
+equal(true, cycleRows[2].action ~= nil, "the level 1 placement stays possible")
+equal("TopA", rMid.parent, "an unchosen placement moves nothing")
+
+-- the current parent is no placement either, the top level still is
+dropTop(movedLeaf, control(movedMid))
+equal(nil, rLeaf.parent, "the level 1 placement clears the parent")
+equal(nil, rLeaf.level, "a level 1 category is Normal")
+
+-- no placement at all: no menu, no move, no refresh
 local beforeInvalid = refreshCalls.RefreshCurrentList
-drop(movedMid, movedMid)
-drop(movedMid, movedLeaf)
-drop(movedMid, topA)
-drop(movedMid, nil)
-drop(movedMid, control(contents))
-drop(movedMid, header("TopB", 22))
-drop(movedMid, header("TopB", 20, otherContents))
-drop(movedMid, header("TopB----Leaf"))
-drop(header("Autres"), topB)
-equal("TopA", rMid.parent, "self, cycle, same parent, outside, item, other bag/list and synthetic drops never move")
+local selfRows = dropRows(movedMid, movedMid)
+equal(nil, selfRows[3].action, "a category cannot become its own child")
+equal(true, selfRows[2].action ~= nil, "the level 1 placement stays possible")
+equal(nil, dropRows(movedMid, nil), "no destination header, no menu")
+equal(nil, dropRows(movedMid, control(contents)), "no destination header, no menu")
+equal(nil, dropRows(movedMid, header("TopB", 22)), "another bag is no destination")
+equal(nil, dropRows(movedMid, header("TopB", 20, otherContents)), "another list is no destination")
+equal(nil, dropRows(header("Autres"), topA), "a synthetic header is no destination")
+equal("TopA", rMid.parent,
+    "self, outside, item, other bag/list and synthetic drops never move")
 equal(beforeInvalid, refreshCalls.RefreshCurrentList)
 equal(1, folds, "neither mouse-up ordering folds a header after dragging")
 
+-- depth: a drop may reach level five, a level-five header is no destination
 local deepTarget = header("Indent L1----Indent L2----Indent L3----Indent L4", 23)
-drop(header("Indent L1----Indent L2----Indent L3----Indent L4----Indent source", 23),
+dropChild(header("Indent L1----Indent L2----Indent L3----Indent L4----Indent source", 23),
     header("Indent L1----Indent L2", 23))
-local depthSource = header("Indent L1----Indent L2----Indent source", 23)
-drop(depthSource, deepTarget)
+dropChild(header("Indent L1----Indent L2----Indent source", 23), deepTarget)
 equal(5, AutoCategory.GetRuleByName("Indent source").level, "a drop may reach level five")
 local maxTarget = header("Indent L1----Indent L2----Indent L3----Indent L4----Indent source", 23)
 local atTop = newRule("Drag top-level")
 table.insert(AutoCategory.saved.bags[23].rules, { name = atTop.name })
-drop(header(atTop.name, 23), maxTarget)
-equal(nil, atTop.parent, "a level-five header cannot be a destination")
-drop(maxTarget, header("Indent L1", 23))
-drop(header("Indent L1----Indent L2", 23), header("Indent L1----Indent source", 23))
-equal("Indent L1", AutoCategory.GetRuleByName("Indent L2").parent, "a whole branch may not exceed level five")
+equal(nil, dropRows(header(atTop.name, 23), maxTarget),
+    "a level-five header cannot be a destination")
+local branchRows = dropRows(header("Indent L1----Indent L2", 23), maxTarget)
+equal(nil, branchRows[3].action, "a whole branch may not exceed level five")
+equal("Indent L1", AutoCategory.GetRuleByName("Indent L2").parent,
+    "the refused branch keeps its parent")
 
 onDragStart(movedMid, MOUSE_BUTTON_INDEX_LEFT)
 release(movedMid, topB, true)
 contents.hidden = true
 finish()
 contents.hidden = false
-equal("TopA", rMid.parent, "closing the inventory cancels the pending drop")
+equal(nil, shownRows, "closing the inventory cancels the pending drop")
+equal("TopA", rMid.parent, "closing the inventory moves nothing")
 onMouseUp(movedMid, MOUSE_BUTTON_INDEX_LEFT, true)
 equal(2, folds, "normal clicks resume after the drag is cleaned up")
 

@@ -1,5 +1,22 @@
 # Changes
 
+## 2026-11-27: choose the placement of a dragged category (5.1.2)
+
+- Dragging a category header onto another header of the same inventory no
+  longer nests it straight away: a small menu opens on the destination with
+  the dragged category and two placements, "Level 1 (its own top-level
+  category)" and "Child of <destination>".
+- A placement that cannot apply stays visible but inert: the destination is
+  the category itself, one of the categories nested under it, its current
+  parent, or more than one level short of its depth budget, or the category
+  already sits at level 1. When neither placement applies, no menu opens.
+- The read-only test lives in CLM.CanMoveSubtreeToParent, which shares the
+  new planSubtreeMove with CLM.MoveSubtreeToParent: the drag and the Move To
+  submenu decide on the same plan, and the predicate edits nothing.
+- The drop menu reuses the internal menu of the addon, anchored on the
+  destination header.
+- 404 assertions in CategoryLevelMenu_test (27 new). Not tested in ESO.
+
 ## 2026-11-27: delete a category from the left column (5.1.1)
 
 - Right-click a category of the left column (the categories not used in this

@@ -1,3 +1,10 @@
+[COLOR="DeepSkyBlue"] 5.1.3 (161) - the new strings in every language (2026-11-27)[/COLOR]:
+[LIST]
+[*] German, Spanish, Russian and Chinese receive the strings of the delete dialog, of its warning on the Delete button and of the two placements of a dropped category, plus the right-click sentence of the window hint.
+[*] The six keys now exist in every shipped language, with the quoting style of each file.
+[*] Not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 5.1.2 (160) - choose the placement of a dragged category (2026-11-27)[/COLOR]:
 [LIST]
 [*] Dropping a category header onto another header in the inventory no longer nests it straight away: a small menu opens on the destination and offers to keep the category at level 1 or to make it a child of the destination.

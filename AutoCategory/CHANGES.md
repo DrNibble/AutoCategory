@@ -1,5 +1,16 @@
 # Changes
 
+## 2026-11-27: the new strings in every language (5.1.3)
+
+- German, Spanish, Russian and Chinese now carry the strings of the two
+  previous entries: the warning of the Delete button, the Delete category
+  dialog and its refusals, the two placements of a dropped category, and
+  the sentence about right-clicking the left column in the hint.
+- The six keys are present in every shipped language, English and French
+  included, and each one keeps the quoting style of its file.
+- 404 assertions in CategoryLevelMenu_test, the other suites unchanged.
+  Not tested in ESO.
+
 ## 2026-11-27: choose the placement of a dragged category (5.1.2)
 
 - Dragging a category header onto another header of the same inventory no

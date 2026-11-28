@@ -9,6 +9,64 @@ The Description of a Category allows you to specify descriptive text which will 
 
 The Rule for a category is described below.
 
+## Nested (Multi-Level) Categories
+A category name may contain the separator `----` (four hyphens). The text before the first separator becomes a parent header, the text after it a collapsible sub-header under that parent; further separators add deeper levels (three or more), each collapsible under the level above it. Spaces around each part are trimmed, and every separator splits the name.
+
+For example, categories named:
+
+```
+Potions----Magie
+Potions----Santé
+Armes----Épées----Lourdes
+Armes----Épées
+Armes----Boucliers
+```
+
+display in the keyboard inventory as:
+
+```
+Potions            [-]
+    Magie          [-]
+    Santé          [-]
+Armes              [-]
+    Boucliers      [-]
+    Épées          [-]
+        Lourdes    [-]
+```
+
+Every level collapses independently with the usual `+`/`-` marker, the context menu and the click on the header. A parent header shows the total count of all the items under it (its own items plus every deeper level); each child header shows its own count. On the gamepad, categories display as one-line `parent - child - ...` headers.
+
+Details and edge cases:
+
+* Flat category names (without the separator) sort and display exactly as before.
+* A name with an empty level part (`----Magie`, `Potions----`, `Potions------Soin`) is treated as a flat name and displayed as-is.
+* If a flat category shares a parent's name (a category named `Potions` next to `Potions----Magie`), that flat header serves as the parent: its items sort directly under it, before the sub-categories.
+* The collapse state of a level is saved under its own prefix name (`Potions`, `Potions----Magie`, `Armes----Épées----Lourdes`, ...), exactly like any other category. Collapsing a level hides every deeper level under it, whatever the state of the levels in between.
+
+## Building Levels from Rules
+Instead of hardcoding a nested name in one category, the **Level** dropdown of the Edit Category menu (Category Setting) assigns a sub-menu level to each category, next to its Name and Tag: `Normal` (the default) is the ordinary flat category - it counts as level `1` (a top-level section), exactly like an explicit `1`, only the displayed level text differs - and `2`-`5` are nested sub-sections. For a level 2-5 category, the **Parent** dropdown next to it chooses the category under which this one is nested, and the sub-menu path is the parent chain: the parent, its own parent, and so on, up to the top, then the category itself. Only categories with an explicit level of exactly one below are offered as parents (a level 1 category for a level 2 child, and so on); Normal categories are not listed, and the current parent stays visible even when its level no longer matches, so it can still be changed. Categories are tied to a bag: only the categories of the bag being edited are offered as parents - a category of another bag (a bank category while editing an inventory category) is never listed, and the display does not nest a category under a parent that is not a section of its bag (the category then shows under its own name). This replaces the former `leveldisplay()` rule function.
+
+A level category is a display section named after the category; its rule is usually just `true` (selecting a Level fills an empty rule text with `true` for you). A rule that registers a dynamic nested name (`autosettype()`, whose name is `Type----Set name`) works at any level: the dynamic levels nest under the parent chain, replacing the category's own name - a level 2 `Ensembles` child with `autosettype()` displays its set types and set names under `Ensembles`, exactly like a Normal or level 1 category uses the dynamic name as-is. The level can also be set with a right click on the category in the Category Display Order window: its context menu has a **Set level** entry with the same `Normal` and `1`-`5` choices as the Level dropdown (the level the category currently has is shown in gold). Choosing a level 2-5
+this way also attaches the Parent automatically: the nearest category of the
+level just below in the display order of the bag (the section the category
+visually follows), or the first one when it sits above them all - Normal
+categories are never chosen, and a Parent already set is never touched. The
+Parent dropdown can still change it. The sub-levels can be folded right
+from the inventory: the right-click menu of a category header there has
+a **Fold lower levels** and an **Unfold lower levels** entry - fold
+collapses every lower-level header under the category (the category
+itself stays expanded, with its own items and its folded sub-headers),
+unfold expands the category when folded and every folded sub-level with
+it. An entry that cannot apply is not shown (nothing to fold on a
+category without sub-levels or already fully folded). The rule decides
+whether the section holds items itself: with `true` (or any condition) it also keeps, flat under it, the items it matches that no child took; with `false` it is display-only - it holds no item and only its children's sections show under it. The conditions that decide where an item goes live in the level rules themselves, or in a broad `Normal` (level 1) parent rule that its level 2-5 children then refine:
+
+- `premier niveau` - Level `1`, rule `true` (matches every item, names the top section)
+- `Armures` - Level `2`, Parent `premier niveau`, rule `type("armor")`
+- `Légères` - Level `3`, Parent `Armures`, rule `type("armorlight")`
+
+A light armor item then lands in `premier niveau----Armures----Légères`. The first matching rule claims the item at its level; a deeper rule of the same family (a level 2-5 category whose parent chain starts with that category) then takes it and nests it under the parent, whatever the bag's rule order. A `Normal` or level 1 parent therefore keeps only the items none of its children took - they display flat under it, before its sub-sections - and a rule of another family evaluated later never steals an item. The first rule naming a level wins among paths of equal depth, and a level without a matching rule is skipped. The level and parent of a category show in its tooltip in the category dropdowns.
+
 ## Rule Expression Creation
 The Rule section is where the actual decision making takes place. You are basically creating an expression which will evaluate to either true or false to say if the item is to be included (true) or excluded (false). (By the way, in Lua, anything that is not `true` is `false`.) Each item in the bag is evaluated against the rule, one after another and AutoCategory has a number of rule functions to be able to get information about or reason about the particular item being evaluated. These rule functions are used along with `and`s, `or`s, `not`s, and arithmetic comparisons in order to include/exclude items.
 

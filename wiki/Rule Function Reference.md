@@ -712,6 +712,111 @@ _Available Add-on Version:	1.03_
 
 No Arguments, will make more than one category
 
+## Auto Set Type (LibSets plugin)
+```lua
+autosettype()
+autosettype("Donjon")  -- French label
+autosettype("Arène")   -- French label
+autosettype("Dungeon") -- English label
+autosettype("Verlies") -- German label
+autosettype(6)
+```
+
+Requires the optional LibSets library. Like `autoset()`, returns a boolean and
+generates categories dynamically, but sets `AutoCategory.AdditionCategoryName`
+to `localized type----localized set name`, for example
+`Donjon----Nom du set` on a French client. This is a two-level (nested)
+category name (see [Creating Custom Categories](https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories)):
+the localized set type (`Arène`, `Artisanal`, ...) is the parent header and
+the localized set name a collapsible sub-header under it. In a level 2-5
+category, these dynamic levels nest under the category's parent chain
+(replacing the category's own name), so a level 2 child of an `Ensembles`
+level 1 category displays `Ensembles` -> set type -> set name.
+
+Without an argument, matches every set whose type is known to LibSets. The
+optional argument filters by a translated type name in any language LibSets
+provides (English, German, French, Spanish, Polish, Japanese, Russian,
+Chinese), such as `"Donjon"`, `"Arène"` or `"Verlies"`, regardless of the
+current UI language. Type names are
+matched case-insensitively. The only other accepted argument is a numeric
+type ID, such as `6` (or a Lua variable whose value is that number).
+Quoted exported constant names, constant suffix aliases and numeric strings
+are not resolved. For example, `"LIBSETS_SETTYPE_DUNGEON"` and `"6"` are
+invalid; `"DUNGEON"` matches the English translated name `"Dungeon"` on any
+UI language. Invalid filters raise a rule error when
+an identifiable set is evaluated. The plugin never looks up filter names
+in `_G`; AutoCategory's rule environment does not expose LibSets globals.
+
+If LibSets is installed but not fully loaded yet when AutoCategory starts,
+the rule function is registered anyway: it returns `false` (no match) while
+LibSets is still loading, then starts matching as soon as LibSets is ready -
+without a UI reload. If LibSets is not installed at all, the function is a
+dummy that always returns `false`.
+
+The live global `LibSets.setTypesToName` table defines the supported type
+IDs and translated names, and every language it contains is accepted for
+filter names. There is no copied
+`setTypeToLibraryInternalVariableNames` table or hardcoded type whitelist.
+If several type IDs have the same translated label, the label matches all
+of them; numeric IDs can still distinguish them.
+
+Initialization and rule evaluation use `if LibSets.fullyLoaded then`.
+The former local `isLibSetsAvailable()` and per-API compatibility checks are
+removed. LibSets remains optional: an absent library, or `fullyLoaded` false
+at initialization, registers a dummy rule returning `false`. There is no
+automatic late re-registration; initialize again or reload once LibSets is
+loaded. During rule evaluation, an absent library or a false `fullyLoaded`
+flag returns `false` without changing the dynamic name or sort key.
+A library declaring itself fully loaded is trusted to expose its required
+API/tables; missing or incompatible APIs now surface as errors.
+
+Displayed type names are read from
+`LibSets.setTypesToName[setType][LibSets.clientLang]`. `LibSets.clientLang`
+is LibSets' cached, normalized UI language, already defaulting unsupported
+languages to English. There is no `uiLanguage` variable, `GetCVar` call,
+additional language cache, or `GetSetTypeName` call in the plugin.
+Missing/empty labels use `LibSets.fallbackLang` (or `"en"` if absent).
+Filter names, unlike display names, are matched against every language in
+`LibSets.setTypesToName`, so a rule can use `"Dungeon"` on a French UI.
+ESO supplies set names in the UI language. Unknown set types or missing
+names return `false` without altering the dynamic name or sort key.
+
+The inventory sort has two alphabetical levels within the existing display
+priority: first the localized type name, then the localized set name within
+that type. Both come straight from the hierarchical category name through
+the CategoryTree key derivation, so one type name being a prefix of another
+does not let set names interfere with the type order. This uses raw Lua
+string ordering (case-sensitive, no accent-folding or dictionary collation).
+
+Keyboard and gamepad inventory/crafting/store paths derive the same key
+from the category name. Parent rule titles do not affect this two-level
+order. Display priorities remain dominant: use the same display priority
+for multiple `autosettype(...)` rules if they should share one alphabetical
+ordering. Ordinary categories keep their existing keys, headers still
+precede their items, and distinct labels always form distinct keys.
+
+Displayed headers are nested and collapsible at both levels: the parent
+header shows the localized set type with the total count of all its sets,
+each child header shows one set name with its own count. Both levels
+collapse independently through the usual `+`/`-` marker, context menu and
+header click, like any two-level category. On the gamepad, categories
+display as one-line `type - set name` headers. AutoCategory's existing
+"Show 'Set(name)' for autosets" setting still controls whether the parent
+rule name wraps this dynamic name.
+
+Add a rule using `autosettype()` to the desired bags. Give it a higher run
+priority than competing `autoset()` or `combined_autoset()` rules, or disable
+those rules in the same bags. AutoCategory's existing "Show 'Set(name)' for
+autosets" setting still controls whether the parent rule name wraps this
+dynamic name. Perfected and non-perfected sets remain separate.
+
+API references:
+[LibSets constants](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets_ConstantsLibraryInternal.lua),
+[LibSets API](https://github.com/DrNibble/LibSets/blob/LibSets-reworked/LibSets/LibSets.lua),
+[ESO live API](https://github.com/esoui/esoui/blob/live/ESOUIDocumentation.txt),
+[ESO table ordering](https://github.com/esoui/esoui/blob/live/esoui/libraries/utility/zo_tableutils.lua).
+
+
 ## Combined Auto Set
 ```
 combined_autoset()

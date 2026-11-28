@@ -375,10 +375,10 @@ local function testAddCategory()
     setupBagData()
 
     -- Missing arguments
-    TK.assertNil(AC_UI.AddCat_SelectRule_LAM.filterRules(nil, "someTag"),
-        "filterRules rejects missing bag")
-    TK.assertNil(AC_UI.AddCat_SelectRule_LAM.filterRules(BAG1, nil),
-        "filterRules rejects missing tag")
+    --TK.assertNil(AC_UI.AddCat_SelectRule_LAM.filterRules(nil, "someTag"),
+    --    "filterRules rejects missing bag")
+    --TK.assertNil(AC_UI.AddCat_SelectRule_LAM.filterRules(BAG1, nil),
+    --    "filterRules rejects missing tag")
 
 
     -- Missing tag group

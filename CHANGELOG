@@ -1,3 +1,357 @@
+[COLOR="DeepSkyBlue"] 5.1.4 (162) - fold a level-1 header again (2026-11-28)[/COLOR]:
+[LIST]
+[*] Clicking the level-1 header of a hierarchy whose top name has no rule of its own ("Potions" above "Potions----Magie----Soin") folds and unfolds its whole subtree again, and the state survives a refresh.
+[*] The collapse state now also knows the intermediate header levels, which the click used to look up in vain.
+[*] Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 5.1.3 (161) - the new strings in every language (2026-11-27)[/COLOR]:
+[LIST]
+[*] German, Spanish, Russian and Chinese receive the strings of the delete dialog, of its warning on the Delete button and of the two placements of a dropped category, plus the right-click sentence of the window hint.
+[*] The six keys now exist in every shipped language, with the quoting style of each file.
+[*] Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 5.1.2 (160) - choose the placement of a dragged category (2026-11-27)[/COLOR]:
+[LIST]
+[*] Dropping a category header onto another header in the inventory no longer nests it straight away: a small menu opens on the destination and offers to keep the category at level 1 or to make it a child of the destination.
+[*] A placement that cannot apply stays visible but inert (the destination is the category itself, one of its sub-categories or its current parent, the section would exceed level 5, or the category already is at level 1). When neither placement applies, no menu opens.
+[*] The drag and the existing Move To submenu now share one read-only plan, so both decide exactly the same way.
+[*] Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 5.1.1 (159) - delete a category from the left column (2026-11-27)[/COLOR]:
+[LIST]
+[*] Right-click a category in the left column of Manage Categories to delete it, after a confirmation dialog that carries the same warning as the Delete button of the category settings. The deletion removes the category from every inventory, and is refused while the manager holds pending edits.
+[*] A predefined category shows "read-only" next to its name in the left column and its delete entry is inert.
+[*] The Delete button of the category settings now shows that warning in its confirmation dialog and removes every copy of the category from an inventory.
+[*] Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 5.1.0 (158) - upstream 4.7 merged (2026-11-27)[/COLOR]:
+[LIST]
+[*] Category collapse expiry: a new "Category collapse expiry" entry in Settings -> General frees the collapsed categories that are no longer in the bag after 1, 7, 30 or 90 days, or never (7 days by default). Expanding a category clears its deadline, collapsing it starts a new one.
+[*] Collapse handling now lives in AC_Collapsed.lua; a category that leaves the inventory keeps its collapsed mark only until it expires, which keeps the Saved Variables small.
+[*] The predefined "Lower Level" rule includes level 1 gear again.
+[*] The unmatched gamepad entries no longer build their sort key from a category name that can be nil.
+[*] Gamepad lists are walked with ipairs, and the extended gamepad supplies defaults are back.
+[*] The tag dropdown takes a plain list of names (CVT:assignNE).
+[*] Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Show the whole rule of a category (2026-11-27)[/COLOR]:
+[LIST]
+[*] The Rule submenu of a category header wraps its text to the menu width instead of cutting it with an ellipsis, including a long isitemid() list. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Create categories from Manage Categories (2026-11-24)[/COLOR]:
+[LIST]
+[*] Open New Category from below the left column for the selected inventory. Apply or cancel pending edits before creating. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Sort the New Category parent dropdown by name (2026-11-24)[/COLOR]:
+[LIST]
+[*] List eligible parents alphabetically with None first, without changing inventory priorities. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Manage category branches from the list (2026-11-23)[/COLOR]:
+[LIST]
+[*] Add space under the inventory dropdown and display the selection’s level between the horizontal arrows.
+[*] Moving a branch in Display Priority keeps its descendants with it. Right-click the selection to copy it to other inventories, remove it from this inventory, or attach it to a named parent.
+[*] Changes and queued copies are saved with Apply. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Simplify display-priority labels (2026-11-23)[/COLOR]:
+[LIST]
+[*] Hide the numeric prefixes in Display Priority. Execution Priority still shows its numbers. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Switch inventories in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] The inventory dropdown starts on the inventory that opened the window and lets you manage any supported inventory.
+[*] Apply or cancel unsaved changes before switching inventories. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Match inventory display order in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] Display Priority uses the inventory's category order, keeping parents above their subcategories.
+[*] Reorder siblings without changing parent links or execution priorities. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Select multiple categories in Manage Categories (2026-11-23)[/COLOR]:
+[LIST]
+[*] Ctrl+click toggles a row, Shift+click selects a range, and Ctrl+Shift+click adds a range. The arrows now operate on the selection.
+[*] Switch between execution and display priority above the list. Horizontal arrows shift each selected branch only once. Changes remain in the draft until Apply. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Filter and change levels in Manage Categories (2026-11-22)[/COLOR]:
+[LIST]
+[*] The right list has its own name filter and uses three spaces of indentation per nested level. It stays sorted by execution priority.
+[*] Categories with no header in the inventory list that opened the manager are grey. Categories marked hidden are red.
+[*] The left and right arrows below the list raise or lower the selected category and its same-inventory subtree. Changes only take effect when you apply them. Levels are shared across inventories that use the same categories. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Shared inventory move destinations (2026-11-22)[/COLOR]:
+[LIST]
+[*] The header's Move To and the item's Move to Category show the same searchable category list, including empty and collapsed categories but not hidden ones. Subheaders use three spaces per level. Invalid destinations are dimmed.
+[*] Move to Category opens as a scrollable side submenu in the native item menu. Updated all six languages. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Choose a parent when creating an inventory category (2026-11-22)[/COLOR]:
+[LIST]
+[*] New Category preselects the clicked category if it can host a child. Select another category from this inventory or select no parent to create a Normal category as before.
+[*] A category created at level 5 has no hidden placeholder child. Updated all six languages. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Manage inventory categories (2026-11-20)[/COLOR]:
+[LIST]
+[*] The inventory header menu opens a persistent category manager with two 15-row scrollable lists. Search and add from the left; reorder on the right with arrows or dragging, or right-click to remove. Apply commits the draft for that inventory only.
+[*] The four reorder buttons use native ESO arrow textures in place of text glyphs.
+[*] No LibScrollableMenu dependency. Both category lists and the context menus use internal Lua/XML controls. Move To keeps its own filter. The tag selector uses ESO's native scrollable combo box. Not tested in ESO.
+[*] The game's System Menu and Inventory shortcuts close Manage Categories and discard the draft, just like Cancel.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Search only in Move To and category title in Rule (2026-11-19)[/COLOR]:
+[LIST]
+[*] Move To filters only its own destinations, keeping their order and indentation.
+[*] Rule displays the clicked category's name above its execution-priority slider.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] New Category dialog and required LibScrollableMenu (2026-11-19)[/COLOR]:
+[LIST]
+[*] LibScrollableMenu 2.44 or newer is required. Removed native menu fallbacks.
+[*] New Category uses a dedicated dialog with a name field and a scrollable dropdown for no tag, an existing tag, or a new tag. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Hover submenus for category headers (2026-11-19)[/COLOR]:
+[LIST]
+[*] Rule, Level, Move To and Copy To open as side submenus with LibScrollableMenu. Added a divider before Rule and another after its execution-priority slider. Move To indents destinations by two spaces per nested level. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Select multiple bags in Copy To (2026-11-19)[/COLOR]:
+[LIST]
+[*] With LibScrollableMenu, select one or more destination bags and apply the selection once. Red bags already contain the category and can be selected to overwrite matching per-bag entries. The native fallback still skips existing entries.
+[*] Updated all six languages. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Parent items before subcategories (2026-11-19)[/COLOR]:
+[LIST]
+[*] In categorized bags, a parent header is followed by its own items, then each subcategory and its items. Display priority still orders siblings, and rule matching is unchanged. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Search in Move To (2026-11-19)[/COLOR]:
+[LIST]
+[*] The Move To list uses LibScrollableMenu's search box to filter destinations by name as you type. The 15-row limit and original fallback submenu are unchanged. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Scrollable Move To menu (2026-11-19)[/COLOR]:
+[LIST]
+[*] With LibScrollableMenu installed, the category header's Move To entry opens a scrollable list of up to 15 visible rows. The same destinations are offered in the same order. Without the library the original submenu is retained. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Scrollable inventory item categories (2026-11-18)[/COLOR]:
+[LIST]
+[*] On keyboard, right-click an inventory item and select AutoCategory to open a scrollable list of the clicked bag's editable categories, in display order.
+[*] LibScrollableMenu is optional. Without it, the original submenu is retained. Standard item actions and category header menus are unchanged. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.27 (167), header menu rework, tag dropdown, predefined rules, collapse all (2026-11-16)[/COLOR]:
+[LIST]
+[*] Header right-click menu reworked: execution priority first, a "Level" submenu (move up / nest deeper / un-nest / move down, each within its existing limits), then Move To, Copy To, "Remove from display" and New Category last (removes the category from the clicked bag's list only; the global rule stays and its children move up one level - not hiding, not deleting the rule).
+[*] Predefined (protected) rules accept level and priority changes, and can be removed from the display of a bag (the protected rule itself is never deleted).
+[*] "Move Up"/"Move Down" (Level submenu and Display Order window): the category now takes the display priority of the category displayed just above/below and steps one past it (+1/-1); no displayed neighbor in the direction (alone in the bag, or at that end) means no move offered.
+[*] The neighbor search follows the visible display order of the bag: a hidden or empty category (no header displayed) is never a neighbor, and sub-level headers are not neighbors of a top-level category.
+[*] Level submenu entries carry a Unicode arrow picturing the operation: "↑" up, "↓" down, "→" nest deeper, "←" un-nest.
+[*] New Category: the tag is chosen in a dropdown directly beside the name edit box (existing tags, empty tag, "New Tag..."), replacing the follow-up context menu.
+[*] New Category dialog: the OK and Cancel buttons are now centered horizontally, on their texts (the key labels [E] / [ALT] sit left of them).
+[*] Fixed "Collapse All": it now folds every category of the bag, including the levels hidden under an already folded parent.
+[*] Translations updated (fr/en/de/es/ru/zh).
+[*] 3241 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.26 (166), autosettype under its category, new category visible, run priority (2026-11-15)[/COLOR]:
+[LIST]
+[*] autosettype (LibSets): the category name now heads the dynamic list - "Category----Type----Set name" - so the sets display under their category, for top-level and nested categories alike.
+[*] A new category is visible right away even with "Show Empty Categories" off: creation adds a hidden placeholder sub-category (a "false" rule, "Name (empty)") that never matches, but keeps the new category a structural parent so its header shows until items land in it. The placeholder can be edited or deleted like any category.
+[*] The header right-click menu shows the numeric execution priority of the category ("Execution Priority: N"), read-only; display order (Move Category Up/Down) is unchanged.
+[*] 3224 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.25 (165), tag choice, empty categories, priority moves (2026-11-15)[/COLOR]:
+[LIST]
+[*] New Category from the header right-click menu now asks for the tag: a context menu offers every existing tag, the empty tag and a "New Tag..." dialog.
+[*] New "Show Empty Categories" general setting (off by default): inventory lists show a zero-count header for every non-hidden category of the bag, even with no matching item (a new category is created with rule false, which is why it did not display).
+[*] "Move Category Up"/"Move Category Down" in the header right-click menu and the Display Order window: swap the display priority with the adjacent priority group, within the 2..1000 slider range; runpriority untouched.
+[*] 610 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.24 (164), tag dropdown fix and self-heal (2026-11-15)[/COLOR]:
+[LIST]
+[*] Fix the always-empty disabled tag dropdowns: the delivered CVT class silently ignored the plain tables every tag-dropdown call site assigned, so the tag lists were never populated. A shared helper now builds a real CVT source from the live tag list for all four call sites.
+[*] Tag dropdowns resynchronize their choices on every refresh and when the settings panel opens: tags created or removed during a session appear without a reload, and a bad startup no longer keeps the dropdown dead.
+[*] 463 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.23 (163), tag edit crash fix (2026-11-15)[/COLOR]:
+[LIST]
+[*] Fix "attempt to index a nil value" when the Edit Category tag editbox lost focus: the tag-change handler referenced dropdowns local to another file instead of their AC_UI handles. Setting or leaving the tag of a category created with the empty tag no longer errors out; the Add Category dropdowns now stay in sync.
+[*] 463 Lua 5.1 assertions pass (harness plus regression suites). Non testé dans ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.22 (162), named category creation (2026-11-15)[/COLOR]:
+[LIST]
+[*] Replace "New Sub-Level" in the header right-click menu with "New Category" and a name-entry dialog. Blank and duplicate names are refused without closing the dialog; cancellation creates nothing.
+[*] Create the category in the clicked bag at Normal level, without a parent, with rule false and the highest display priority. Do not open the category order window. If priority 1000 is occupied, compact existing display priorities while preserving their relative order and ties; execution priorities and other bags are unchanged.
+[*] Creation is also available on ungrouped/predefined headers and at level 5. 2705 Lua 5.1 assertions pass. Non testé dans ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.21 (161), guild bank cleanup (2026-11-15)[/COLOR]:
+[LIST]
+[*] Remove temporary guild-bank traces, /acgbtrace, /acdebug, diagnostic logs, empty-list retries and polling timers.
+[*] Keep category-aware sorting before each rebuilt list commit, collapsed-parent sort keys and valid scroll positions. Existing item-update handling and the original logger are unchanged.
+[*] 2634 Lua 5.1 assertions pass. The user confirmed 4.6.20 working in ESO; this cleaned 4.6.21 build has not yet been tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.20 (160), guild bank ordering fix (2026-11-15)[/COLOR]:
+[LIST]
+[*] Rebuilt keyboard inventory lists are now sorted before being committed, including delayed empty-list retries that could otherwise move all headers below the items after a successful sort.
+[*] Obsolete guild bank retries are ignored, and fully collapsed parent headers keep their sort priorities across rebuilds.
+[*] Diagnostic traces flag missing header sort keys; manual visual markers still work after the automatic log limit. 2677 Lua 5.1 assertions pass. Not tested in ESO.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] 4.6.19 (159), diagnostic build (2026-11-15)[/COLOR]:
+[LIST]
+[*] New opt-in /acgbtrace on|off|mark <symptom>|dump: observe the keyboard guild bank from list rebuild/clear through sorting, commit and header rendering, with ordering checks, filter reasons, enabled addon versions and bounded caller stacks (LibDebugLogger Info, prefix [ACGB]).
+[*] This diagnostic does not add sorting or repair. The visual guild bank defect is not declared fixed. Not tested in ESO. Capture and Swiss Knife comparison instructions: wiki/Guild Bank Diagnostics.md.
+[/LIST]
+
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 21)[/COLOR]:
+[LIST]
+[*] The guild bank list is now polled for about four seconds after another guild bank is selected, and whenever items are displayed without their category headers the full list update runs (UpdateList, which sorts and commits through the addon's sort hook) - the same refresh the filter reset of Advanced Filters performs, which is known to restore the headers. The direct rebuild of entry (20) could be bypassed by the other addons that filter the inventory lists.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 20)[/COLOR]:
+[LIST]
+[*] Switching to another guild bank no longer leaves the guild bank list without its category headers: the list is rebuilt with its headers when the new guild's items arrive (EVENT_GUILD_BANK_ITEMS_READY, 100 ms after the event so the stock rebuild of the list finishes first).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 19)[/COLOR]:
+[LIST]
+[*] New "Move To" submenu in the right click of a category header: it moves the category and the categories nested under it under another category of the same bag (the candidates in the display order of the bag, never the category itself, its nested categories, its current parent or a category the section does not fit under), the category becomes a child of the chosen target and its whole section shifts with it, parents kept. The first entry moves the section back to the top level (a Normal category without a parent).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 18)[/COLOR]:
+[LIST]
+[*] The level operations of the category header right click ("Increase Level", "Decrease Level", "New Sub-Level", "Delete Level") are now direct entries of the menu instead of an "AutoCategory" submenu, and the copy entries moved into a "Copy To" submenu listing the other inventories, one entry per inventory (a submenu cannot hold a submenu in ESO, which is why the two groups sit side by side). The copy behavior is unchanged: the global rules are reused, the categories already present in the destination bag are skipped, and the missing ancestors are copied along.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 17)[/COLOR]:
+[LIST]
+[*] The SavedVariables file no longer keeps the data that is never read: the per-character bag category lists and collapse states of characters using account-wide settings (including the old "priority" format of previous versions) are removed from every account's section, and the default values of the bag rules (runpriority 1000, showpriority equal to runpriority, isHidden false) are no longer written to disk (they are filled back when the file is loaded, with the same values). On the 1.5 MB file this was measured with, the file drops to about 0.7 MB. Switching a character back from account-wide to character specific settings recreates its default categories instead of showing an empty bag.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-14, 16)[/COLOR]:
+[LIST]
+[*] Right-clicking a category header in an inventory list shows an "AutoCategory" submenu operating on the clicked category and every category nested under it: "Increase Level" and "Decrease Level" move the whole family one level deeper or shallower (not offered past level 5; level 1 becomes a plain Normal category, with the automatic parent on the way up), "New Sub-Level" creates a new category under it with the rule false, "Delete Level" removes the category from the clicked bag only and moves its nested categories up one level under its own parent, and "Copy to: <bag>" entries copy the category and its nested categories to another bag (the global rules are reused, the categories already present there are skipped, and the missing ancestors are copied along so the level keeps its place).
+[/LIST]
+[COLOR="DeepSkyBlue"] 4.6.18 (158)[/COLOR]:
+[B]-[/B] New /acdebug command (on/off) to toggle the debug logging of AutoCategory at runtime, for diagnosing the guild bank display issues (LibDebugLogger must have its minimum log level set to "Debug" to record the entries)
+
+[COLOR="DeepSkyBlue"] 4.6.17 (157)[/COLOR]:
+[B]-[/B] Guild bank: the list is polled for about 10 seconds after a guild bank switch and sorted again with ApplySort whenever items are displayed without category headers or without their rule results (safer than the previous full list update, which could empty the list)
+[B]-[/B] Debug logs (LibDebugLogger, prefix [AC]) added around the guild bank refresh for diagnosing remaining display issues
+[B]-[/B] Version number displayed in the addon settings now matches the manifest
+
+[COLOR="DeepSkyBlue"] 4.6.16 (156)[/COLOR]:
+[LIST]
+[*] Fixed a Lua error in ZO_ScrollList_UpdateScroll ("operator < is not supported for nil < number") when scrolling a list or a shared dropdown after a guild bank rebuild: replacing a scroll list's data now always commits the list so every entry (including category headers) receives its scroll position.
+[*] updateHook no longer fails silently when started without an inventory.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-11, 15)[/COLOR]:
+[LIST]
+[*] Right-clicking an item in the inventory shows an "AutoCategory" submenu with the categories (levels) of the bag the item is in; selecting a category adds the itemId of the item to the isitemid() command of that category's rule - appended as " or isitemid(<itemId>)" when the command is missing, or added to its parameters when it already exists - and the item lands in the category. Predefined rules are not offered (not editable).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-10, 14)[/COLOR]:
+[LIST]
+[*] The Import/Export section of the bag settings has a new function next to "Import From Bag" and its Import button: a "Categories To Import" multi-select dropdown and an "Import Selected Categories" button import only the selected categories from the source bag into the current bag (a same-name category of the current bag is replaced, the rest is kept); the choices of the dropdown depend on the source bag, and the whole bag import is unchanged.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-10, 13)[/COLOR]:
+[LIST]
+[*] Categories are tied to a bag, and the levels know it: the Parent dropdown of Edit Category only offers the categories of the bag being edited (a category of another bag - a bank category for an inventory category - is never offered as a parent), a parent of another bag is refused, and the display no longer nests a category under a parent that is not a section of its bag.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 12)[/COLOR]:
+[LIST]
+[*] "Lower level" and "Raise level" in the right-click menu of a category header in the inventory now fold and unfold the sub-levels under the category instead of stepping the level of its rule: "Lower level" collapses every lower-level header (the category itself stays expanded, with its own items and its folded sub-headers), "Raise level" expands the category when folded and every folded sub-level with it. An entry that cannot apply is not shown.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 11)[/COLOR]:
+[LIST]
+[*] The right-click menu of a category header in the inventory has two new entries, next to Collapse/Expand: "Lower level" and "Raise level" step the level of the category by one (Normal to 1 to 5 and back down, with the automatic Parent on the way up); the entry that cannot apply is not shown, and headers without a category of their own (ungrouped, dynamic set names) do not get them.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 10)[/COLOR]:
+[LIST]
+[*] Choosing a level 2-5 (Level dropdown of Edit Category or right-click "Set level" in the Category Display Order window) now attaches the Parent automatically when the category has none: the nearest category of the level just below in the display order of the bag, or the first one when it sits above them all. Normal categories are never chosen, and a Parent already set is never touched (the Parent dropdown can still change it).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 9)[/COLOR]:
+[LIST]
+[*] The Parent dropdown of Edit Category only offers categories with an explicit level of exactly one below (a level 1 category for a level 2 child): Normal categories are no longer listed (the current parent stays visible so it can be changed). A Normal category still counts as level 1 when matching.
+[*] autosettype() now works in a level 2-5 category: the set type and set name sections nest under the category's parent chain (previously the dynamic name was dropped and the set items displayed flat under the category).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 8)[/COLOR]:
+[LIST]
+[*] The context menu of the Category Display Order window (right click on a category) has a new "Set level" entry with the same Normal and 1-5 choices as the Level dropdown of Edit Category (the current level is shown in gold); both use the same shared level change.
+[*] autosettype() now works as soon as the LibSets library finished loading, even when it was not ready when AutoCategory started: previously a not-yet-loaded LibSets made the rule return false for the whole session (the sets then fell through to the broad gear categories) until a UI reload.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 7)[/COLOR]:
+[LIST]
+[*] The Level dropdown tooltip now documents the rule of a level category: false makes it display-only - it holds no item itself, only its children's sections show under it; true (or any condition) also keeps the matched items that no child took, flat under the section.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 6)[/COLOR]:
+[LIST]
+[*] A Normal category now counts as level 1, exactly like an explicit level 1: a broad Normal parent no longer swallows every item it matches - its level 2-5 children take their items and nest them under the parent, and the parent keeps the rest flat, before its sections, whatever the rule order. A later rule only refines the recorded path within the same family; the first matching rule otherwise wins.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 5)[/COLOR]:
+[LIST]
+[*] A Normal or level 1 category now displays first, followed by its level 2+ sections with their items (reverts the previous order), and fixed the inventory bug where a Normal or level 1 category following a level 2+ rule no longer displayed: the level category keeps the items it matches, the parent keeps the rest, whatever the evaluation order. The Categories list sorts the same way (parent first, then its level sections).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 4)[/COLOR]:
+[LIST]
+[*] Normal and level 1 categories now display after the level 2+ sections: in the bag the parent category's own items come after its nested sections (same priority), and in the Category Display Order window and the Categories dropdowns the level 2-5 categories list before the Normal and level 1 ones.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 3)[/COLOR]:
+[LIST]
+[*] The Categories dropdowns now show the level of the category after the display priorities (localized "Level: n"), and the Category Display Order window indents each category according to its level (one indentation per level below the first).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08, 2)[/COLOR]:
+[LIST]
+[*] A Normal category now counts as a level 1 category in the Parent dropdown: a level 2 category can be nested under a Normal category. Levels 3-5 still require a parent of the level just below, and a Normal or level 1 category never has a parent itself.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-08)[/COLOR]:
+[LIST]
+[*] Fixed the empty Parent dropdown in Edit Category (the choices never reached it) and filtered it by level: the parent of a level 2 category is chosen among the level 1 categories, and so on for levels 3-5; a parent whose level no longer matches stays visible so it can be changed.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-07, 3)[/COLOR]:
+[LIST]
+[*] Fixed "Maximum call depth of 10000 exceeded" when using the Edit Category panel: the Level and Parent dropdown updates no longer call their own setFunc back (display refreshes use UpdateValue without a value, and the setFuncs ignore unchanged values).
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-07, 2)[/COLOR]:
+[LIST]
+[*] New Parent dropdown in Edit Category, next to Level: for a level 2-5 category it chooses the category under which this one is nested, and the sub-menu path is the parent chain (the parent, its own parent, and so on). Sibling level-2 sections under the same parent now nest correctly; a dangling parent stops the chain; a parent that would create a cycle is refused. Selecting a Level fills an empty rule text with true (a level category is a display section named after its category), and the level and parent of a category now show in its tooltip.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-07)[/COLOR]:
+[LIST]
+[*] New Level dropdown in Edit Category (next to Name and Tag): sets the sub-menu level of the category - Normal (default) is the ordinary flat category, 1 is a top-level section that keeps evaluating deeper levels, 2-5 are nested sub-sections. This replaces and removes the leveldisplay(depth, section) rule function: a former leveldisplay(2, type("armor")) becomes a rule with Level 2 and rule text type("armor"), the section being always named after the rule. The first rule naming a level wins it, levels without a matching rule are skipped, and an ordinary rule matching after an open path joins it as the deepest level.
+[/LIST]
+[COLOR="DeepSkyBlue"] Unreleased (2026-11-05)[/COLOR]:
+[LIST]
+[*] New leveldisplay(depth, section) rule function: builds nested categories from several rules, e.g. leveldisplay(1, "premier niveau"), leveldisplay(2, type("armor")), leveldisplay(3, type("armorlight")) categorize a light armor item as "premier niveau----Armures----Légères". depth is any whole level number (not only 1-3); a string section names the level explicitly, a condition section (a rule call) takes the rule's own name. The first rule naming a level wins it, levels without a matching rule are skipped, and an ordinary rule matching after an open path joins it as the deepest level.
+[*] Nested categories now support any number of levels (not only two): every separator "----" adds a deeper collapsible header, and collapsing any level hides every deeper level under it, whatever the state of the levels in between. A category with its own items plus deeper levels now totals both in its header count.
+[*] autosettype() (LibSets plugin) now categorizes set items as nested collapsible sections: one parent header per localized set type (Arène, Artisanal, ...) showing the total count of its sets, and one collapsible child header per set name. Gamepad shows one-line "type - set name" headers. The dynamic name is no longer wrapped in the rule name when "Show 'Set(name)' for autosets" is enabled, so the two levels stay intact.
+[*] Two-level collapsible categories: a category name containing "----" displays as a parent header with collapsible child headers (keyboard inventory), e.g. "Potions----Magie" and "Potions----Santé" under "Potions". Gamepad shows "parent - child" one-line headers.
+[*] autosettype() string filters now accept a set type name in any LibSets language (English, German, French, Spanish, Polish, Japanese, Russian, Chinese), not only the current UI language. Displayed names still follow the UI language.
+[*] Read type labels directly from LibSets.setTypesToName and sort set categories by localized type, then by set name. Share the key across keyboard/gamepad paths while keeping display priority and ordinary categories unchanged.
+[*] Use LibSets.fullyLoaded directly; remove isLibSetsAvailable and the copied type mapping. Detect types and translated filter names from the live LibSets.setTypesToName table.
+[*] Added optional LibSets plugin: autosettype([type]) dynamically categorizes set items as nested "localized type----set name" sections.
+[*] Supports live LibSets set types and filtering only by numeric ID or cached-UI-language type name. Remove global constant-name/suffix resolution.
+[*] Use LibSets.clientLang, its cached UI default, and LibSets.fallbackLang (English). No plugin uiLanguage variable or GetCVar call.
+[*] Missing LibSets or unavailable set data returns false. Existing rules are not changed automatically.
+[*] Verified offline with Lua 5.1; not tested in ESO.
+[/LIST]
+
 [COLOR="DeepSkyBlue"] 4.6.15 (155)[/COLOR]:
 [LIST]
 [*] Fixed bag priority sort errors for the Display Order List.

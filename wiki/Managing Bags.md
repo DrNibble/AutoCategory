@@ -41,6 +41,36 @@ Looks like:
 
    Bags can be customized separately.
 
+   You can also right-click an inventory category header
+   and select **New Category**. Enter a unique name in the popup; blank names
+   and names already used by another category are refused, including names
+   differing only in letter case. Cancel leaves the categories unchanged.
+
+   Choose a **Parent** in the dropdown to place the new category directly
+   under an existing category from this bag. The clicked header is
+   preselected if eligible. Normal categories count as level 1; parents
+   can be at levels 1 through 4. Choose **(none)** to create a Normal
+   category without a parent.
+
+   The new category is added only to the clicked bag with the rule
+   `false`. It automatically receives the highest
+   display priority, without opening the category display order window.
+   If priority 1000 is already occupied, existing display-priority groups
+   are compacted below it without changing their relative order or ties.
+   Execution priorities and other bags are unchanged. If all 999 distinct
+   priorities from 2 through 1000 are occupied, creation is refused without
+   changing existing categories. The new category can display an empty
+   header during the current session even though `false` matches no
+   items. Assign items or nest matching categories under it when you
+   want it to contain inventory entries.
+
+   **Move To** on a category header and **Move to Category** on an item
+   open a searchable side submenu. They show the same categories from
+   the current bag, including empty or collapsed categories, but not
+   hidden categories. Two spaces indicate each level below the root.
+   Invalid hierarchy moves are disabled in the header menu. Predefined
+   rules are visible but cannot be changed from the item menu.
+
 4. Customize a category
 
    You can change a category's name, description, tag or even its rule to make better use of them. You can find examples of custom rules on the [Creating Custom Categories](https://github.com/Shadowfen/AutoCategory/wiki/Creating-Custom-Categories) page.

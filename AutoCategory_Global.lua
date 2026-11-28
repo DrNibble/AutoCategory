@@ -14,10 +14,10 @@ local SF = LibSFUtils
  
 AutoCategory = {
     name = "AutoCategory",
-    version = SF.colors.gold("4.6.15"),
+    version = SF.colors.gold("5.1.3"),
     settingName = "AutoCategory",
     settingDisplayName = SF.colors.gold("AutoCategory - Revised"),
-    author = SF.colors.purple("Shadowfen, crafty35, RockingDice, Friday_the13_rus"),
+    author = SF.colors.purple("Shadowfen, crafty35, RockingDice, Friday_the13_rus, @Altorus13"),
 
     RuleFunc = {},  -- collection of internal and plugin rule functions
     Plugins = {},   -- registered plugins
@@ -28,6 +28,7 @@ AutoCategory = {
     rules = {},	--  [#] rule {rkey, name, tag, description, rule, pred, damaged, err}
     ARW = {},
     BulkMode = false,
+    categoryState = {}
 }
 
 -- Create the delayed instantiation logger functor and utility functions for AutoCategory.

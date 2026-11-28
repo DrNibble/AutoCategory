@@ -1,15 +1,15 @@
 ## Title: AutoCategory
 ## APIVersion: 101050 101051
-## Author: Shadowfen, crafty35a, RockingDice, Friday_the13_rus
+## Author: Shadowfen, crafty35a, RockingDice, Friday_the13_rus, @Altorus13
 ## Description: Inventory categorization. Type "/ac" for settings
-## Version: 4.6.15
-## AddOnVersion: 155
+## Version: 5.1.4
+## AddOnVersion: 162
 ## IsLibrary: false
 ## SavedVariables: AutoCategorySavedVars AutoCatRules
-## DependsOn: LibAddonMenu-2.0>=43 LibCustomMenu>=730 LibSFUtils>=77 LibMediaProvider>=36 
+## DependsOn: LibAddonMenu-2.0>=43 LibCustomMenu>=730 LibSFUtils>=78 LibMediaProvider>=36 
 ## DependsOn: LibDebugLogger>=307
 ## OptionalDependsOn: GearChangerByIakoni FCOItemSaver QuickMenu ItemSaver ItemSaverLite ItemMarker UnknownTracker
-## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom
+## OptionalDependsOn: MasterMerchant TamrielTradeCentre SetTrack CharacterKnowledge DressingRoom LibSets
 
 
 lang/strings.lua
@@ -19,8 +19,13 @@ ZOS_Overwrites.lua
 
 AutoCategory_Global.lua
 AutoCategory_Defaults.lua
+AutoCategory_Tree.lua
 Plugin_API.lua
-AutoCategory.xml
+XML/AutoCategory_OrderList.xml
+XML/AutoCategory.xml
+XML/AutoCategory_ScrollMenu.xml
+AutoCategory_ScrollMenu.lua
+AutoCategory_OrderList.lua
 Hooks_Keyboard.lua
 Hooks_Gamepad.lua
 classes/CVT.lua
@@ -29,7 +34,12 @@ classes/RuleList.lua
 classes/BagRuleApi.lua
 classes/BaseUI.lua
 ;misc/MiscDebugFuncs.lua
+AC_Collapsed.lua
 AutoCategory.lua
+AutoCategory_LevelMenu.lua
+AutoCategory_CategoryManagement.lua
+SavedVarsCompact.lua
+PredefinedLayouts.lua
 
 settings/UI_Utilities.lua
 settings/GeneralMenu.lua
@@ -44,6 +54,7 @@ AutoCategory_RuleFunc.lua
 AutoCategory_API.lua
 
 plugins/Misc_Plugins.lua
+plugins/LibSets_Plugin.lua
 
 ; new style addon plugin files
 plugins/ItemMarker_Plugin.lua
@@ -56,4 +67,4 @@ plugins/DressingRoom2018_Plugin.lua
 ; old integration with other addons files
 AutoCategory_Integrations_QuickMenu.lua
 
-Bindings.xml
+XML/Bindings.xml

@@ -889,7 +889,6 @@ function AutoCategory.RuleFunc.Level( ... )
 	--local fn = "level"
 	return GetItemRequiredLevel(AutoCategory.checking.BagId, AutoCategory.checking.SlotIndex)
 end
-
 function AutoCategory.RuleFunc.CPLevel( ... )
 	--local fn = "cp"
 	return GetItemRequiredChampionPoints(AutoCategory.checking.BagId, AutoCategory.checking.SlotIndex)

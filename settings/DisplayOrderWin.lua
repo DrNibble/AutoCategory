@@ -11,7 +11,16 @@ local DEFAULT_SCROLL_HEIGHT = 400
 
 -- create a row for the category order scroll list
 local function setupDataRow(rowControl, data, scrollList)
-    rowControl:SetText(data:formatShow())
+    local text = data:formatShow()
+    -- indent the category according to its level: level 1 and Normal
+    -- categories are not indented, each deeper level adds one indent
+    local rule = data.getBackingRule and data:getBackingRule()
+    local level = rule and rule.level
+    if type(level) == "number" and level >= 2 and level <= 5
+        and level == math.floor(level) then
+        text = string.rep("    ", level - 1) .. text
+    end
+    rowControl:SetText(text)
     rowControl:SetFont("ZoFontWinH4")
 
     -- mouse handler for each row
@@ -27,6 +36,44 @@ local function setupDataRow(rowControl, data, scrollList)
                 local shortname = selectedData.name
 
                 -- Add the varioius menu items to the context menu
+                -- AddMenuItem entries below use the plain ZO menu;
+                -- AddCustomSubMenuItem comes from LibCustomMenu (a hard
+                -- dependency of the addon).
+
+                -- Set the level of the category (Normal or 1-5): the same
+                -- action as the level dropdown of Edit Category, applied
+                -- with a right click.
+                local rule = AutoCategory.GetRuleByName(shortname)
+                if rule and not rule:isPredefined() then
+                    local currentLevel = AC_UI.CatSet.GetRuleLevel(rule)
+                    -- 0 is "no level" (Normal): SetRuleLevel reads it as such
+                    local levelValues = { 0, 1, 2, 3, 4, 5 }
+                    local levelLabels = {
+                        GetString(SI_AC_MENU_EC_DROPDOWN_LEVEL_NORMAL),
+                        "1", "2", "3", "4", "5",
+                    }
+                    local entries = {}
+                    for i = 1, #levelValues do
+                        local value = levelValues[i]
+                        local label = levelLabels[i]
+                        if value == currentLevel then
+                            -- mark the level the category currently has
+                            label = "|cEECA7A" .. label .. "|r"
+                        end
+                        entries[#entries + 1] = {
+                            label = label,
+                            callback = function()
+                                AC_UI.BagSet.SelectRule(shortname)
+                                AC_UI.CatSet.SetRuleLevel(rule, value)
+                                AC_UI.BagSet_RefreshOrder()
+                            end,
+                        }
+                    end
+                    AddCustomSubMenuItem(
+                        GetString(SI_AC_MENU_DSO_SUBMENU_LEVEL), entries
+                    )
+                end
+
                 if not AC_UI.BagSet_GetHideCatStatus(shortname) then
                     AddMenuItem(
                         GetString(SI_AC_MENU_BS_HIDE_CAT),
@@ -52,6 +99,35 @@ local function setupDataRow(rowControl, data, scrollList)
                         AC_UI.BagSet_RefreshOrder()
                     end
                 )
+                -- move the category one display position up/down:
+                -- take the display priority of the category displayed
+                -- just above/below and step one past it, inside the
+                -- 2..1000 range
+                local CLMv = AutoCategory.CategoryLevelMenu
+                if CLMv and CLMv.CanMoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, 1) then
+                    AddMenuItem(
+                        GetString(SI_AC_MENU_CM_MOVE_UP),
+                        function()
+                            if CLMv.MoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, 1) then
+                                AutoCategory.cacheInitialize()
+                                AC_UI.BagSet_RefreshOrder()
+                                AutoCategory.RefreshCurrentList()
+                            end
+                        end
+                    )
+                end
+                if CLMv and CLMv.CanMoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, -1) then
+                    AddMenuItem(
+                        GetString(SI_AC_MENU_CM_MOVE_DOWN),
+                        function()
+                            if CLMv.MoveCategoryPriority(AutoCategory.getCurrentBagId(), shortname, -1) then
+                                AutoCategory.cacheInitialize()
+                                AC_UI.BagSet_RefreshOrder()
+                                AutoCategory.RefreshCurrentList()
+                            end
+                        end
+                    )
+                end
                 AddMenuItem(
                     GetString(SI_AC_MENU_BS_BUTTON_EDIT),
                     function()
@@ -161,8 +237,8 @@ local winData = {
     prefix = "DisplayOrder",
     visible = false,
 
-    minWidth = 220,
-    minHeight = 150,
+    minWidth = 400,
+    minHeight = 600,
 }
 
 
@@ -339,8 +415,8 @@ function AC_UI.DspWin:New()
 
     scrollData.parent = win
 
-    local minWidth = winData.minWidth or 220
-    local minHeight = winData.minHeight or 150
+    local minWidth = winData.minWidth or 400
+    local minHeight = winData.minHeight or 600
     local visible = winData.visible or false
     win.winData = winData
 

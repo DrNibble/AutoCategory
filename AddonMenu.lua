@@ -61,6 +61,13 @@ local function RefreshPanel()
 	--restore warning
 	warningDuplicatedName.warningMessage = nil
 
+	-- LAM2 fires LAM-RefreshPanel when the panel opens and whenever a
+	-- control value changes: resynchronize the dropdown lists and the
+	-- controls that show them, so a dropdown left empty by a bad startup
+	-- recovers as soon as the panel is opened, not only after a reload.
+	AC_UI.RefreshDropdownData()
+	AC_UI.RefreshControls()
+
 end
 
 -- increase the size of the editbox for a rule definition

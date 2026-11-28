@@ -2,7 +2,9 @@
 local LMP = LibMediaProvider
 local SF = LibSFUtils
 
-local logDebug = AutoCategory.logDebug
+-- Two-level collapsible categories: a category name containing "----" is
+-- displayed as a parent header with collapsible child headers.
+local CategoryTree = AutoCategory.CategoryTree
 
 
 -- uniqueIDs of items that have been updated (need rule re-execution),
@@ -133,6 +135,9 @@ local function setup_InventoryItemRowHeader(rowControl, slot, overrideOptions)
 	local cateName = data.AC_categoryName
 	local bagTypeId = data.AC_bagTypeId
 	local num = data.AC_catCount
+	local headerLevel = data.AC_headerLevel or 1
+	local displayName = data.AC_displayName or cateName
+	local indent = (headerLevel - 1) * 30
 	
 
 	-- Determine header color.
@@ -158,16 +163,26 @@ local function setup_InventoryItemRowHeader(rowControl, slot, overrideOptions)
 	local r,g,b,a = colorArr[1], colorArr[2], colorArr[3], colorArr[4]
 	headerLabel:SetColor(r,g,b,a)
 
+	-- Child headers are indented under their parent.
+	headerLabel:ClearAnchors()
+	headerLabel:SetAnchor(BOTTOMLEFT, rowControl, BOTTOMLEFT, 60 + indent, 0)
+	headerLabel:SetAnchor(TOPRIGHT, rowControl, TOPRIGHT, -10, 0)
+
 	-- Add count to category name when enabled
     if acctSaved.general["SHOW_CATEGORY_ITEM_COUNT"] then
-        headerLabel:SetText(string.format('%s |[%d]|r', cateName, num))
+        headerLabel:SetText(string.format('%s |[%d]|r', displayName, num))
 
     else
-        headerLabel:SetText(cateName)
+        headerLabel:SetText(displayName)
     end
 
 	-- set the collapse marker
 	local marker = rowControl:GetNamedChild("CollapseMarker")
+	marker:ClearAnchors()
+	marker:SetAnchor(CENTER, rowControl, LEFT, 40 + indent, 0)
+	local markerBG = rowControl:GetNamedChild("CollapseMarkerBG")
+	markerBG:ClearAnchors()
+	markerBG:SetAnchor(CENTER, rowControl, LEFT, 40 + indent, 0)
 	local collapsed = AutoCategory.IsCategoryCollapsed(bagTypeId, cateName)
 	if acctSaved.general["SHOW_CATEGORY_COLLAPSE_ICON"] then
 		marker:SetHidden(false)
@@ -215,6 +230,10 @@ local function createHeaderEntry(catInfo)
 			AC_bagTypeId = catInfo.AC_bagTypeId,
 			AC_isHeader = true,
 			AC_catCount = catInfo.AC_catCount,
+			AC_parentName = catInfo.AC_parentName,
+			AC_isParent = catInfo.AC_isParent,
+			AC_headerLevel = catInfo.AC_headerLevel or 1,
+			AC_displayName = catInfo.AC_displayName or catInfo.AC_categoryName,
 			stackLaunderPrice = 0,
 
 			statusSortOrder = 0,
@@ -249,19 +268,26 @@ local function isHiddenEntry(itemEntry)
     local data = itemEntry.data
 
     if data.AC_isHidden then
-        return true
+        return true, data.AC_matched == false and "ungrouped-hidden" or "rule-hidden"
     end
 
     local bagTypeId = data.AC_bagTypeId
     if bagTypeId == nil then
-        return true
+        return true, "missing-bag-type"
     end
 
     if not data.AC_matched and isUngroupedHidden(bagTypeId) then
-        return true
+        return true, "ungrouped-hidden"
     end
 
-    return AutoCategory.IsCategoryCollapsed(bagTypeId, data.AC_categoryName)
+    -- Items and headers under a collapsed level are hidden, whatever
+    -- the state of the levels in between.
+    if CategoryTree.IsAnyAncestorCollapsed(bagTypeId, data.AC_categoryName) then
+        return true, "ancestor-collapsed"
+    end
+
+    return AutoCategory.IsCategoryCollapsed(bagTypeId, data.AC_categoryName),
+        "category-collapsed"
 end
 
 local function isCollapsed(itemEntry)
@@ -291,7 +317,7 @@ local function runRulesOnEntry(itemEntry, specialType)
 	local bagId = data.bagId
 	local slotIndex = data.slotIndex
 
-	local matched, categoryName, categoryPriority, showPriority, bagTypeId, isHidden 
+	local matched, categoryName, categoryPriority, showPriority, bagTypeId, isHidden, sortKey
 				= AutoCategory:MatchCategoryRules(bagId, slotIndex, specialType)
 	data.AC_matched = matched
 	data.AC_bagTypeId = bagTypeId
@@ -300,11 +326,14 @@ local function runRulesOnEntry(itemEntry, specialType)
 
 	if matched then
 		data.AC_categoryName = categoryName
+		data.AC_parentName = CategoryTree.ParentOf(categoryName)
 		-- use string.format for the zero-padding ability to maintain a fixed-width numeric prefix.
-		data.AC_sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName)
+		data.AC_sortPriorityName = sortKey or CategoryTree.BuildSortKey(showPriority, categoryName,
+			AutoCategory.GetCategorySortName(categoryName))
 		data.AC_isHidden = isHidden
 
 	else
+		data.AC_parentName = nil
 		data.AC_categoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
 		data.AC_sortPriorityName = "9999" .. data.AC_categoryName
 		-- if was not matched, then the isHidden value that was returned is not valid
@@ -448,14 +477,65 @@ end
 -- The categoryList info is collected and then each entry is passed
 -- to createHeaderEntry() to make a header row
 local cnsd_categoryList = {} -- [name] {AC_catCount, AC_sortPriorityName,
-                        	 --         AC_categoryName, AC_bagTypeId }
+                        	 --         AC_categoryName, AC_bagTypeId,
+                        	 --         AC_parentName (children only) }
+-- The headerList info of the intermediate levels of hierarchical names
+-- ("a" and "a----b" for "a----b----c") is collected the same way and
+-- produces the level headers above the categories themselves.
+local cnsd_headerList = {}  -- [headerName] { AC_catCount, AC_sortPriorityName,
+                        	 --              AC_categoryName, AC_bagTypeId,
+                        	 --              AC_isParent, AC_headerLevel }
 --- Create list with visible items and headers (performs category count).
 local function createNewScrollData(scrollData)
     local newScrollData = {}
 
     cnsd_categoryList = SF.safeClearTable(cnsd_categoryList)
+    cnsd_headerList = SF.safeClearTable(cnsd_headerList)
 
     local otherCategory = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
+
+    -- Ensure a header info exists for an intermediate level of a
+    -- hierarchical category name.
+    local function ensureHeaderInfo(headerName, level, bagTypeId)
+        local headerInfo = cnsd_headerList[headerName]
+
+        if not headerInfo then
+            headerInfo = {
+                AC_categoryName     = headerName,
+                AC_bagTypeId        = bagTypeId,
+                AC_catCount         = 0,
+                AC_sortPriorityName = nil,
+                AC_isParent         = true,
+                AC_headerLevel      = level,
+                AC_displayName      = CategoryTree.DisplayName(headerName),
+            }
+
+            cnsd_headerList[headerName] = headerInfo
+        end
+
+        return headerInfo
+    end
+
+    -- Feed an entry's contribution to every header level above its
+    -- category, keeping the smallest (best priority) sort key seen.
+    local function feedAncestors(categoryName, bagTypeId, sortKey, contribution)
+        local levels = CategoryTree.Levels(categoryName)
+        if levels == nil or #levels < 2 then
+            return
+        end
+        for level = 1, #levels - 1 do
+            local headerName =
+                table.concat(levels, CategoryTree.SEPARATOR, 1, level)
+            local headerInfo = ensureHeaderInfo(headerName, level, bagTypeId)
+            headerInfo.AC_catCount = headerInfo.AC_catCount + contribution
+
+            local headerKey = CategoryTree.LevelSortKey(sortKey, level)
+            if headerKey and (headerInfo.AC_sortPriorityName == nil
+                or headerKey < headerInfo.AC_sortPriorityName) then
+                headerInfo.AC_sortPriorityName = headerKey
+            end
+        end
+    end
 
     -- Create newScrollData with visible items and without headers.
     -- At the same time, collect category counts.
@@ -471,44 +551,265 @@ local function createNewScrollData(scrollData)
             end
         end
 
-        local categoryName = data.AC_categoryName
-        if not categoryName then
-            categoryName = otherCategory
-            data.AC_categoryName = categoryName
-        end
+        local isHeader = itemEntry.typeId == CATEGORY_HEADER
+        -- A header of an intermediate level in scrollData only carries its
+        -- descendants' total count; its descendants rebuild their own
+        -- entries.
+        if isHeader and data.AC_isParent then
+            local headerInfo = ensureHeaderInfo(data.AC_categoryName,
+                data.AC_headerLevel or 1, data.AC_bagTypeId)
+            -- A collapsed parent may be the only remaining row in its
+            -- subtree. Without child items no feedAncestors call restores
+            -- its priority, so retain the key carried by the existing header.
+            local storedKey = data.AC_sortPriorityName
+            if storedKey and (headerInfo.AC_sortPriorityName == nil
+                or storedKey < headerInfo.AC_sortPriorityName) then
+                headerInfo.AC_sortPriorityName = storedKey
+            end
 
-        local catInfo = cnsd_categoryList[categoryName]
+            if AutoCategory.IsCategoryCollapsed(data.AC_bagTypeId,
+                data.AC_categoryName) then
+                -- Content isn't present in scrollData, so reuse
+                -- the count stored on the header; it also feeds the
+                -- levels above this one.
+                local stored = data.AC_catCount or 0
+                headerInfo.AC_catCount = stored
+                feedAncestors(data.AC_categoryName, data.AC_bagTypeId,
+                    data.AC_sortPriorityName, stored)
+            end
 
-        if not catInfo then
-            catInfo = {
-                AC_sortPriorityName = data.AC_sortPriorityName,
-                AC_categoryName     = categoryName,
-                AC_bagTypeId        = data.AC_bagTypeId,
-                AC_catCount         = 0,
-            }
+        else
+            local categoryName = data.AC_categoryName
+            if not categoryName then
+                categoryName = otherCategory
+                data.AC_categoryName = categoryName
+            end
 
-            cnsd_categoryList[categoryName] = catInfo
-        end
+            local catInfo = cnsd_categoryList[categoryName]
 
-        if itemEntry.typeId ~= CATEGORY_HEADER then
-            catInfo.AC_catCount = catInfo.AC_catCount + 1
+            if not catInfo then
+                catInfo = {
+                    AC_sortPriorityName = data.AC_sortPriorityName,
+                    AC_categoryName     = categoryName,
+                    AC_bagTypeId        = data.AC_bagTypeId,
+                    AC_catCount         = 0,
+                }
 
-        elseif AutoCategory.IsCategoryCollapsed(
-            data.AC_bagTypeId,
-            categoryName
-        ) then
-            -- Content isn't present in scrollData, so reuse
-            -- the count stored on the header.
-            catInfo.AC_catCount = data.AC_catCount
+                local levelCount = CategoryTree.LevelCount(categoryName)
+                if levelCount > 1 then
+                    catInfo.AC_parentName = CategoryTree.ParentOf(categoryName)
+                    catInfo.AC_headerLevel = levelCount
+                    catInfo.AC_displayName =
+                        CategoryTree.DisplayName(categoryName)
+                end
+
+                cnsd_categoryList[categoryName] = catInfo
+            end
+
+            local contribution = 0
+            if not isHeader then
+                contribution = 1
+
+            elseif AutoCategory.IsCategoryCollapsed(
+                data.AC_bagTypeId,
+                categoryName
+            ) then
+                -- Content isn't present in scrollData, so reuse
+                -- the count stored on the header.
+                contribution = data.AC_catCount or 0
+            end
+            catInfo.AC_catCount = catInfo.AC_catCount + contribution
+
+            -- A hierarchical entry also feeds every level's total
+            -- above its category.
+            feedAncestors(categoryName, data.AC_bagTypeId,
+                data.AC_sortPriorityName, contribution)
         end
     end
 
-    -- Append category headers.
-    for _, catInfo in pairs(cnsd_categoryList) do
-        local headerEntry = createHeaderEntry(catInfo)
+    -- Create the zero-count category entry of a bag rule that matched no
+    -- item, and feed its ancestors (zero) so the intermediate headers are
+    -- created too. Shared by both empty-category display modes below.
+    local bagRuleDisplayResolvers = {}
+    local function addEmptyCategoryHeader(bagTypeId, bagrule)
+        local resolveDisplay = bagRuleDisplayResolvers[bagTypeId]
+        if not resolveDisplay then
+            resolveDisplay = AutoCategory.MakeBagRuleDisplayResolver(bagTypeId)
+            bagRuleDisplayResolvers[bagTypeId] = resolveDisplay
+        end
+        local categoryName, sortKey = resolveDisplay(bagrule)
+        if cnsd_categoryList[categoryName] then return false end
+        local catInfo = {
+            AC_sortPriorityName = sortKey,
+            AC_categoryName     = categoryName,
+            AC_bagTypeId        = bagTypeId,
+            AC_catCount         = 0,
+        }
 
-        if headerEntry then
-            newScrollData[#newScrollData + 1] = headerEntry
+        local levelCount = CategoryTree.LevelCount(categoryName)
+        if levelCount > 1 then
+            catInfo.AC_parentName =
+                CategoryTree.ParentOf(categoryName)
+            catInfo.AC_headerLevel = levelCount
+            catInfo.AC_displayName =
+                CategoryTree.DisplayName(categoryName)
+        end
+
+        cnsd_categoryList[categoryName] = catInfo
+
+        -- A hierarchical empty category also feeds every
+        -- level's total above it (zero), so the intermediate
+        -- headers are created too.
+        feedAncestors(categoryName, bagTypeId,
+            catInfo.AC_sortPriorityName, 0)
+        return true
+    end
+
+    -- the bags present in the list (a fully empty list is not rebuilt
+    -- at all, so an empty inventory shows no header either way)
+    local function bagTypeIdsInList()
+        local bagTypeIds = {}
+        for _, itemEntry in ipairs(scrollData) do
+            local data = itemEntry.data
+            if data and data.AC_bagTypeId then
+                bagTypeIds[data.AC_bagTypeId] = true
+            end
+        end
+        return bagTypeIds
+    end
+
+    -- Force the display of the categories of the bag that matched no
+    -- item (a new category whose rule is still false, an emptied
+    -- category): add a zero-count header for every non-hidden bag
+    -- rule that has no category entry yet.
+    if AutoCategory.saved.general
+        and AutoCategory.saved.general["SHOW_EMPTY_CATEGORIES"] then
+        for bagTypeId in pairs(bagTypeIdsInList()) do
+            local savedBag = AutoCategory.saved.bags[bagTypeId]
+            local bagRules = savedBag and savedBag.rules
+            if bagRules then
+                for i = 1, #bagRules do
+                    local bagrule = bagRules[i]
+                    if bagrule and type(bagrule.name) == "string"
+                            and bagrule.name ~= ""
+                            and not bagrule.isHidden then
+                        addEmptyCategoryHeader(bagTypeId, bagrule)
+                    end
+                end
+            end
+        end
+    else
+        -- With the option off, a category that matched no item still
+        -- shows right after its creation, and only then: an ordinary
+        -- emptied category stays hidden. The marker is the session
+        -- table of the categories created since the UI loaded
+        -- (CLM.CreatedThisSession, see CLM.CreateCategory): an orphan
+        -- "false" rule left over from an earlier session (an old
+        -- "new sub-level", a leftover placeholder) no longer keeps a
+        -- category visible as a zero-count header forever - the
+        -- guild-bank "PvP [0]" / "Commandes scellées [0]" ghosts.
+        -- Once the category has matched its first item the marker is
+        -- cleared: after that it is an ordinary category and hides
+        -- when emptied again.
+        local CLM = AutoCategory.CategoryLevelMenu
+        local createdThisSession = CLM and CLM.CreatedThisSession
+        if createdThisSession then
+            for bagTypeId in pairs(bagTypeIdsInList()) do
+                local savedBag = AutoCategory.saved.bags[bagTypeId]
+                local bagRules = savedBag and savedBag.rules
+                if bagRules then
+                    for i = 1, #bagRules do
+                        local bagrule = bagRules[i]
+                        if bagrule and type(bagrule.name) == "string"
+                                and bagrule.name ~= ""
+                                and not bagrule.isHidden
+                                and createdThisSession[bagrule.name] then
+                            if not addEmptyCategoryHeader(bagTypeId, bagrule) then
+                                -- items landed: the category shows on
+                                -- its own, the marker's job is done
+                                createdThisSession[bagrule.name] = nil
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+
+
+    -----------------------------------------------------------------------
+    -- Reconcile the collapse state with the categories now present.
+    -- Every entry of this list belongs to the same bag/inventory.
+    -----------------------------------------------------------------------
+    local listBagId
+
+    for _, catInfo in pairs(cnsd_categoryList) do
+        listBagId = catInfo.AC_bagTypeId
+        break
+    end
+
+    if listBagId ~= nil
+            and type(AutoCategory.UpdateCategoryState) == "function" then
+        -- Intermediate levels (the parent names of a level chain) are
+        -- foldable header rows without a rule of their own. They must
+        -- join the category state, or SetCategoryCollapsed refuses to
+        -- fold a level-1 header and the click is silently ignored.
+        local presentCategories = {}
+        for categoryName in pairs(cnsd_categoryList) do
+            presentCategories[categoryName] = true
+        end
+        for headerName in pairs(cnsd_headerList) do
+            presentCategories[headerName] = true
+        end
+        AutoCategory.UpdateCategoryState(listBagId, presentCategories)
+    end
+
+    -- Merge the intermediate-level totals into a category that carries its
+    -- own items: its header must show direct items plus all descendants.
+    for _, headerInfo in pairs(cnsd_headerList) do
+        local catInfo = cnsd_categoryList[headerInfo.AC_categoryName]
+        if catInfo then
+            catInfo.AC_catCount = catInfo.AC_catCount
+                + headerInfo.AC_catCount
+            if headerInfo.AC_sortPriorityName
+                and (catInfo.AC_sortPriorityName == nil
+                    or headerInfo.AC_sortPriorityName
+                        < catInfo.AC_sortPriorityName) then
+                catInfo.AC_sortPriorityName = headerInfo.AC_sortPriorityName
+            end
+        end
+    end
+
+    -- Append the headers of the intermediate levels. A level name that
+    -- also exists as a category reuses that category's own header, and a
+    -- header is only shown while every level above it is expanded.
+    for _, headerInfo in pairs(cnsd_headerList) do
+        if cnsd_categoryList[headerInfo.AC_categoryName] == nil
+            and not CategoryTree.IsAnyAncestorCollapsed(
+                headerInfo.AC_bagTypeId,
+                headerInfo.AC_categoryName
+            ) then
+            local headerEntry = createHeaderEntry(headerInfo)
+
+            if headerEntry then
+                newScrollData[#newScrollData + 1] = headerEntry
+            end
+        end
+    end
+
+    -- Append category headers. A nested category header is only shown
+    -- while every level above it is expanded.
+    for _, catInfo in pairs(cnsd_categoryList) do
+        if not CategoryTree.IsAnyAncestorCollapsed(
+                catInfo.AC_bagTypeId,
+                catInfo.AC_categoryName
+            ) then
+            local headerEntry = createHeaderEntry(catInfo)
+
+            if headerEntry then
+                newScrollData[#newScrollData + 1] = headerEntry
+            end
         end
     end
 
@@ -521,19 +822,25 @@ local function rebuildScrollData(zo_inventory)
 	local list = zo_inventory.listView 
 	local scrollData = ZO_ScrollList_GetDataList(list)
 
-    if not scrollData or #scrollData == 0 then 
-        if zo_inventory.altFreeSlotType == INVENTORY_GUILD_BANK then
-            zo_callLater(function()
-                local freshData = ZO_ScrollList_GetDataList(list)
-                if freshData and #freshData > 0 then
-                    rebuildScrollData(zo_inventory)
-                end
-            end, 100)
-        end
-        return false 
+    if not scrollData or #scrollData == 0 then
+        return false
     end
 	handleRules(scrollData, true)
 	list.data = createNewScrollData(scrollData)
+	-- createNewScrollData appends headers after the surviving items.
+	-- Sort before committing, even when called outside ApplySort.
+	table.sort(list.data, function(left, right)
+		return sortInventoryFn(zo_inventory, left, right,
+			zo_inventory.currentSortKey, zo_inventory.currentSortOrder)
+	end)
+	--The replaced entries (including category headers, typeId 998) only
+	--receive their top/bottom scroll positions from ZO_ScrollList_Commit.
+	--Replacing list.data without committing leaves them nil, which crashes
+	--ZO_ScrollList_UpdateScroll ("operator < is not supported for nil <
+	--number") as soon as the list - or a shared non-uniform scroll list
+	--such as the combobox dropdown - scrolls. Callers like ApplySort sort
+	--and commit again afterwards, which is harmless.
+	ZO_ScrollList_Commit(list)
 	return true
 end
 
@@ -573,7 +880,9 @@ local function prehookSort(self, inventoryType)
 	if not AutoCategory.Enabled then return false end
 
     local isReady, sceneName = readyToUpdate()
-    if not isReady then return false end
+    if not isReady then
+        return false
+    end
 
 	-- revert to default behaviour if safety conditions not met
 	if inventoryType == INVENTORY_QUEST_ITEM then return false end
@@ -663,7 +972,11 @@ local function updateHook(zo_inventory)
     end
     pendingUpdates = SF.safeClearTable(pendingUpdates)
 
-    rebuildScrollData(zo_inventory)
+    --The one-shot CallLater is started without arguments; a nil inventory
+    --would fail silently inside SF_safeCall. Guard instead.
+    if zo_inventory then
+        rebuildScrollData(zo_inventory)
+    end
 end
 
 
@@ -683,7 +996,6 @@ local function onStackItems(evtid, bagId)
 	local invType = PLAYER_INVENTORY.bagToInventoryType[bagId]
 	AutoCategory.RefreshList(invType)
 end
-
 
 function AutoCategory.HookKeyboardMode()
 	--Add a new header row data type
@@ -733,5 +1045,3 @@ function AutoCategory.UnHookKeyboardMode()
         callLater = callLater:Destroy()
     end
 end
-
-

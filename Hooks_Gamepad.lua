@@ -3,6 +3,10 @@
 
 --
 -- ref to ingame/crafting/gamepad/gamepadcraftinginventory.lua
+
+-- Two-level categories: "parent----child" names sort hierarchically
+-- and display as "parent - child" on one line.
+local CategoryTree = AutoCategory.CategoryTree
 local ZGCI = ZO_GamepadCraftingInventory
 
 local CUSTOM_GAMEPAD_ITEM_SORT = {
@@ -25,16 +29,17 @@ local function ZO_GamepadInventoryList_AddSlotDataToTable(self, slotsTable, inve
     local slotData = SHARED_INVENTORY:GenerateSingleSlotData(inventoryType, slotIndex)
     if slotData then
         local itemData = slotData
-        local matched, categoryName, categoryPriority, showPriority = AutoCategory:MatchCategoryRules(itemData.bagId, itemData.slotIndex)
+        local matched, categoryName, _, showPriority, _, _, sortKey = AutoCategory:MatchCategoryRules(itemData.bagId, itemData.slotIndex)
         if not matched then
             itemData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
             itemData.bestGamepadItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-            itemData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+            itemData.sortPriorityName = "9999" .. itemData.bestItemTypeName 
 
         else
             itemData.bestItemTypeName = categoryName
-            itemData.bestGamepadItemCategoryName = categoryName
-            itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+            itemData.bestGamepadItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+            itemData.sortPriorityName = sortKey or CategoryTree.BuildSortKey(showPriority, categoryName,
+                AutoCategory.GetCategorySortName(categoryName))
         end
 
         table.insert(slotsTable, slotData)
@@ -52,16 +57,17 @@ local function gci_AddSlotDataToTable1(self, slotsTable, inventoryType, slotInde
             -- We'll use bestGamepadItemCategoryName instead so there are no conflicts.
             --slotData.bestGamepadItemCategoryName = categorizationFunction(slotData)
 
-            local matched, categoryName, categoryPriority, showPriority = AutoCategory:MatchCategoryRules(slotData.bagId, slotData.slotIndex)
+            local matched, categoryName, _, showPriority, _, _, sortKey = AutoCategory:MatchCategoryRules(slotData.bagId, slotData.slotIndex)
             if not matched then
                 slotData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
                 slotData.bestGamepadItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-                slotData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+                slotData.sortPriorityName = "9999" .. slotData.bestItemTypeName 
 
             else
                 slotData.bestItemTypeName = categoryName
-                slotData.bestGamepadItemCategoryName = categoryName
-                slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+                slotData.bestGamepadItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+                slotData.sortPriorityName = sortKey or CategoryTree.BuildSortKey(showPriority, categoryName,
+                    AutoCategory.GetCategorySortName(categoryName))
             end
 
             table.insert(slotsTable, slotData)
@@ -167,23 +173,24 @@ function AutoCategory.HookGamepadInventory()
 				filteredDataTable = SHARED_INVENTORY:GenerateFullSlotData(comparator, BAG_BACKPACK, BAG_WORN)
 			end
 			for _, slotData in pairs(filteredDataTable) do
-				local matched, categoryName, categoryPriority, showPriority = AutoCategory:MatchCategoryRules(slotData.bagId, slotData.slotIndex)
+				local matched, categoryName, _, showPriority, _, _, sortKey = AutoCategory:MatchCategoryRules(slotData.bagId, slotData.slotIndex)
 				if not matched then
 					slotData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
 					slotData.bestItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-					slotData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+					slotData.sortPriorityName = "9999" .. slotData.bestItemTypeName 
 
 				else
 					slotData.bestItemTypeName = categoryName
-					slotData.bestItemCategoryName = categoryName
-					slotData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName)
+					slotData.bestItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+					slotData.sortPriorityName = sortKey or CategoryTree.BuildSortKey(showPriority, categoryName,
+					    AutoCategory.GetCategorySortName(categoryName))
 				end
 			end
 			table.sort(filteredDataTable, AutoCategory_ItemSortComparator)
 		end
 
 		local lastBestItemCategoryName
-		for i, itemData in pairs(filteredDataTable) do
+		for _, itemData in ipairs(filteredDataTable) do
 			local entryData = ZO_GamepadEntryData:New(itemData.name, itemData.iconFile)
 			entryData:InitializeInventoryVisualData(itemData)
 
@@ -449,7 +456,7 @@ local function gci_AddFilteredDataToList(self, filteredDataTable)
     table.sort(filteredDataTable, AutoCategory_ItemSortComparator) -- this is different
 
     local lastBestItemCategoryName
-    for i, itemData in pairs(filteredDataTable) do
+    for _, itemData in ipairs(filteredDataTable) do
         if itemData.bestItemCategoryName ~= lastBestItemCategoryName then
             lastBestItemCategoryName = itemData.bestItemCategoryName
             itemData:SetHeader(zo_strformat(SI_GAMEPAD_CRAFTING_INVENTORY_HEADER, lastBestItemCategoryName))
@@ -470,16 +477,17 @@ local function gci_GenerateCraftingInventoryEntryData(self, bagId, slotIndex, st
     newData:InitializeCraftingInventoryVisualData(bagId, slotIndex, stackCount, customSortData, self.customBestItemCategoryNameFunction, slotData)
     --Auto Category Modify[
     if slotData then
-        local matched, categoryName, categoryPriority, showPriority = AutoCategory:MatchCategoryRules(slotData.bagId, slotData.slotIndex, AC_BAG_TYPE_CRAFTSTATION)
+        local matched, categoryName, _, showPriority, _, _, sortKey = AutoCategory:MatchCategoryRules(slotData.bagId, slotData.slotIndex, AC_BAG_TYPE_CRAFTSTATION)
         if not matched then
             newData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
             newData.bestItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-            newData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+            newData.sortPriorityName = "9999" .. newData.bestItemTypeName 
 
         else
             newData.bestItemTypeName = categoryName
-            newData.bestItemCategoryName = categoryName
-            newData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+            newData.bestItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+            newData.sortPriorityName = sortKey or CategoryTree.BuildSortKey(showPriority, categoryName,
+                AutoCategory.GetCategorySortName(categoryName))
         end
     end
     --Auto Category Modify]
@@ -520,16 +528,17 @@ function AutoCategory.HookGamepadStore(list)
 			local itemData = filteredDataTable[i]
 			--use custom categories
 
-			local matched, categoryName, categoryPriority, showPriority = AutoCategory:MatchCategoryRules(itemData.bagId, itemData.slotIndex)
+			local matched, categoryName, _, showPriority, _, _, sortKey = AutoCategory:MatchCategoryRules(itemData.bagId, itemData.slotIndex)
 			if not matched then
 	            itemData.bestItemTypeName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
 	            itemData.bestGamepadItemCategoryName = AutoCategory.acctSaved.appearance["CATEGORY_OTHER_TEXT"]
-	            itemData.sortPriorityName = string.format("%04d%s", 9999 , categoryName) 
+	            itemData.sortPriorityName = "9999" .. itemData.bestItemTypeName 
 
 			else
 				itemData.bestItemTypeName = categoryName
-				itemData.bestGamepadItemCategoryName = categoryName
-				itemData.sortPriorityName = string.format("%04d%s", 1000 - showPriority , categoryName) 
+				itemData.bestGamepadItemCategoryName = CategoryTree.JoinDisplayName(categoryName)
+				itemData.sortPriorityName = sortKey or CategoryTree.BuildSortKey(showPriority, categoryName,
+				    AutoCategory.GetCategorySortName(categoryName))
 			end
 
 	        table.insert(tempDataTable, itemData)

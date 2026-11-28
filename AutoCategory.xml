@@ -1,5 +1,107 @@
 <GuiXml>
     <Controls> 
+        <TopLevelControl name="AC_CategoryManagementWindow" hidden="true" mouseEnabled="true" movable="true" clampedToScreen="true" tier="HIGH">
+            <Dimensions x="880" y="664"/>
+            <Anchor point="CENTER" relativeTo="GuiRoot" relativePoint="CENTER"/>
+            <OnMouseDown>
+                self:BringWindowToTop()
+            </OnMouseDown>
+            <Controls>
+                <Backdrop name="$(parent)Backdrop" inherits="ZO_DefaultBackdrop" mouseEnabled="false">
+                    <AnchorFill/>
+                </Backdrop>
+                <Label name="$(parent)Title" font="ZoFontWinH1" horizontalAlignment="CENTER">
+                    <Anchor point="TOPLEFT" offsetX="18" offsetY="12"/>
+                    <Anchor point="TOPRIGHT" offsetX="-18" offsetY="12"/>
+                </Label>
+                <Label name="$(parent)Inventory" font="ZoFontGameMedium" horizontalAlignment="CENTER">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Title" relativePoint="BOTTOMLEFT" offsetY="2"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Title" relativePoint="BOTTOMRIGHT" offsetY="2"/>
+                </Label>
+                <Label name="$(parent)AvailableTitle" font="ZoFontWinH4" horizontalAlignment="CENTER">
+                    <Dimensions x="410" y="50"/>
+                    <Anchor point="TOPLEFT" offsetX="18" offsetY="70"/>
+                </Label>
+                <Label name="$(parent)PresentTitle" font="ZoFontWinH4" horizontalAlignment="CENTER">
+                    <Dimensions x="410" y="50"/>
+                    <Anchor point="TOPRIGHT" offsetX="-18" offsetY="70"/>
+                </Label>
+                <Control name="$(parent)Available" inherits="AC_OrderListHost">
+                    <Dimensions x="410" y="426"/>
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)AvailableTitle" relativePoint="BOTTOMLEFT"/>
+                </Control>
+                <Control name="$(parent)Present" inherits="AC_OrderListHost">
+                    <Dimensions x="410" y="385"/>
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)PresentTitle" relativePoint="BOTTOMLEFT"/>
+                </Control>
+                <Label name="$(parent)Hint" font="ZoFontGameSmall" horizontalAlignment="CENTER" verticalAlignment="CENTER">
+                    <Dimensions y="38"/>
+                    <Anchor point="BOTTOMLEFT" offsetX="18" offsetY="-68"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-18" offsetY="-68"/>
+                </Label>
+                <Label name="$(parent)Status" font="ZoFontGameSmall" color="FF6666" horizontalAlignment="CENTER" verticalAlignment="CENTER">
+                    <Dimensions y="26"/>
+                    <Anchor point="BOTTOMLEFT" offsetX="18" offsetY="-42"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-18" offsetY="-42"/>
+                </Label>
+                <Button name="$(parent)Confirm" inherits="ZO_DefaultButton">
+                    <Dimensions x="176" y="30"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-204" offsetY="-10"/>
+                </Button>
+                <Button name="$(parent)Cancel" inherits="ZO_DefaultButton">
+                    <Dimensions x="176" y="30"/>
+                    <Anchor point="BOTTOMRIGHT" offsetX="-18" offsetY="-10"/>
+                </Button>
+            </Controls>
+        </TopLevelControl>
+
+        <TopLevelControl name="AC_NewCategoryDialog" inherits="ZO_CustomDialogBase">
+            <Controls>
+                <Label name="$(parent)Title" override="true">
+                    <Dimensions x="440"/>
+                </Label>
+                <Label name="$(parent)Text" inherits="ZO_DialogContentAnchors" font="ZoFontGameMedium" color="INTERFACE_COLOR_TYPE_TEXT_COLORS:INTERFACE_TEXT_COLOR_NORMAL"/>
+                <Backdrop name="$(parent)CategoryName" inherits="ZO_SingleLineEditBackdrop_Keyboard">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Text" relativePoint="BOTTOMLEFT" offsetY="8"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Text" relativePoint="BOTTOMRIGHT" offsetY="8"/>
+                    <Controls>
+                        <EditBox name="$(parent)Edit" inherits="ZO_DefaultEditForBackdrop">
+                            <OnEffectivelyShown>
+                                self:TakeFocus()
+                            </OnEffectivelyShown>
+                        </EditBox>
+                    </Controls>
+                </Backdrop>
+                <Label name="$(parent)TagLabel" font="ZoFontGameMedium" text="SI_AC_MENU_CS_DROPDOWN_TAG">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)CategoryName" relativePoint="BOTTOMLEFT" offsetY="14"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)CategoryName" relativePoint="BOTTOMRIGHT" offsetY="14"/>
+                </Label>
+                <Control name="$(parent)Tag" inherits="ZO_ComboBox">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)TagLabel" relativePoint="BOTTOMLEFT" offsetY="6"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)TagLabel" relativePoint="BOTTOMRIGHT" offsetY="6"/>
+                </Control>
+                <Control name="$(parent)NewTag" hidden="true" resizeToFitDescendents="true">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Tag" relativePoint="BOTTOMLEFT" offsetY="14"/>
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Tag" relativePoint="BOTTOMRIGHT" offsetY="14"/>
+                    <Controls>
+                        <Label name="$(parent)Label" font="ZoFontGameMedium" text="SI_AC_DIALOG_TAG_NAME_FIELD">
+                            <Anchor point="TOPLEFT"/>
+                            <Anchor point="TOPRIGHT"/>
+                        </Label>
+                        <Backdrop name="$(parent)Backdrop" inherits="ZO_SingleLineEditBackdrop_Keyboard">
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)Label" relativePoint="BOTTOMLEFT" offsetY="6"/>
+                            <Anchor point="TOPRIGHT" relativeTo="$(parent)Label" relativePoint="BOTTOMRIGHT" offsetY="6"/>
+                            <Controls>
+                                <EditBox name="$(parent)Edit" inherits="ZO_DefaultEditForBackdrop"/>
+                            </Controls>
+                        </Backdrop>
+                    </Controls>
+                </Control>
+                <Control name="$(parent)Cancel" inherits="ZO_CustomDialogButton"/>
+                <Control name="$(parent)Confirm" inherits="ZO_CustomDialogButton"/>
+            </Controls>
+        </TopLevelControl>
+
         <Control name="AC_InventoryItemRow" inherits="ZO_PlayerInventorySlot" virtual="true">
             <Controls>
                 <Control name="$(parent)Status" override="true">
@@ -57,4 +159,3 @@
         </Control>
     </Controls>
 </GuiXml>
-

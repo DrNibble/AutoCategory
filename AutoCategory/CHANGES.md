@@ -1,5 +1,20 @@
 # Changes
 
+## 2026-11-28: fold a level-1 header again (5.1.4)
+
+- Clicking the level-1 header of a hierarchy whose top name carries no
+  rule of its own ("Potions" for a category named
+  "Potions----Magie----Soin") is no longer ignored: the header folds and
+  unfolds its whole subtree again, and the state survives a refresh.
+- Cause: the collapse state only received the categories of the list, never
+  the intermediate header levels built from the level chain, so
+  SetCategoryCollapsed considered the level-1 header unknown and returned
+  without doing anything. createNewScrollData now hands it every header
+  name as well.
+- Test: test/HeaderLevel1Collapse_test.lua (10 assertions) replays a
+  three-level hierarchy through the ApplySort prehook, folds and unfolds
+  the level-1 header. Not tested in ESO.
+
 ## 2026-11-27: the new strings in every language (5.1.3)
 
 - German, Spanish, Russian and Chinese now carry the strings of the two

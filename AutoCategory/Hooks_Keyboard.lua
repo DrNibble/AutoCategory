@@ -751,7 +751,18 @@ local function createNewScrollData(scrollData)
 
     if listBagId ~= nil
             and type(AutoCategory.UpdateCategoryState) == "function" then
-        AutoCategory.UpdateCategoryState(listBagId, cnsd_categoryList)
+        -- Intermediate levels (the parent names of a level chain) are
+        -- foldable header rows without a rule of their own. They must
+        -- join the category state, or SetCategoryCollapsed refuses to
+        -- fold a level-1 header and the click is silently ignored.
+        local presentCategories = {}
+        for categoryName in pairs(cnsd_categoryList) do
+            presentCategories[categoryName] = true
+        end
+        for headerName in pairs(cnsd_headerList) do
+            presentCategories[headerName] = true
+        end
+        AutoCategory.UpdateCategoryState(listBagId, presentCategories)
     end
 
     -- Merge the intermediate-level totals into a category that carries its

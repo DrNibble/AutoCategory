@@ -1,4 +1,4 @@
-[B][COLOR="DarkOrange"]Requires LibAddonMenu-2.0, LibCustomMenu, LibSFUtils, LibMediaProvider and LibDebugLogger. Install these libraries separately. LibScrollableMenu is not required.[/COLOR][/B]
+[B][COLOR="DarkOrange"]Requires LibAddonMenu-2.0, LibCustomMenu, LibSFUtils, LibMediaProvider and LibDebugLogger. Install these libraries separately. LibSets is optional.[/COLOR][/B]
 
 [b]Features[/b]
 [list]
